@@ -1,6 +1,6 @@
 # AI Usage Tracker
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-MV3-yellow.svg)](#install)
 [![Firefox](https://img.shields.io/badge/Firefox-MV3-orange.svg)](#install)
@@ -30,7 +30,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 
 ### Chrome / Edge / Brave / any Chromium 109+
 
-1. Download `AI-Usage-Tracker-chrome-v0.1.0.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
+1. Download `AI-Usage-Tracker-chrome-v0.1.1.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Unzip it anywhere.
 3. Open `chrome://extensions`.
 4. Toggle **Developer mode** on (top-right).
@@ -41,7 +41,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 
 ### Firefox Developer Edition / Nightly
 
-1. Download `ai-usage-tracker-firefox-v0.1.0.xpi` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
+1. Download `ai-usage-tracker-firefox-v0.1.1.xpi` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Open `about:config` → set `xpinstall.signatures.required` to `false` (DevEd/Nightly only).
 3. Open `about:addons` → gear icon → **Install Add-on From File** → pick the `.xpi`.
 

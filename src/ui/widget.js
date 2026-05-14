@@ -3,6 +3,11 @@
 
 import { loadState, saveState } from '../lib/storage.js';
 import { formatCountdown, ringColor } from '../lib/countdown.js';
+import { send } from '../lib/browser.js';
+
+function openAnalytics(which) {
+  send({ type: 'aut/open-analytics', provider: which });
+}
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
@@ -114,10 +119,13 @@ async function render({ onRefresh, onOpenSettings }) {
     const empty = document.createElement('div');
     empty.className = 'aut-widget__empty';
     empty.innerHTML = `
-      No data yet. Visit the analytics pages once while signed in, or click refresh.<br>
-      <a href="https://claude.ai/settings/usage" target="_blank">Claude usage</a> ·
-      <a href="https://chatgpt.com/codex/cloud/settings/analytics" target="_blank">Codex analytics</a>
+      No data yet. The analytics pages need to render once so the scraper can read them.<br>
+      <button class="aut-iconbtn aut-link-btn" data-act="open-claude">Open Claude usage</button>
+      <span class="aut-dot">·</span>
+      <button class="aut-iconbtn aut-link-btn" data-act="open-codex">Open Codex analytics</button>
     `;
+    empty.querySelector('[data-act="open-claude"]').addEventListener('click', () => openAnalytics('claude'));
+    empty.querySelector('[data-act="open-codex"]').addEventListener('click', () => openAnalytics('codex'));
     body.appendChild(empty);
   }
 
@@ -127,7 +135,7 @@ async function render({ onRefresh, onOpenSettings }) {
     const foot = document.createElement('div');
     foot.className = 'aut-widget__footer';
     const ago = formatAgo(snapshot.fetchedAtISO);
-    foot.innerHTML = `<span>Updated ${ago}</span><span>v0.1.0</span>`;
+    foot.innerHTML = `<span>Updated ${ago}</span><span>v0.1.1</span>`;
     wrap.appendChild(foot);
   }
 
@@ -242,12 +250,14 @@ function renderProviderError(provider, error) {
 
   const err = document.createElement('div');
   err.className = 'aut-widget__error';
-  if (error === 'shell-response') {
-    err.textContent = `Couldn't read ${provider} analytics. Visit the page once while signed in, then click refresh.`;
+  const link = `<button class="aut-link-btn" data-act="open-${provider}">Open analytics</button>`;
+  if (error === 'shell-response' || error === 'unhydrated' || error === 'no-rows-rendered') {
+    err.innerHTML = `Page hasn't rendered yet — ${link} once while signed in.`;
   } else {
-    err.textContent = `${provider}: ${error || 'unknown error'}`;
+    err.innerHTML = `${escapeHtml(error || 'unknown error')} · ${link}`;
   }
   wrap.appendChild(err);
+  err.querySelector('button')?.addEventListener('click', () => openAnalytics(provider));
   return wrap;
 }
 

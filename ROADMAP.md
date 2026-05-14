@@ -1,5 +1,11 @@
 # Roadmap
 
+## v0.1.1 — 2026-05-14 — hotfix
+- [x] Live-DOM scraper as primary path (fixes hydration-shell failure)
+- [x] Silent inactive-tab refresh on alarm
+- [x] One-click "Open analytics" in widget empty/error states
+- [x] `tabs` permission added
+
 ## v0.1.0 — 2026-05-14 — initial release
 - [x] Chrome MV3 extension
 - [x] Firefox MV3 extension (unsigned XPI)

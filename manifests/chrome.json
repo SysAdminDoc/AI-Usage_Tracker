@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AI Usage Tracker",
   "short_name": "AI Usage",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget, popup dashboard, and OS alerts.",
   "author": "SysAdminDoc",
   "homepage_url": "https://github.com/SysAdminDoc/AI-Usage_Tracker",
@@ -45,13 +45,24 @@
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/settings/usage*",
+        "https://*.claude.ai/settings/usage*",
+        "https://chatgpt.com/codex/cloud/settings/analytics*",
+        "https://*.chatgpt.com/codex/cloud/settings/analytics*"
+      ],
+      "js": ["analytics-scraper.js"],
+      "run_at": "document_idle"
     }
   ],
 
   "permissions": [
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "tabs"
   ],
 
   "host_permissions": [

@@ -19,10 +19,11 @@ export async function buildExtension({ target }) {
 
   // 1) Bundle JS entry points.
   const bundles = [
-    { entry: path.join(SRC, 'background.js'),   out: path.join(outDir, 'background.js'),   format: 'esm',  isWorker: true  },
-    { entry: path.join(SRC, 'content.js'),      out: path.join(outDir, 'content.js'),      format: 'iife', isWorker: false },
-    { entry: path.join(SRC, 'ui', 'popup.js'),  out: path.join(outDir, 'ui', 'popup.js'),  format: 'iife', isWorker: false },
-    { entry: path.join(SRC, 'ui', 'options.js'),out: path.join(outDir, 'ui', 'options.js'),format: 'iife', isWorker: false },
+    { entry: path.join(SRC, 'background.js'),       out: path.join(outDir, 'background.js'),       format: 'esm',  isWorker: true  },
+    { entry: path.join(SRC, 'content.js'),          out: path.join(outDir, 'content.js'),          format: 'iife', isWorker: false },
+    { entry: path.join(SRC, 'analytics-scraper.js'),out: path.join(outDir, 'analytics-scraper.js'),format: 'iife', isWorker: false },
+    { entry: path.join(SRC, 'ui', 'popup.js'),      out: path.join(outDir, 'ui', 'popup.js'),      format: 'iife', isWorker: false },
+    { entry: path.join(SRC, 'ui', 'options.js'),    out: path.join(outDir, 'ui', 'options.js'),    format: 'iife', isWorker: false },
   ];
 
   for (const b of bundles) {

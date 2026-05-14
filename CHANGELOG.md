@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.1 — 2026-05-14
+
+Fixes the "Unable to read analytics" failure on both providers.
+
+### Fixed
+- claude.ai and chatgpt.com both serve a hydration shell on first fetch, so the background's direct `fetch()` couldn't see usage numbers — they only render after React hydrates. New `analytics-scraper.js` content script runs on the actual analytics pages, watches the rendered DOM with `MutationObserver`, and pushes the live snapshot to the background. Direct-fetch stays as a best-effort fast path.
+- Background alarm now also opens a silent inactive tab (auto-closed after 20 s) for any provider whose cached data is stale. The content script on that tab does the live scrape.
+- Widget empty / error states now show a one-click "Open analytics" button that opens the page so the scraper can run.
+
+### Added
+- `parseClaudeDoc(document)` and `parseCodexDoc(document)` — DOM-based scrapers that complement the regex-based raw-HTML scrapers.
+- `tabs` permission in both manifests so the background can open the analytics pages.
+
 ## v0.1.0 — 2026-05-14
 
 Initial release.
