@@ -1,0 +1,34 @@
+# Local-only working files (never commit)
+CLAUDE.md
+CODEX_CHANGELOG.md
+.claude/
+*.bak
+
+# Build output
+dist/
+*.zip
+*.crx
+*.xpi
+
+# Signing keys (never commit private keys)
+*.pem
+!example.pem.placeholder
+
+# Source-page snapshots used only for parser regression reference
+*.mhtml
+
+# Node
+node_modules/
+package-lock.json
+.pnpm-store/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp

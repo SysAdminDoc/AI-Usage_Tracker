@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Usage Tracker — Settings</title>
+  <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body class="aut-root">
+  <header class="opt-head">
+    <span class="aut-widget__brand-dot"></span>
+    <h1>AI Usage Tracker</h1>
+    <span class="opt-head__sub">Settings · v0.1.0</span>
+  </header>
+
+  <main class="opt-main">
+    <section class="opt-card">
+      <h2>Providers</h2>
+      <p class="opt-hint">Turn each provider on or off entirely.</p>
+      <div id="provider-toggles" class="opt-grid"></div>
+    </section>
+
+    <section class="opt-card">
+      <h2>Visible rows</h2>
+      <p class="opt-hint">Headline buckets are on by default. Toggle per-model sub-rows when you want more detail in the widget and popup.</p>
+      <div id="row-toggles" class="opt-grid"></div>
+    </section>
+
+    <section class="opt-card">
+      <h2>Refresh</h2>
+      <p class="opt-hint">How often the background fetches new data.</p>
+      <select id="refreshMinutes" class="opt-select">
+        <option value="1">Every 1 minute</option>
+        <option value="5">Every 5 minutes</option>
+        <option value="15">Every 15 minutes</option>
+        <option value="30">Every 30 minutes</option>
+      </select>
+    </section>
+
+    <section class="opt-card">
+      <h2>Notifications</h2>
+      <p class="opt-hint">All triggers are individually toggleable. They never fire more than once per reset window.</p>
+      <div class="opt-grid">
+        <label class="opt-toggle"><input type="checkbox" data-notif="R1-60"> Renewal — 60 min before reset</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R1-15"> Renewal — 15 min before reset</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R1-0">  Renewal — at reset moment</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R2">    On-reset positive — "fresh quota!"</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U1-75"> Threshold — 75% used</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U1-90"> Threshold — 90% used</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U1-95"> Threshold — 95% used</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U2">    Burn-rate forecast — weekly</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="D1">    Daily briefing</label>
+      </div>
+      <div class="opt-row">
+        <label for="dailyBriefingHour">Daily briefing time</label>
+        <select id="dailyBriefingHour" class="opt-select"></select>
+      </div>
+    </section>
+
+    <section class="opt-card">
+      <h2>Widget</h2>
+      <div class="opt-row">
+        <button id="resetWidgetPosition" class="opt-btn">Reset widget to bottom-right</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="opt-foot">
+    <span id="saveStatus">Saved.</span>
+    <span class="opt-foot__right">
+      <a href="https://github.com/SysAdminDoc/AI-Usage_Tracker" target="_blank">GitHub</a>
+    </span>
+  </footer>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>

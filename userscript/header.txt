@@ -1,0 +1,28 @@
+// ==UserScript==
+// @name         AI Usage Tracker
+// @namespace    https://github.com/SysAdminDoc/AI-Usage_Tracker
+// @version      0.1.0
+// @description  Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget while you work.
+// @author       SysAdminDoc
+// @homepageURL  https://github.com/SysAdminDoc/AI-Usage_Tracker
+// @supportURL   https://github.com/SysAdminDoc/AI-Usage_Tracker/issues
+// @updateURL    https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest/download/ai-usage-tracker.user.js
+// @downloadURL  https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest/download/ai-usage-tracker.user.js
+// @icon         https://raw.githubusercontent.com/SysAdminDoc/AI-Usage_Tracker/main/src/icons/icon-128.png
+// @match        https://claude.ai/*
+// @match        https://*.claude.ai/*
+// @match        https://chatgpt.com/*
+// @match        https://*.chatgpt.com/*
+// @grant        GM.getValue
+// @grant        GM.setValue
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM.notification
+// @grant        GM_notification
+// @grant        unsafeWindow
+// @connect      claude.ai
+// @connect      chatgpt.com
+// @run-at       document-idle
+// @noframes
+// @license      MIT
+// ==/UserScript==

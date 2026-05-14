@@ -1,0 +1,94 @@
+/* Catppuccin Mocha tokens + a few app-local accents.
+   Scoped to .aut-root so we never leak into the host page. */
+
+.aut-root {
+  /* Catppuccin Mocha palette */
+  --aut-base:     #1e1e2e;
+  --aut-mantle:   #181825;
+  --aut-crust:    #11111b;
+  --aut-surface0: #313244;
+  --aut-surface1: #45475a;
+  --aut-surface2: #585b70;
+  --aut-overlay0: #6c7086;
+  --aut-overlay1: #7f849c;
+  --aut-overlay2: #9399b2;
+  --aut-text:     #cdd6f4;
+  --aut-subtext0: #a6adc8;
+  --aut-subtext1: #bac2de;
+  --aut-rosewater:#f5e0dc;
+  --aut-flamingo: #f2cdcd;
+  --aut-pink:     #f5c2e7;
+  --aut-mauve:    #cba6f7;
+  --aut-red:      #f38ba8;
+  --aut-maroon:   #eba0ac;
+  --aut-peach:    #fab387;
+  --aut-yellow:   #f9e2af;
+  --aut-green:    #a6e3a1;
+  --aut-teal:     #94e2d5;
+  --aut-sky:      #89dceb;
+  --aut-sapphire: #74c7ec;
+  --aut-blue:     #89b4fa;
+  --aut-lavender: #b4befe;
+
+  /* App accents (mapped from palette) */
+  --aut-accent:   var(--aut-lavender);
+  --aut-amber:    var(--aut-peach);
+
+  /* Glass card */
+  --aut-glass-bg:     rgba(30, 30, 46, 0.78);
+  --aut-glass-border: rgba(180, 190, 254, 0.22);
+  --aut-glass-shadow: 0 18px 48px -16px rgba(0, 0, 0, 0.55),
+                      0 0 0 1px rgba(180, 190, 254, 0.10) inset;
+
+  /* Geometry — corner radius capped at 12 per project rules. */
+  --aut-r-sm: 6px;
+  --aut-r-md: 8px;
+  --aut-r-lg: 12px;
+
+  /* Typography */
+  --aut-font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
+              "Inter", "Helvetica Neue", Arial, sans-serif;
+
+  color: var(--aut-text);
+  font-family: var(--aut-font);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Shared utilities */
+.aut-root *, .aut-root *::before, .aut-root *::after {
+  box-sizing: border-box;
+}
+
+.aut-glass {
+  background: var(--aut-glass-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--aut-glass-border);
+  border-radius: var(--aut-r-lg);
+  box-shadow: var(--aut-glass-shadow);
+}
+
+.aut-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.aut-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  transition: transform 700ms ease;
+  pointer-events: none;
+}
+.aut-shimmer:hover::after {
+  transform: translateX(100%);
+}

@@ -1,0 +1,22 @@
+// Build everything — Chrome, Firefox, userscript.
+import { buildExtension } from './build-extension.mjs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function main() {
+  await buildExtension({ target: 'chrome' });
+  await buildExtension({ target: 'firefox' });
+
+  // Userscript build is self-contained — run as separate process.
+  const us = spawnSync(process.execPath, [path.join(__dirname, 'build-userscript.mjs')], {
+    stdio: 'inherit',
+  });
+  if (us.status !== 0) process.exit(us.status || 1);
+
+  console.log('\n[build] All targets built.');
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });
