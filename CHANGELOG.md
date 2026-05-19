@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.5 — 2026-05-19
+
+Adds Claude streamed `message_limit` capture so usage bars can update from live completion responses instead of waiting for the rounded usage endpoint.
+
+### Added
+- Added a Claude page-context stream interceptor for completion SSE responses that extracts `message_limit` payloads without consuming the page's own response stream.
+- Extension builds now bridge streamed Claude usage from the page world back to local storage through a document-start content bridge.
+- Userscript builds now install the same Claude stream interceptor at document start and merge streamed rows into the existing local snapshot.
+- Parser smoke coverage now verifies streamed `message_limit` SSE frames and fractional utilization values.
+
+### Fixed
+- Widget, popup, and options visible version labels now stay synchronized with the packaged project version.
+
 ## v0.1.4 — 2026-05-19
 
 Fixes Codex usage collection by switching Codex to the ChatGPT WHAM usage API first, with the analytics-page scraper retained as fallback.

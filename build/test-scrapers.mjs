@@ -5,8 +5,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './common.mjs';
-import { parseClaude } from '../src/scrapers/claude.js';
+import { parseClaude, parseClaudeUsageApi } from '../src/scrapers/claude.js';
 import { fetchCodexApi, parseCodex, parseCodexUsageApi } from '../src/scrapers/codex.js';
+import { collectClaudeMessageLimitsFromSseText } from '../src/lib/claude-stream.js';
 
 async function run() {
   const claudeRaw = await fs.readFile(path.join(ROOT, 'Claude.mhtml'), 'utf8').catch(() => null);
@@ -28,6 +29,7 @@ async function run() {
     console.log('Codex.mhtml not found — skipping.');
   }
 
+  smokeClaudeStream();
   await smokeCodexApi();
 }
 
@@ -58,6 +60,26 @@ function print(label, parsed) {
     console.log(`     resetISO:    ${b.resetISO || '(none)'}`);
     console.log(`     rawReset:    ${b.rawResetText || '(none)'}`);
   }
+}
+
+function smokeClaudeStream() {
+  const now = new Date('2026-05-14T12:00:00Z');
+  const sse = [
+    'event: message_limit',
+    'data: {"type":"message_limit","message_limit":{"windows":{"5h":{"utilization":0.223,"reset_at":"2026-05-14T17:05:00.000Z"},"seven_day":{"utilization":0.314,"reset_at":"2026-05-19T17:00:00.000Z"}}}}',
+    '',
+  ].join('\n');
+  const limits = collectClaudeMessageLimitsFromSseText(sse);
+  assert(limits.length === 1, 'Claude stream should surface one message_limit payload');
+
+  const parsed = parseClaudeUsageApi({ message_limit: limits[0] }, { now });
+  assert(parsed.ok, 'Claude streamed message_limit should parse');
+  assert(nearly(findBucket(parsed, 'claude-session')?.percentUsed, 22.3), 'Claude stream session utilization stays fractional');
+  assert(nearly(findBucket(parsed, 'claude-weekly-all')?.percentUsed, 31.4), 'Claude stream weekly utilization stays fractional');
+
+  console.log('\n=== Claude Stream ===');
+  console.log('  SSE message_limit payload: OK');
+  console.log('  fractional utilization: OK');
 }
 
 async function smokeCodexApi() {
@@ -141,6 +163,10 @@ async function smokeCodexApi() {
 
 function findBucket(parsed, id) {
   return parsed.buckets.find((b) => b.id === id);
+}
+
+function nearly(actual, expected) {
+  return Math.abs((actual ?? NaN) - expected) < 0.001;
 }
 
 function jsonResponse(body, { ok = true, status = 200 } = {}) {

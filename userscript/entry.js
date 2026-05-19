@@ -3,17 +3,20 @@
 // tab is open, fires web Notifications, persists to GM.setValue.
 
 import { mountWidget, refreshWidget } from '../src/ui/widget.js';
-import { fetchClaude } from '../src/scrapers/claude.js';
+import { fetchClaude, parseClaudeUsageApi } from '../src/scrapers/claude.js';
 import { fetchCodex } from '../src/scrapers/codex.js';
 import { loadState, saveState, defaultState } from '../src/lib/storage.js';
 import { recordSnapshot } from '../src/lib/history.js';
 import { evaluateRules } from '../src/lib/notify.js';
 import { notify } from '../src/lib/browser.js';
+import { installClaudeMessageLimitInterceptor } from '../src/lib/claude-stream.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 
 (async function main() {
   if (!isHostOk()) return;
+
+  installClaudeStreamInterceptor();
 
   // CSS for shadow DOM is inlined at build time as globals.
   // (build/build-userscript.mjs sets __AUT_THEME_CSS__ + __AUT_WIDGET_CSS__).
@@ -74,10 +77,74 @@ async function refreshNow() {
   await saveState(state);
 }
 
+function installClaudeStreamInterceptor() {
+  if (!/(^|\.)claude\.ai$/.test(location.hostname)) return;
+  const target = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  installClaudeMessageLimitInterceptor({
+    target,
+    emit(messageLimit) {
+      ingestClaudeMessageLimit(messageLimit)
+        .then(() => refreshWidget())
+        .catch((e) => console.warn('AUT Claude stream ingest failed', e));
+    },
+  });
+}
+
+async function ingestClaudeMessageLimit(messageLimit) {
+  const now = new Date();
+  const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
+  if (!parsed.ok) return;
+
+  const state = (await loadState()) || defaultState();
+  const previous = state.snapshot?.providers?.claude;
+  const providers = state.snapshot?.providers || {};
+  const snapshot = {
+    fetchedAtISO: now.toISOString(),
+    providers: {
+      ...providers,
+      claude: mergeProviderBuckets(previous, { ...parsed, source: 'stream' }),
+    },
+  };
+  state.snapshot = snapshot;
+  state.history = recordSnapshot(state.history || [], snapshot, { now });
+
+  const toFire = evaluateRules({
+    snapshot,
+    history: state.history,
+    settings: state.settings,
+    firedRules: state.firedRules || {},
+    now,
+  });
+  for (const n of toFire) {
+    const fired = await notify({
+      id: n.fireKey,
+      title: n.title,
+      body: n.body,
+      tone: n.tone,
+    });
+    if (fired) state.firedRules[n.fireKey] = Date.now();
+  }
+  await saveState(state);
+}
+
 function keepPreviousSuccess(previous, next) {
   if (next && next.ok) return next;
   if (previous && previous.ok) return previous;
   return next;
+}
+
+function mergeProviderBuckets(previous, next) {
+  if (!previous?.ok) return next;
+  const buckets = new Map();
+  for (const bucket of previous.buckets || []) buckets.set(bucket.id, bucket);
+  for (const bucket of next.buckets || []) buckets.set(bucket.id, bucket);
+  return {
+    ...previous,
+    ...next,
+    plan: next.plan || previous.plan || null,
+    orgId: next.orgId || previous.orgId || null,
+    buckets: [...buckets.values()],
+  };
 }
 
 async function scheduleNext() {

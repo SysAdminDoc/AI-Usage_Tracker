@@ -12,7 +12,7 @@
 //      cached data, optionally open a silent background tab to force a
 //      live scrape. Enabled via settings.silentTabRefresh (default true).
 
-import { fetchClaude } from './scrapers/claude.js';
+import { fetchClaude, parseClaudeUsageApi } from './scrapers/claude.js';
 import { fetchCodex }  from './scrapers/codex.js';
 import { loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
@@ -52,6 +52,10 @@ function bindMessageHandlers() {
     if (msg.type === 'aut/scraped') {
       // Live snapshot from analytics-scraper.js running on the analytics page.
       await ingestProviderSnapshot(msg.parsed, { source: 'live' });
+      return { ok: true };
+    }
+    if (msg.type === 'aut/claude-message-limit') {
+      await ingestClaudeMessageLimit(msg.messageLimit);
       return { ok: true };
     }
     return null;
@@ -149,6 +153,17 @@ async function ingestProviderSnapshot(parsed, { source, now = new Date() } = {})
   await fireNotifications(state, now);
 }
 
+async function ingestClaudeMessageLimit(messageLimit, { now = new Date() } = {}) {
+  const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
+  if (!parsed.ok) return;
+
+  let state = (await loadState()) || defaultState();
+  const previous = state.snapshot?.providers?.claude;
+  const merged = mergeProviderBuckets(previous, { ...parsed, source: 'stream' });
+  state = await mergeSnapshot(state, merged, { source: 'stream', now });
+  await fireNotifications(state, now);
+}
+
 async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   if (!providerSnapshot || !providerSnapshot.provider) return state;
   const next = { ...state };
@@ -165,6 +180,20 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   next.history = recordSnapshot(next.history || [], next.snapshot, { now });
   await saveState(next);
   return next;
+}
+
+function mergeProviderBuckets(previous, next) {
+  if (!previous?.ok) return next;
+  const buckets = new Map();
+  for (const bucket of previous.buckets || []) buckets.set(bucket.id, bucket);
+  for (const bucket of next.buckets || []) buckets.set(bucket.id, bucket);
+  return {
+    ...previous,
+    ...next,
+    plan: next.plan || previous.plan || null,
+    orgId: next.orgId || previous.orgId || null,
+    buckets: [...buckets.values()],
+  };
 }
 
 async function fireNotifications(state, now) {
