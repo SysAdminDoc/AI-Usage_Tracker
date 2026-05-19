@@ -135,7 +135,7 @@ async function render({ onRefresh, onOpenSettings }) {
     const foot = document.createElement('div');
     foot.className = 'aut-widget__footer';
     const ago = formatAgo(snapshot.fetchedAtISO);
-    foot.innerHTML = `<span>Updated ${ago}</span><span>v0.1.1</span>`;
+    foot.innerHTML = `<span>Updated ${ago}</span><span>v0.1.2</span>`;
     wrap.appendChild(foot);
   }
 

@@ -9,12 +9,13 @@
 // numbers — they materialize only after React hydrates. This script lives
 // inside the rendered DOM and reads the real values.
 
-import { parseClaudeDoc } from './scrapers/claude.js';
+import { fetchClaude, parseClaudeDoc } from './scrapers/claude.js';
 import { parseCodexDoc } from './scrapers/codex.js';
 import { send } from './lib/browser.js';
 
 const POLL_MS = 1000;
 const STABLE_REQUIRED = 2;    // consecutive identical scrapes before we ship
+const CLAUDE_API_MIN_MS = 5000;
 
 const provider = detectProvider();
 if (provider) bootstrap();
@@ -29,11 +30,23 @@ function detectProvider() {
 function bootstrap() {
   let stableCount = 0;
   let lastHash = '';
+  let inFlight = false;
+  let lastClaudeApiAt = 0;
 
-  const tick = () => {
-    const parsed = provider === 'claude'
-      ? parseClaudeDoc(document, { now: new Date() })
-      : parseCodexDoc(document, { now: new Date() });
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    let parsed;
+    try {
+      parsed = await scrapeProvider({
+        lastClaudeApiAt,
+        setLastClaudeApiAt: (ts) => { lastClaudeApiAt = ts; },
+      });
+    } catch (e) {
+      parsed = { ok: false, provider, error: String(e) };
+    } finally {
+      inFlight = false;
+    }
 
     if (!parsed.ok) {
       stableCount = 0;
@@ -66,6 +79,21 @@ function bootstrap() {
     tick();
   });
   mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+}
+
+async function scrapeProvider({ lastClaudeApiAt, setLastClaudeApiAt }) {
+  const now = new Date();
+  if (provider === 'codex') return parseCodexDoc(document, { now });
+
+  const ts = Date.now();
+  if (ts - lastClaudeApiAt >= CLAUDE_API_MIN_MS) {
+    setLastClaudeApiAt(ts);
+    const apiParsed = await fetchClaude({ now });
+    if (apiParsed.ok) return apiParsed;
+    const domParsed = parseClaudeDoc(document, { now });
+    return domParsed.ok ? domParsed : apiParsed;
+  }
+  return parseClaudeDoc(document, { now });
 }
 
 async function shipSnapshot(parsed) {

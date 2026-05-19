@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.2 — 2026-05-19
+
+Fixes Claude usage by switching the Claude collector to the same JSON API path used by Claude Ultimate Enhancer.
+
+### Fixed
+- Claude now discovers the active organization through `GET https://claude.ai/api/organizations`, caches the org ID for the session, and reads actual usage from `GET https://claude.ai/api/organizations/{orgId}/usage`.
+- Claude usage normalization now supports API percent values, streamed fractional `message_limit.windows` payloads, ISO resets, and Unix reset timestamps.
+- The settings-page DOM scraper remains as a fallback instead of the primary Claude data source.
+- Userscript refreshes now preserve the last successful provider snapshot when one side temporarily fails.
+
 ## v0.1.1 — 2026-05-14
 
 Fixes the "Unable to read analytics" failure on both providers.

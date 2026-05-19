@@ -44,9 +44,13 @@ async function refreshNow() {
     fetchCodex({ now }),
   ]);
 
+  const prevProviders = state.snapshot?.providers || {};
   const snapshot = {
     fetchedAtISO: now.toISOString(),
-    providers: { claude, codex },
+    providers: {
+      claude: keepPreviousSuccess(prevProviders.claude, claude),
+      codex: keepPreviousSuccess(prevProviders.codex, codex),
+    },
   };
   state.snapshot = snapshot;
   state.history  = recordSnapshot(state.history || [], snapshot, { now });
@@ -68,6 +72,12 @@ async function refreshNow() {
     if (fired) state.firedRules[n.fireKey] = Date.now();
   }
   await saveState(state);
+}
+
+function keepPreviousSuccess(previous, next) {
+  if (next && next.ok) return next;
+  if (previous && previous.ok) return previous;
+  return next;
 }
 
 async function scheduleNext() {

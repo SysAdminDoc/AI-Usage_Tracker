@@ -1,36 +1,357 @@
-// Claude usage scraper. Two modes:
-//   1) parseClaudeDoc(document)   — runs on the live rendered DOM in a
-//      content script (PRIMARY PATH — both providers serve hydration shells).
-//   2) parseClaude(html) / fetchClaude() — regex over raw HTML for the
-//      background fast path; works only if the response is server-rendered.
-// Both return the same normalized snapshot:
-//   { ok, provider:'claude', plan, buckets[] }
+// Claude usage scraper. Primary path is the same JSON endpoint used by
+// Claude Ultimate Enhancer:
+//   GET /api/organizations -> org id
+//   GET /api/organizations/{org_id}/usage -> usage windows
+//
+// The settings-page DOM and raw-HTML parsers stay as fallbacks for endpoint
+// drift or logged-out/shell responses. All paths return:
+//   { ok, provider:'claude', plan, source, buckets[] }
 
 import { parseResetString } from '../lib/countdown.js';
 
 export const CLAUDE_URL = 'https://claude.ai/settings/usage';
+export const CLAUDE_ORGS_URL = 'https://claude.ai/api/organizations';
 
-export async function fetchClaude({ now = new Date() } = {}) {
+const ORG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+let orgCache = { id: null, ts: 0 };
+
+export async function fetchClaude({ now = new Date(), fetchImpl = null } = {}) {
+  const api = await fetchClaudeApi({ now, fetchImpl });
+  if (api.ok) return api;
+
+  const page = await fetchClaudeUsagePage({ now, fetchImpl });
+  if (page.ok) return page;
+
+  // API errors are more actionable than hydration-shell page errors, so keep
+  // them at the surface while retaining the fallback error for diagnostics.
+  return { ...api, fallbackError: page.error };
+}
+
+export async function fetchClaudeApi({ now = new Date(), fetchImpl = null } = {}) {
+  const doFetch = resolveFetch(fetchImpl);
+  if (!doFetch) return { ok: false, provider: 'claude', error: 'fetch-unavailable' };
+
+  const org = await getClaudeOrgId({ fetchImpl: doFetch });
+  if (!org.ok) return { ok: false, provider: 'claude', source: 'api', error: org.error };
+
   try {
-    const res = await fetch(CLAUDE_URL, { credentials: 'include' });
-    if (!res.ok) return { ok: false, provider: 'claude', error: `HTTP ${res.status}` };
-    const html = await res.text();
-    return parseClaude(html, { now });
+    const res = await doFetch(`${CLAUDE_ORGS_URL}/${encodeURIComponent(org.orgId)}/usage`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      return { ok: false, provider: 'claude', source: 'api', error: `usage-http-${res.status}` };
+    }
+    const data = await res.json();
+    return parseClaudeUsageApi(data, { now, orgId: org.orgId });
   } catch (err) {
-    return { ok: false, provider: 'claude', error: String(err) };
+    return { ok: false, provider: 'claude', source: 'api', error: `usage-fetch-failed: ${String(err)}` };
   }
 }
 
-// ───── PRIMARY: live DOM ───────────────────────────────────────────────────
+export async function getClaudeOrgId({ fetchImpl = null } = {}) {
+  const doFetch = resolveFetch(fetchImpl);
+  if (!doFetch) return { ok: false, error: 'fetch-unavailable' };
+
+  const nowTs = Date.now();
+  if (orgCache.id && nowTs - orgCache.ts < ORG_CACHE_TTL_MS) {
+    return { ok: true, orgId: orgCache.id, source: 'cache' };
+  }
+
+  try {
+    const res = await doFetch(CLAUDE_ORGS_URL, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return { ok: false, error: `orgs-http-${res.status}` };
+
+    const data = await res.json();
+    const orgs = normalizeOrgList(data);
+    const org = pickClaudeOrg(orgs);
+    const orgId = org?.uuid || org?.id;
+    if (!orgId) return { ok: false, error: 'org-id-not-found' };
+
+    orgCache = { id: orgId, ts: nowTs };
+    return { ok: true, orgId, source: 'organizations' };
+  } catch (err) {
+    return { ok: false, error: `orgs-fetch-failed: ${String(err)}` };
+  }
+}
+
+export function clearClaudeOrgCache() {
+  orgCache = { id: null, ts: 0 };
+}
+
+export function parseClaudeUsageApi(data, { now = new Date(), orgId = null } = {}) {
+  const root = data?.usage || data?.message_limit || data;
+  const buckets = [];
+
+  for (const [key, info, opts] of extractUsageEntries(root)) {
+    const bucket = usageInfoToBucket(key, info, { now, ...opts });
+    if (bucket) buckets.push(bucket);
+  }
+
+  // Some streaming payloads nest the same windows under message_limit.windows.
+  if (root?.windows && typeof root.windows === 'object') {
+    for (const [key, info] of Object.entries(root.windows)) {
+      const bucket = usageInfoToBucket(key, info, { now, fractionalUtilization: true });
+      if (bucket && !buckets.some((b) => b.id === bucket.id)) buckets.push(bucket);
+    }
+  }
+
+  if (buckets.length === 0) {
+    return { ok: false, provider: 'claude', source: 'api', orgId, error: 'usage-schema-empty' };
+  }
+
+  return {
+    ok: true,
+    provider: 'claude',
+    source: 'api',
+    orgId,
+    plan: extractPlanFromUsageApi(data),
+    buckets,
+  };
+}
+
+async function fetchClaudeUsagePage({ now, fetchImpl }) {
+  const doFetch = resolveFetch(fetchImpl);
+  if (!doFetch) return { ok: false, provider: 'claude', source: 'html', error: 'fetch-unavailable' };
+
+  try {
+    const res = await doFetch(CLAUDE_URL, { credentials: 'include' });
+    if (!res.ok) return { ok: false, provider: 'claude', source: 'html', error: `HTTP ${res.status}` };
+    const html = await res.text();
+    const parsed = parseClaude(html, { now });
+    return parsed.ok ? { ...parsed, source: 'html' } : { ...parsed, source: 'html' };
+  } catch (err) {
+    return { ok: false, provider: 'claude', source: 'html', error: String(err) };
+  }
+}
+
+function resolveFetch(fetchImpl) {
+  if (typeof fetchImpl === 'function') return fetchImpl;
+  if (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function') {
+    return globalThis.fetch.bind(globalThis);
+  }
+  return null;
+}
+
+function normalizeOrgList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.organizations)) return data.organizations;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.results)) return data.results;
+  return [];
+}
+
+function pickClaudeOrg(orgs) {
+  return orgs.find((o) => o?.active || o?.is_active || o?.is_default || o?.is_primary)
+    || orgs.find((o) => o?.uuid || o?.id)
+    || null;
+}
+
+function extractUsageEntries(root) {
+  if (!root || typeof root !== 'object') return [];
+  const entries = [];
+
+  if (root.windows && typeof root.windows === 'object') {
+    entries.push(...Object.entries(root.windows).map(([key, value]) => [key, value, { fractionalUtilization: true }]));
+  }
+  for (const [key, value] of Object.entries(root)) {
+    if (key === 'windows') continue;
+    if (isUsageInfo(value)) entries.push([key, value, { fractionalUtilization: false }]);
+  }
+  return entries;
+}
+
+function isUsageInfo(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return firstNumber(value, [
+    'utilization',
+    'percent_used',
+    'percentUsed',
+    'used_percent',
+    'usage_percent',
+    'percentage',
+  ]) != null
+    || (firstNumber(value, ['used', 'used_count', 'current']) != null
+      && firstNumber(value, ['limit', 'cap', 'maximum', 'max']) != null)
+    || (firstNumber(value, ['remaining', 'remaining_count']) != null
+      && firstNumber(value, ['limit', 'cap', 'maximum', 'max']) != null);
+}
+
+function usageInfoToBucket(key, info, { now, fractionalUtilization = false }) {
+  if (!isUsageInfo(info)) return null;
+
+  const descriptor = describeClaudeUsageWindow(key, info);
+  const percentUsed = normalizePercent(info, { fractionalUtilization });
+  if (percentUsed == null) return null;
+
+  const resetValue = firstDefined(info, [
+    'resets_at',
+    'reset_at',
+    'resetsAt',
+    'resetAt',
+    'next_reset_at',
+    'nextResetAt',
+    'reset_time',
+    'resetTime',
+  ]);
+  const resetISO = normalizeResetISO(resetValue, { now });
+  const rawResetText = firstString(info, ['reset_text', 'resetText', 'rawResetText'])
+    || (resetISO ? `Resets ${new Date(resetISO).toLocaleString()}` : null);
+
+  return {
+    id: descriptor.id,
+    label: descriptor.label,
+    kind: descriptor.kind,
+    model: descriptor.model,
+    percentUsed,
+    resetISO,
+    rawResetText,
+  };
+}
+
+function describeClaudeUsageWindow(key, info) {
+  const rawLabel = firstString(info, ['label', 'name', 'display_name', 'displayName', 'title']);
+  const normalizedKey = String(key || rawLabel || '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const labelText = `${key} ${rawLabel || ''}`.toLowerCase();
+
+  const isSession = normalizedKey === '5h'
+    || normalizedKey === 'five_hour'
+    || /(^|_)5h($|_)/.test(normalizedKey)
+    || /five_?hour|session/.test(normalizedKey);
+
+  const model = isSession ? 'all' : inferClaudeModel(labelText);
+  const kind = isSession ? 'session' : 'weekly';
+  const id = kind === 'session' ? 'claude-session' : `claude-weekly-${model}`;
+
+  return {
+    id,
+    kind,
+    model,
+    label: rawLabel || defaultClaudeLabel(kind, model),
+  };
+}
+
+function inferClaudeModel(text) {
+  if (/opus/.test(text)) return 'opus';
+  if (/sonnet/.test(text)) return 'sonnet';
+  if (/haiku/.test(text)) return 'haiku';
+  if (/design/.test(text)) return 'design';
+  if (/all/.test(text)) return 'all';
+  return 'all';
+}
+
+function defaultClaudeLabel(kind, model) {
+  if (kind === 'session') return 'Session (5h)';
+  if (model === 'all') return 'All models';
+  return model.charAt(0).toUpperCase() + model.slice(1);
+}
+
+function normalizePercent(info, { fractionalUtilization = false } = {}) {
+  let value = firstNumber(info, ['utilization']);
+  if (value != null) {
+    if (fractionalUtilization && value >= 0 && value <= 1) value *= 100;
+    return Math.max(0, Math.min(100, value));
+  }
+
+  value = firstNumber(info, [
+    'percent_used',
+    'percentUsed',
+    'used_percent',
+    'usage_percent',
+    'percentage',
+  ]);
+
+  if (value == null) {
+    const used = firstNumber(info, ['used', 'used_count', 'current']);
+    const limit = firstNumber(info, ['limit', 'cap', 'maximum', 'max']);
+    if (used != null && limit > 0) value = (used / limit) * 100;
+  }
+
+  if (value == null) {
+    const remaining = firstNumber(info, ['remaining', 'remaining_count']);
+    const limit = firstNumber(info, ['limit', 'cap', 'maximum', 'max']);
+    if (remaining != null && limit > 0) value = 100 - (remaining / limit) * 100;
+  }
+
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(100, value));
+}
+
+function normalizeResetISO(value, { now }) {
+  if (value == null || value === '') return null;
+
+  if (typeof value === 'number') {
+    const ms = value > 1_000_000_000_000 ? value : value * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const text = String(value).trim();
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
+    return normalizeResetISO(Number(text), { now });
+  }
+
+  if (/^resets\b/i.test(text)) {
+    return parseResetString(text, { now });
+  }
+
+  const d = new Date(text);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function extractPlanFromUsageApi(data) {
+  const direct = firstString(data, ['plan', 'plan_name', 'planName', 'tier', 'subscription_tier']);
+  if (direct) return direct;
+
+  const nested = data?.organization || data?.account || data?.subscription || data?.billing;
+  if (nested && typeof nested === 'object') {
+    const nestedPlan = firstString(nested, ['plan', 'plan_name', 'planName', 'tier', 'name']);
+    if (nestedPlan) return nestedPlan;
+  }
+  return null;
+}
+
+function firstString(obj, keys) {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function firstNumber(obj, keys) {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const n = Number(value);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+function firstDefined(obj, keys) {
+  for (const key of keys) {
+    if (obj && obj[key] != null) return obj[key];
+  }
+  return null;
+}
+
+// - PRIMARY: live DOM ------------------------------------------------------
 
 export function parseClaudeDoc(doc, { now = new Date() } = {}) {
   if (!doc) return { ok: false, provider: 'claude', error: 'no-document' };
 
-  // Wait-state check — the React tree may not be done hydrating yet.
+  // Wait-state check -- the React tree may not be done hydrating yet.
   const sessionH3 = findHeadingContaining(doc, 'Plan usage limits');
   const weeklyH3  = findHeadingContaining(doc, 'Weekly limits');
   if (!sessionH3 && !weeklyH3) {
-    return { ok: false, provider: 'claude', error: 'unhydrated' };
+    return { ok: false, provider: 'claude', source: 'dom', error: 'unhydrated' };
   }
 
   const plan = extractPlanFromHeading(sessionH3);
@@ -51,9 +372,9 @@ export function parseClaudeDoc(doc, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return { ok: false, provider: 'claude', error: 'no-rows-rendered' };
+    return { ok: false, provider: 'claude', source: 'dom', error: 'no-rows-rendered' };
   }
-  return { ok: true, provider: 'claude', plan, buckets };
+  return { ok: true, provider: 'claude', source: 'dom', plan, buckets };
 }
 
 function findHeadingContaining(doc, text) {
@@ -110,14 +431,14 @@ function extractRowsFromSection(section, { now }) {
   return rows;
 }
 
-// ───── FAST PATH: raw HTML over fetch() ────────────────────────────────────
+// - FALLBACK: raw HTML over fetch() ----------------------------------------
 
 export function parseClaude(html, { now = new Date() } = {}) {
   if (!/Plan usage limits|Weekly limits/.test(html)) {
     return { ok: false, provider: 'claude', error: 'shell-response' };
   }
 
-  // The page may be a hydration shell — the strings can appear in the JS
+  // The page may be a hydration shell -- the strings can appear in the JS
   // bundle without the data being rendered. We only succeed if we find at
   // least one progressbar value AND a matching label.
   const plan = extractPlanFromHtml(html);

@@ -1,12 +1,18 @@
 # Roadmap
 
-**Last updated:** 2026-05-14 · **Current shipped version:** v0.1.1
+**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.2
 
 This roadmap is a working document, not a wishlist. Every Now / Next / Later item is traceable to a numbered source in the [Appendix](#appendix-sources). Under Consideration entries are tracked but not committed. Rejected entries record decisions so they don't get silently resurrected.
 
 ---
 
 ## Shipped
+
+### v0.1.2 — 2026-05-19 — Claude API repair
+- [x] Claude JSON API is now the primary usage source (`/api/organizations` → `/api/organizations/{orgId}/usage`)
+- [x] Claude DOM scrape retained as hard fallback
+- [x] API percent values and streamed fractional `message_limit.windows` values normalize to the same bucket schema
+- [x] Userscript preserves last successful provider snapshot during transient fetch failures
 
 ### v0.1.1 — 2026-05-14 — hotfix
 - [x] Live-DOM scraper as primary path (fixes hydration-shell failure)
@@ -33,7 +39,7 @@ This roadmap is a working document, not a wishlist. Every Now / Next / Later ite
 External research turned up something we missed at design time: every mature competitor has converged on **same-origin JSON API endpoints**, not page scraping. Switching the primary data path closes a class of fragility (DOM churn, hydration races, scraper drift) and unlocks the rolled-up toolbar badge that every reviewed competitor ships. This release is parity + the one differentiator (cache-timer + context counter) that minimal trackers like she-llac have made into table-stakes.
 
 ### Data path overhaul
-- [ ] **N-01 — Primary scraper: claude.ai JSON API.** Replace the DOM scrape with `GET https://claude.ai/api/organizations/{org_id}/usage`. Org-ID discovery via `lastActiveOrg` cookie (preferred, no extra round-trip) with `GET /api/organizations` fallback. Cache org-ID 24h. Keep the live-DOM scraper as a hard fallback if the endpoint returns 404 or schema drifts. Sources: [#2], [#3], [#6], [#18].
+- [x] **N-01 — Primary scraper: claude.ai JSON API.** Replace the DOM scrape with `GET https://claude.ai/api/organizations/{org_id}/usage`. Completed in v0.1.2 using `GET /api/organizations` org discovery with a 24h session cache; the `lastActiveOrg` cookie shortcut was skipped to avoid adding the `cookies` permission. The live-DOM scraper remains as a hard fallback if the endpoint returns 404 or schema drifts. Sources: [#2], [#3], [#6], [#18].
 - [ ] **N-02 — Primary scraper: chatgpt.com JSON API.** Switch to `GET https://chatgpt.com/backend-api/wham/usage` with `Authorization: Bearer` + `ChatGPT-Account-Id` headers from existing browser session. Tolerate the documented alt field names (`five_hour`/`primary_window`/`five_hour_limit`, `weekly`/`secondary_window`/`weekly_limit`). Source: [#7], [#8].
 - [ ] **N-03 — SSE `message_limit` interception (Claude).** Hook into the streamed completion responses on claude.ai to capture unrounded utilization fractions (more accurate than the rounded `/usage` page values). Used to refine the bars in real time as the user sends messages. Source: [#18].
 - [ ] **N-04 — Anthropic rate-limit response header sniffing.** When the user has API traffic flowing, parse `anthropic-ratelimit-unified-*-utilization` / `-reset` / `-status` headers as a third data source. Source: [#10].
