@@ -33,17 +33,33 @@
   /* App accents (mapped from palette) */
   --aut-accent:   var(--aut-lavender);
   --aut-amber:    var(--aut-peach);
+  --aut-focus:    rgba(137, 180, 250, 0.72);
 
-  /* Glass card */
-  --aut-glass-bg:     rgba(30, 30, 46, 0.78);
-  --aut-glass-border: rgba(180, 190, 254, 0.22);
-  --aut-glass-shadow: 0 18px 48px -16px rgba(0, 0, 0, 0.55),
-                      0 0 0 1px rgba(180, 190, 254, 0.10) inset;
+  /* Surfaces */
+  --aut-card-bg:       rgba(24, 24, 37, 0.96);
+  --aut-panel-bg:      rgba(30, 30, 46, 0.92);
+  --aut-row-bg:        rgba(49, 50, 68, 0.62);
+  --aut-row-bg-hover:  rgba(69, 71, 90, 0.74);
+  --aut-border:        rgba(180, 190, 254, 0.20);
+  --aut-border-subtle: rgba(180, 190, 254, 0.10);
+  --aut-glass-bg:      var(--aut-card-bg);
+  --aut-glass-border:  var(--aut-border);
+  --aut-glass-shadow:  0 18px 48px -18px rgba(0, 0, 0, 0.58),
+                       0 0 0 1px rgba(180, 190, 254, 0.08) inset;
 
-  /* Geometry — corner radius capped at 12 per project rules. */
+  /* Semantic states */
+  --aut-good-bg: rgba(166, 227, 161, 0.12);
+  --aut-warn-bg: rgba(250, 179, 135, 0.12);
+  --aut-bad-bg:  rgba(243, 139, 168, 0.12);
+  --aut-info-bg: rgba(137, 180, 250, 0.12);
+
+  /* Geometry: corner radius capped at 12 per project rules. */
   --aut-r-sm: 6px;
   --aut-r-md: 8px;
   --aut-r-lg: 12px;
+
+  --aut-control-h: 32px;
+  --aut-transition: 140ms ease;
 
   /* Typography */
   --aut-font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
@@ -53,6 +69,8 @@
   font-family: var(--aut-font);
   font-size: 13px;
   line-height: 1.4;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
 }
 
 /* Shared utilities */
@@ -62,11 +80,111 @@
 
 .aut-glass {
   background: var(--aut-glass-bg);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  backdrop-filter: blur(18px) saturate(140%);
   border: 1px solid var(--aut-glass-border);
   border-radius: var(--aut-r-lg);
   box-shadow: var(--aut-glass-shadow);
+}
+
+.aut-widget__brand-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--aut-mauve), var(--aut-sapphire));
+  box-shadow: 0 0 10px rgba(203, 166, 247, 0.52);
+}
+
+.aut-iconbtn {
+  width: var(--aut-control-h);
+  height: var(--aut-control-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--aut-subtext0);
+  border: 1px solid transparent;
+  border-radius: var(--aut-r-sm);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color var(--aut-transition),
+    border-color var(--aut-transition),
+    color var(--aut-transition),
+    transform var(--aut-transition),
+    opacity var(--aut-transition);
+}
+.aut-iconbtn:hover {
+  color: var(--aut-text);
+  background: var(--aut-row-bg-hover);
+  border-color: var(--aut-border);
+  transform: translateY(-1px);
+}
+.aut-iconbtn:active {
+  transform: translateY(0);
+}
+.aut-iconbtn:disabled,
+.aut-iconbtn[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.55;
+  transform: none;
+}
+.aut-iconbtn:focus-visible,
+.aut-link-btn:focus-visible {
+  outline: 2px solid var(--aut-focus);
+  outline-offset: 2px;
+}
+.aut-iconbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.aut-iconbtn.is-loading svg {
+  animation: aut-spin 850ms linear infinite;
+}
+
+.aut-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  width: auto;
+  padding: 6px 10px;
+  background: rgba(49, 50, 68, 0.48);
+  border: 1px solid var(--aut-border);
+  color: var(--aut-sapphire);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--aut-r-sm);
+  text-decoration: none;
+  transition:
+    background-color var(--aut-transition),
+    color var(--aut-transition),
+    border-color var(--aut-transition),
+    transform var(--aut-transition);
+}
+.aut-link-btn:hover {
+  background: var(--aut-row-bg-hover);
+  border-color: rgba(137, 180, 250, 0.38);
+  color: var(--aut-text);
+  transform: translateY(-1px);
+}
+.aut-link-btn:active {
+  transform: translateY(0);
+}
+
+.aut-muted {
+  color: var(--aut-subtext0);
+}
+
+@keyframes aut-spin {
+  to { transform: rotate(360deg); }
 }
 
 .aut-shimmer {
@@ -91,4 +209,19 @@
 }
 .aut-shimmer:hover::after {
   transform: translateX(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aut-root *,
+  .aut-root *::before,
+  .aut-root *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+
+  .aut-shimmer::after {
+    display: none;
+  }
 }

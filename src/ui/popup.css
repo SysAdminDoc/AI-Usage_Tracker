@@ -1,24 +1,25 @@
 html, body {
   margin: 0;
   padding: 0;
-  width: 420px;
-  background: var(--aut-mantle);
+  width: min(420px, 100vw);
+  min-width: 340px;
+  background:
+    radial-gradient(circle at top left, rgba(137, 180, 250, 0.10), transparent 32%),
+    var(--aut-mantle);
 }
 
 .popup-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 16px;
-  background: linear-gradient(180deg, rgba(180,190,254,0.06), transparent);
-  border-bottom: 1px solid var(--aut-glass-border);
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--aut-border);
 }
 .popup-head h1 {
   margin: 0;
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0;
   color: var(--aut-subtext1);
 }
 .popup-actions {
@@ -31,14 +32,15 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 14px;
 }
 
 .popup-provider {
   padding: 12px;
   border-radius: var(--aut-r-lg);
-  background: var(--aut-glass-bg);
-  border: 1px solid var(--aut-glass-border);
+  background: var(--aut-panel-bg);
+  border: 1px solid var(--aut-border);
+  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.70);
 }
 .popup-provider__head {
   display: flex;
@@ -47,18 +49,32 @@ html, body {
   margin-bottom: 10px;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: var(--aut-text);
 }
-.popup-provider__plan {
+.popup-provider__meta {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.popup-provider__plan {
   font-size: 10px;
   font-weight: 500;
   color: var(--aut-subtext0);
-  background: var(--aut-surface0);
+  background: rgba(49, 50, 68, 0.72);
   padding: 2px 6px;
   border-radius: var(--aut-r-sm);
+  border: 1px solid var(--aut-border-subtle);
+}
+.popup-provider__source {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--aut-green);
+  background: var(--aut-good-bg);
+  border: 1px solid rgba(166, 227, 161, 0.22);
+  border-radius: var(--aut-r-sm);
+  padding: 2px 6px;
 }
 
 .popup-bucket {
@@ -66,11 +82,16 @@ html, body {
   grid-template-columns: 52px 1fr 80px;
   gap: 10px;
   align-items: center;
-  padding: 6px 0;
-  border-top: 1px solid rgba(180,190,254,0.06);
+  padding: 8px 4px;
+  border-top: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-sm);
+  transition: background-color var(--aut-transition);
 }
 .popup-bucket:first-of-type {
   border-top: none;
+}
+.popup-bucket:hover {
+  background: rgba(17, 17, 27, 0.22);
 }
 .popup-bucket__ring {
   width: 52px; height: 52px;
@@ -91,6 +112,9 @@ html, body {
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
+.popup-bucket__sub--missing {
+  color: var(--aut-overlay1);
+}
 
 .popup-bucket__spark {
   width: 80px; height: 28px;
@@ -104,30 +128,61 @@ html, body {
 .popup-foot {
   display: flex;
   justify-content: space-between;
-  padding: 10px 16px;
-  border-top: 1px solid var(--aut-glass-border);
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--aut-border);
   font-size: 10px;
   color: var(--aut-overlay1);
 }
 .popup-foot .version { font-variant-numeric: tabular-nums; }
 
 .popup-empty {
-  padding: 24px;
+  padding: 24px 14px;
   text-align: center;
   color: var(--aut-subtext0);
   font-size: 12px;
+  line-height: 1.5;
 }
-.popup-empty a {
-  color: var(--aut-sapphire);
-  text-decoration: none;
+.popup-empty__title {
+  color: var(--aut-text);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
 }
-.popup-empty a:hover { text-decoration: underline; }
+.popup-empty__actions,
+.popup-error__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
 
 .popup-error {
   padding: 10px;
-  background: rgba(243, 139, 168, 0.10);
+  background: var(--aut-bad-bg);
   border: 1px solid rgba(243, 139, 168, 0.25);
   border-radius: var(--aut-r-sm);
   font-size: 11px;
   color: var(--aut-red);
+  line-height: 1.45;
+}
+.popup-error__title {
+  color: var(--aut-text);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+@media (max-width: 380px) {
+  html, body {
+    min-width: 320px;
+  }
+
+  .popup-bucket {
+    grid-template-columns: 48px 1fr;
+  }
+
+  .popup-bucket__spark {
+    grid-column: 2;
+    width: 100%;
+  }
 }

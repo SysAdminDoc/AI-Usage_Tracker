@@ -1,6 +1,6 @@
 # AI Usage Tracker
 
-[![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases)
+[![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-MV3-yellow.svg)](#install)
 [![Firefox](https://img.shields.io/badge/Firefox-MV3-orange.svg)](#install)
@@ -24,6 +24,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
   - **D1 Daily briefing** — one calm summary at 08:00.
 - **Per-row visibility toggles** — by default shows headline buckets only; turn on per-model rows (GPT-5.3-Codex-Spark, Sonnet only, Claude Design, etc.) in Settings.
 - **Claude API-first usage** — reads `claude.ai/api/organizations/{orgId}/usage` for actual usage windows, with the settings-page scraper retained only as fallback.
+- **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **30-day rolling history** with sparklines, persists across browser restart.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.
 
@@ -31,7 +32,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 
 ### Chrome / Edge / Brave / any Chromium 109+
 
-1. Download `AI-Usage-Tracker-chrome-v0.1.2.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
+1. Download `AI-Usage-Tracker-chrome-v0.1.3.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Unzip it anywhere.
 3. Open `chrome://extensions`.
 4. Toggle **Developer mode** on (top-right).
@@ -42,7 +43,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 
 ### Firefox Developer Edition / Nightly
 
-1. Download `ai-usage-tracker-firefox-v0.1.2.xpi` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
+1. Download `ai-usage-tracker-firefox-v0.1.3.xpi` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Open `about:config` → set `xpinstall.signatures.required` to `false` (DevEd/Nightly only).
 3. Open `about:addons` → gear icon → **Install Add-on From File** → pick the `.xpi`.
 

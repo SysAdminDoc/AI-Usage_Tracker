@@ -7,16 +7,27 @@ const RING_C = 2 * Math.PI * RING_R;
 
 const dashboard = document.getElementById('dashboard');
 const updatedEl = document.getElementById('updated');
+const refreshBtn = document.getElementById('refresh');
 
-document.getElementById('refresh').addEventListener('click', async () => {
-  const bg = chrome.runtime || browser.runtime;
-  await bg.sendMessage({ type: 'aut/refresh' });
-  setTimeout(render, 600);
+refreshBtn.addEventListener('click', async () => {
+  refreshBtn.disabled = true;
+  refreshBtn.classList.add('is-loading');
+  refreshBtn.setAttribute('aria-busy', 'true');
+  try {
+    await sendRuntimeMessage({ type: 'aut/refresh' });
+    setTimeout(render, 600);
+  } finally {
+    setTimeout(() => {
+      refreshBtn.disabled = false;
+      refreshBtn.classList.remove('is-loading');
+      refreshBtn.removeAttribute('aria-busy');
+    }, 450);
+  }
 });
 
 document.getElementById('settings').addEventListener('click', () => {
-  if (chrome.runtime && chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
-  else if (typeof browser !== 'undefined' && browser.runtime.openOptionsPage) browser.runtime.openOptionsPage();
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
+  else if (typeof browser !== 'undefined' && browser.runtime?.openOptionsPage) browser.runtime.openOptionsPage();
 });
 
 render();
@@ -48,10 +59,15 @@ async function render() {
     const empty = document.createElement('div');
     empty.className = 'popup-empty';
     empty.innerHTML = `
-      No usage data yet. Open <a href="https://claude.ai/settings/usage" target="_blank">Claude</a>
-      or <a href="https://chatgpt.com/codex/cloud/settings/analytics" target="_blank">Codex</a>
-      while signed in, then click refresh.
+      <div class="popup-empty__title">No usage data yet</div>
+      <div>Open a signed-in usage page once, then refresh this dashboard.</div>
+      <div class="popup-empty__actions">
+        <button class="aut-link-btn" data-provider="claude">Open Claude</button>
+        <button class="aut-link-btn" data-provider="codex">Open Codex</button>
+      </div>
     `;
+    empty.querySelector('[data-provider="claude"]').addEventListener('click', () => openAnalytics('claude'));
+    empty.querySelector('[data-provider="codex"]').addEventListener('click', () => openAnalytics('codex'));
     dashboard.appendChild(empty);
   }
 
@@ -67,12 +83,21 @@ function renderProvider(providerKey, ps, buckets, history) {
   const head = document.createElement('div');
   head.className = 'popup-provider__head';
   head.innerHTML = `<span class="aut-widget__brand-dot"></span>${providerKey === 'claude' ? 'Claude' : 'Codex'}`;
+  const meta = document.createElement('span');
+  meta.className = 'popup-provider__meta';
   if (ps.plan) {
     const plan = document.createElement('span');
     plan.className = 'popup-provider__plan';
     plan.textContent = ps.plan;
-    head.appendChild(plan);
+    meta.appendChild(plan);
   }
+  if (ps.source) {
+    const source = document.createElement('span');
+    source.className = 'popup-provider__source';
+    source.textContent = sourceLabel(ps.source);
+    meta.appendChild(source);
+  }
+  if (meta.childNodes.length) head.appendChild(meta);
   wrap.appendChild(head);
 
   for (const b of buckets) {
@@ -102,9 +127,13 @@ function renderBucket(b, history) {
 
   const main = document.createElement('div');
   main.className = 'popup-bucket__main';
+  const subClass = b.resetISO ? 'popup-bucket__sub' : 'popup-bucket__sub popup-bucket__sub--missing';
+  const subText = b.resetISO
+    ? `Resets ${formatResetAbsolute(b.resetISO)} - in ${formatCountdown(b.resetISO)}`
+    : (b.rawResetText || 'Reset not published');
   main.innerHTML = `
     <div class="popup-bucket__label">${escapeHtml(humanBucketLabel(b))}</div>
-    <div class="popup-bucket__sub">${b.resetISO ? `Resets ${formatResetAbsolute(b.resetISO)} · in ${formatCountdown(b.resetISO)}` : (b.rawResetText || '')}</div>
+    <div class="${subClass}">${escapeHtml(subText)}</div>
   `;
   row.appendChild(main);
 
@@ -112,6 +141,7 @@ function renderBucket(b, history) {
   spark.className = 'popup-bucket__spark';
   spark.appendChild(buildSparkline(history, b.id));
   row.appendChild(spark);
+  row.setAttribute('aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
 
   return row;
 }
@@ -128,7 +158,7 @@ function buildSparkline(history, bucketId) {
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('fill', 'var(--aut-overlay1)');
     text.setAttribute('font-size', '9');
-    text.textContent = '—';
+    text.textContent = '-';
     svg.appendChild(text);
     return svg;
   }
@@ -154,19 +184,32 @@ function renderError(provider, error) {
   wrap.innerHTML = `
     <div class="popup-provider__head"><span class="aut-widget__brand-dot"></span>${provider === 'claude' ? 'Claude' : 'Codex'}</div>
     <div class="popup-error">
-      ${error === 'shell-response'
-        ? `Could not parse analytics page. Open ${provider === 'claude' ? 'claude.ai/settings/usage' : 'chatgpt.com/codex/cloud/settings/analytics'} while signed in.`
-        : `Error: ${escapeHtml(error || 'unknown')}`}
+      <div class="popup-error__title">${error === 'shell-response' ? 'Waiting for a signed-in reading' : 'Refresh failed'}</div>
+      <div>${error === 'shell-response'
+        ? 'Open the usage page once while signed in, then refresh this popup.'
+        : escapeHtml(error || 'Unknown error')}</div>
+      <div class="popup-error__actions">
+        <button class="aut-link-btn" data-provider="${provider}">Open usage page</button>
+      </div>
     </div>
   `;
+  wrap.querySelector('[data-provider]')?.addEventListener('click', () => openAnalytics(provider));
   return wrap;
 }
 
 function humanBucketLabel(b) {
   if (b.kind === 'session') return 'Current session (5 hr)';
-  if (b.kind === '5h')      return b.model === 'all' ? '5-hour limit' : `${b.model} (5 hr)`;
-  if (b.kind === 'weekly')  return b.model === 'all' ? 'Weekly limit' : `${b.model} (weekly)`;
+  if (b.kind === '5h')      return b.model === 'all' ? '5-hour limit' : `${titleModel(b.model)} (5 hr)`;
+  if (b.kind === 'weekly')  return b.model === 'all' ? 'Weekly limit' : `${titleModel(b.model)} (weekly)`;
   return b.label;
+}
+
+function titleModel(model) {
+  return String(model || '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function escapeHtml(s) {
@@ -183,4 +226,43 @@ function formatAgo(iso) {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   return `${h}h ago`;
+}
+
+function sourceLabel(source) {
+  if (source === 'api') return 'API';
+  if (source === 'dom') return 'Page';
+  if (source === 'html') return 'HTML';
+  if (source === 'live') return 'Live';
+  if (source === 'fetch') return 'Fetch';
+  return String(source).slice(0, 12);
+}
+
+function openAnalytics(provider) {
+  sendRuntimeMessage({ type: 'aut/open-analytics', provider }).catch(() => {
+    const url = provider === 'claude'
+      ? 'https://claude.ai/settings/usage'
+      : 'https://chatgpt.com/codex/cloud/settings/analytics#usage';
+    window.open(url, '_blank');
+  });
+}
+
+function sendRuntimeMessage(message) {
+  if (typeof browser !== 'undefined' && browser.runtime?.sendMessage && typeof chrome === 'undefined') {
+    return browser.runtime.sendMessage(message);
+  }
+  const runtime = (typeof chrome !== 'undefined' && chrome.runtime)
+    || (typeof browser !== 'undefined' && browser.runtime);
+  if (!runtime?.sendMessage) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    try {
+      const result = runtime.sendMessage(message, (response) => {
+        const err = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
+        if (err) reject(err);
+        else resolve(response);
+      });
+      if (result && typeof result.then === 'function') result.then(resolve, reject);
+    } catch (e) {
+      reject(e);
+    }
+  });
 }

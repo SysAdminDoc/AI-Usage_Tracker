@@ -1,4 +1,4 @@
-// Floating widget renderer. Pure DOM — no framework. Reads snapshot+settings
+// Floating widget renderer. Pure DOM, no framework. Reads snapshot+settings
 // from storage, renders SVG radial rings, ticks countdowns every 1s.
 
 import { loadState, saveState } from '../lib/storage.js';
@@ -11,10 +11,12 @@ function openAnalytics(which) {
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
+const VERSION = '0.1.3';
 
 let rootEl = null;
 let tickHandle = null;
 let dragState = null;
+let refreshBusy = false;
 
 export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
   if (rootEl) return rootEl;
@@ -60,7 +62,7 @@ async function fetchInlineCSS(relPath) {
     const res = await fetch(url);
     return await res.text();
   }
-  // Userscript path — replaced by build with literal CSS strings.
+  // Userscript path: replaced by build with literal CSS strings.
   if (relPath.endsWith('theme.css'))  return globalThis.__AUT_THEME_CSS__  || '';
   if (relPath.endsWith('widget.css')) return globalThis.__AUT_WIDGET_CSS__ || '';
   return '';
@@ -83,7 +85,7 @@ async function render({ onRefresh, onOpenSettings }) {
   }
 
   if (widget.minimized) {
-    wrap.title = 'AI Usage Tracker — click to expand';
+    wrap.title = 'AI Usage Tracker - click to expand';
     wrap.addEventListener('click', async () => {
       const s = await loadState();
       s.widget.minimized = false;
@@ -119,10 +121,12 @@ async function render({ onRefresh, onOpenSettings }) {
     const empty = document.createElement('div');
     empty.className = 'aut-widget__empty';
     empty.innerHTML = `
-      No data yet. The analytics pages need to render once so the scraper can read them.<br>
-      <button class="aut-iconbtn aut-link-btn" data-act="open-claude">Open Claude usage</button>
-      <span class="aut-dot">·</span>
-      <button class="aut-iconbtn aut-link-btn" data-act="open-codex">Open Codex analytics</button>
+      <div class="aut-widget__empty-title">No usage data yet</div>
+      <div>Open a signed-in usage page once to seed the local tracker.</div>
+      <div class="aut-widget__empty-actions">
+        <button class="aut-link-btn" data-act="open-claude">Open Claude</button>
+        <button class="aut-link-btn" data-act="open-codex">Open Codex</button>
+      </div>
     `;
     empty.querySelector('[data-act="open-claude"]').addEventListener('click', () => openAnalytics('claude'));
     empty.querySelector('[data-act="open-codex"]').addEventListener('click', () => openAnalytics('codex'));
@@ -135,7 +139,7 @@ async function render({ onRefresh, onOpenSettings }) {
     const foot = document.createElement('div');
     foot.className = 'aut-widget__footer';
     const ago = formatAgo(snapshot.fetchedAtISO);
-    foot.innerHTML = `<span>Updated ${ago}</span><span>v0.1.2</span>`;
+    foot.innerHTML = `<span>Updated ${ago}</span><span>v${VERSION}</span>`;
     wrap.appendChild(foot);
   }
 
@@ -168,9 +172,22 @@ function renderHeader({ onRefresh, onOpenSettings }) {
       </button>
     </div>
   `;
-  header.querySelector('[data-act="refresh"]').addEventListener('click', (e) => {
+  header.querySelector('[data-act="refresh"]').addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (onRefresh) onRefresh();
+    if (!onRefresh || refreshBusy) return;
+    const button = e.currentTarget;
+    refreshBusy = true;
+    button.classList.add('is-loading');
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      await onRefresh();
+    } finally {
+      refreshBusy = false;
+      button.classList.remove('is-loading');
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   });
   header.querySelector('[data-act="settings"]').addEventListener('click', (e) => {
     e.stopPropagation();
@@ -193,12 +210,21 @@ function renderProvider(providerKey, ps, buckets) {
   const title = document.createElement('div');
   title.className = 'aut-provider__title';
   title.textContent = providerKey === 'claude' ? 'Claude' : 'Codex';
+  const meta = document.createElement('span');
+  meta.className = 'aut-provider__meta';
   if (ps.plan) {
     const plan = document.createElement('span');
     plan.className = 'aut-provider__plan';
     plan.textContent = ps.plan;
-    title.appendChild(plan);
+    meta.appendChild(plan);
   }
+  if (ps.source) {
+    const source = document.createElement('span');
+    source.className = 'aut-provider__source';
+    source.textContent = sourceLabel(ps.source);
+    meta.appendChild(source);
+  }
+  if (meta.childNodes.length) title.appendChild(meta);
   wrap.appendChild(title);
 
   for (const b of buckets) {
@@ -216,6 +242,12 @@ function renderBucket(b) {
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
   const offset = RING_C * (1 - remaining / 100);
+  const resetLine = b.resetISO
+    ? `<div class="aut-bucket__reset">
+        <span>resets in</span>
+        <span class="aut-countdown" data-target="${b.resetISO}">${formatCountdown(b.resetISO)}</span>
+      </div>`
+    : `<div class="aut-bucket__reset aut-bucket__reset--missing">${escapeHtml(b.rawResetText || 'Reset not published')}</div>`;
   ring.innerHTML = `
     <svg viewBox="0 0 44 44">
       <circle class="aut-ring__track" cx="22" cy="22" r="${RING_R}" fill="none" stroke-width="4"></circle>
@@ -231,12 +263,10 @@ function renderBucket(b) {
   text.className = 'aut-bucket__text';
   text.innerHTML = `
     <div class="aut-bucket__label">${escapeHtml(humanBucketLabel(b))}</div>
-    <div class="aut-bucket__reset">
-      <span>resets in</span>
-      <span class="aut-countdown" data-target="${b.resetISO || ''}">${formatCountdown(b.resetISO)}</span>
-    </div>
+    ${resetLine}
   `;
   row.appendChild(text);
+  row.setAttribute('aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
   return row;
 }
 
@@ -250,11 +280,11 @@ function renderProviderError(provider, error) {
 
   const err = document.createElement('div');
   err.className = 'aut-widget__error';
-  const link = `<button class="aut-link-btn" data-act="open-${provider}">Open analytics</button>`;
+  const link = `<button class="aut-link-btn" data-act="open-${provider}">Open usage page</button>`;
   if (error === 'shell-response' || error === 'unhydrated' || error === 'no-rows-rendered') {
-    err.innerHTML = `Page hasn't rendered yet — ${link} once while signed in.`;
+    err.innerHTML = `<div class="aut-widget__error-title">Waiting for a signed-in reading</div>Open the usage page once so the local scraper can recover. ${link}`;
   } else {
-    err.innerHTML = `${escapeHtml(error || 'unknown error')} · ${link}`;
+    err.innerHTML = `<div class="aut-widget__error-title">Unable to refresh ${provider === 'claude' ? 'Claude' : 'Codex'}</div>${escapeHtml(error || 'Unknown error')}. ${link}`;
   }
   wrap.appendChild(err);
   err.querySelector('button')?.addEventListener('click', () => openAnalytics(provider));
@@ -263,9 +293,26 @@ function renderProviderError(provider, error) {
 
 function humanBucketLabel(b) {
   if (b.kind === 'session') return 'Session (5 hr)';
-  if (b.kind === '5h')      return b.model === 'all' ? '5-hour limit' : `${b.model} (5 hr)`;
-  if (b.kind === 'weekly')  return b.model === 'all' ? 'Weekly limit' : `${b.model} (weekly)`;
+  if (b.kind === '5h')      return b.model === 'all' ? '5-hour limit' : `${titleModel(b.model)} (5 hr)`;
+  if (b.kind === 'weekly')  return b.model === 'all' ? 'Weekly limit' : `${titleModel(b.model)} (weekly)`;
   return b.label;
+}
+
+function titleModel(model) {
+  return String(model || '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function sourceLabel(source) {
+  if (source === 'api') return 'API';
+  if (source === 'dom') return 'Page';
+  if (source === 'html') return 'HTML';
+  if (source === 'live') return 'Live';
+  if (source === 'fetch') return 'Fetch';
+  return String(source).slice(0, 12);
 }
 
 function escapeHtml(s) {

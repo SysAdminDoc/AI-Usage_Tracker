@@ -1,12 +1,19 @@
 # Roadmap
 
-**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.2
+**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.3
 
 This roadmap is a working document, not a wishlist. Every Now / Next / Later item is traceable to a numbered source in the [Appendix](#appendix-sources). Under Consideration entries are tracked but not committed. Rejected entries record decisions so they don't get silently resurrected.
 
 ---
 
 ## Shipped
+
+### v0.1.3 — 2026-05-19 — premium polish
+- [x] Shared UI primitives moved into `theme.css` for consistent popup/options/widget styling
+- [x] Widget and popup first-run, refresh-loading, degraded, error, and missing-reset states refined
+- [x] Settings diagnostics panel added for snapshot health, source path, row count, and copyable diagnostics
+- [x] Focus-visible, disabled, responsive, and reduced-motion states improved
+- [x] Content-script backdrop blur removed for lower repaint cost on host pages
 
 ### v0.1.2 — 2026-05-19 — Claude API repair
 - [x] Claude JSON API is now the primary usage source (`/api/organizations` → `/api/organizations/{orgId}/usage`)
@@ -62,7 +69,7 @@ External research turned up something we missed at design time: every mature com
 ### Reliability & accessibility
 - [ ] **N-16 — WCAG 2.2 AA conformance pass.** Keyboard nav for the widget header buttons + popup + options; visible focus indicators; `aria-live="polite"` on countdown ticker; `prefers-reduced-motion` respected (kill shimmer + ring transitions); 4.5:1 contrast audit on every text/background pair. Source: [#12], [#13], [#14].
 - [ ] **N-17 — High-contrast / color-blind safe palette option.** Use shape + pattern in addition to color on the rings (dashed → dotted → solid by danger level). Source: [#14].
-- [ ] **N-18 — Diagnostic panel in options.** Last-fetch timestamp per provider, error code if any, scraper path used (API vs. DOM vs. silent-tab), org-ID, plan label. One-click "copy diagnostics" button. Source: [#3], [#15].
+- [x] **N-18 — Diagnostic panel in options.** Last-fetch timestamp per provider, error code if any, scraper path used (API vs. DOM vs. silent-tab), org-ID, plan label. One-click "copy diagnostics" button. Completed in v0.1.3 with local snapshot health, source path, provider row counts, truncated Claude org ID, and copyable diagnostics. Source: [#3], [#15].
 - [ ] **N-19 — Signed AMO Firefox build.** Submit to addons.mozilla.org so release-channel users can install without `xpinstall.signatures.required=false`. Requires unique `id` in `browser_specific_settings.gecko` (already present). Source: [#16], own v0.1.0 roadmap.
 
 ### Engineering

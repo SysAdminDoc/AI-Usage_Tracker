@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.3 — 2026-05-19
+
+Premium polish pass across the widget, popup, and settings surfaces.
+
+### Changed
+- Moved shared brand mark, icon button, link button, focus, and motion primitives into the shared theme so popup/options no longer depend on widget-only CSS classes.
+- Refined widget and popup first-run, degraded, missing-reset, refresh-loading, source-label, and error states.
+- Added settings diagnostics with provider status, snapshot freshness, collection source, discovered row count, and copyable diagnostics.
+- Improved responsiveness, focus-visible treatment, disabled states, reduced-motion handling, and small-screen layout behavior.
+- Removed expensive content-script backdrop blur while preserving the dark elevated surface language.
+
 ## v0.1.2 — 2026-05-19
 
 Fixes Claude usage by switching the Claude collector to the same JSON API path used by Claude Ultimate Enhancer.
