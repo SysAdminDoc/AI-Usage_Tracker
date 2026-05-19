@@ -6,7 +6,7 @@ on:
       version:
         description: "Version (no v prefix, e.g. 0.1.1)"
         required: true
-        default: "0.1.1"
+        default: "0.1.2"
 
 permissions:
   contents: write
