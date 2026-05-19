@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.4 — 2026-05-19
+
+Fixes Codex usage collection by switching Codex to the ChatGPT WHAM usage API first, with the analytics-page scraper retained as fallback.
+
+### Fixed
+- Codex now reads `GET https://chatgpt.com/backend-api/wham/usage` using the logged-in ChatGPT session bearer token and `ChatGPT-Account-Id` header when available.
+- Codex usage normalization supports `rate_limit.primary_window`, `rate_limit.secondary_window`, `additional_rate_limits`, and alternate `five_hour` / `weekly` field names.
+- The Codex analytics DOM scraper remains as the fallback path for schema drift, logged-out sessions, or transient API failures.
+- Parser smoke coverage now verifies Codex WHAM payloads, alternate field names, and auth/header construction.
+
 ## v0.1.3 — 2026-05-19
 
 Premium polish pass across the widget, popup, and settings surfaces.

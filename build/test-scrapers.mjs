@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './common.mjs';
 import { parseClaude } from '../src/scrapers/claude.js';
-import { parseCodex } from '../src/scrapers/codex.js';
+import { fetchCodexApi, parseCodex, parseCodexUsageApi } from '../src/scrapers/codex.js';
 
 async function run() {
   const claudeRaw = await fs.readFile(path.join(ROOT, 'Claude.mhtml'), 'utf8').catch(() => null);
@@ -27,6 +27,8 @@ async function run() {
   } else {
     console.log('Codex.mhtml not found — skipping.');
   }
+
+  await smokeCodexApi();
 }
 
 function decodeMhtmlBody(mhtml) {
@@ -56,6 +58,108 @@ function print(label, parsed) {
     console.log(`     resetISO:    ${b.resetISO || '(none)'}`);
     console.log(`     rawReset:    ${b.rawResetText || '(none)'}`);
   }
+}
+
+async function smokeCodexApi() {
+  const now = new Date('2026-05-14T12:00:00Z');
+  const reset5h = Math.floor(new Date('2026-05-14T19:34:00Z').getTime() / 1000);
+  const resetWeekly = Math.floor(new Date('2026-05-19T06:05:00Z').getTime() / 1000);
+
+  const payload = {
+    plan_type: 'pro',
+    rate_limit: {
+      allowed: true,
+      limit_reached: false,
+      primary_window: {
+        used_percent: 98,
+        limit_window_seconds: 18_000,
+        reset_after_seconds: 0,
+        reset_at: reset5h,
+      },
+      secondary_window: {
+        used_percent: 69,
+        limit_window_seconds: 604_800,
+        reset_after_seconds: 0,
+        reset_at: resetWeekly,
+      },
+    },
+    additional_rate_limits: [{
+      limit_name: 'gpt-5.3-codex-spark',
+      metered_feature: 'gpt-5.3-codex-spark',
+      rate_limit: {
+        primary_window: {
+          used_percent: 7,
+          limit_window_seconds: 18_000,
+          reset_after_seconds: 0,
+          reset_at: reset5h,
+        },
+      },
+    }],
+  };
+
+  const parsed = parseCodexUsageApi(payload, { now, accountId: 'acc_123' });
+  assert(parsed.ok, 'Codex API payload should parse');
+  assert(findBucket(parsed, 'codex-5h-all')?.percentUsed === 98, 'primary window maps to 5h bucket');
+  assert(findBucket(parsed, 'codex-weekly-all')?.percentUsed === 69, 'secondary window maps to weekly bucket');
+  assert(findBucket(parsed, 'codex-5h-gpt-5-3-codex-spark')?.percentUsed === 7, 'additional model window maps to model bucket');
+
+  const alt = parseCodexUsageApi({
+    planType: 'plus',
+    five_hour_limit: { remaining_percent: 75, reset_after_seconds: 3600 },
+    weekly: { used: 3, limit: 10, resetAt: '2026-05-19T06:05:00Z' },
+  }, { now });
+  assert(alt.ok, 'Codex alternate field-name payload should parse');
+  assert(findBucket(alt, 'codex-5h-all')?.percentUsed === 25, 'five_hour_limit remaining percent normalizes');
+  assert(findBucket(alt, 'codex-weekly-all')?.percentUsed === 30, 'weekly used/limit normalizes');
+
+  const requests = [];
+  const token = makeJwt({
+    'https://api.openai.com/auth': {
+      chatgpt_account_id: 'acc_123',
+      chatgpt_plan_type: 'plus',
+    },
+  });
+  const fetched = await fetchCodexApi({
+    now,
+    fetchImpl: async (url, init = {}) => {
+      requests.push({ url, init });
+      if (String(url).includes('/api/auth/session')) {
+        return jsonResponse({ accessToken: token });
+      }
+      assert(init.headers.Authorization === `Bearer ${token}`, 'Codex API request sends bearer token');
+      assert(init.headers['ChatGPT-Account-Id'] === 'acc_123', 'Codex API request sends account id');
+      return jsonResponse(payload);
+    },
+  });
+  assert(fetched.ok, 'fetchCodexApi should parse mocked WHAM response');
+
+  console.log('\n=== Codex API ===');
+  console.log('  primary WHAM payload: OK');
+  console.log('  alternate field names: OK');
+  console.log(`  auth/session + wham/usage requests: ${requests.length}`);
+}
+
+function findBucket(parsed, id) {
+  return parsed.buckets.find((b) => b.id === id);
+}
+
+function jsonResponse(body, { ok = true, status = 200 } = {}) {
+  return {
+    ok,
+    status,
+    async json() { return body; },
+    async text() { return JSON.stringify(body); },
+  };
+}
+
+function makeJwt(payload) {
+  const encode = (value) => Buffer.from(JSON.stringify(value), 'utf8')
+    .toString('base64url');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
 }
 
 run().catch((e) => { console.error(e); process.exit(1); });

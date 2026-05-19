@@ -1,9 +1,9 @@
 // Service worker. Runs in Chrome MV3 + Firefox MV3.
 //
 // Refresh strategy:
-//   1) Fast path: direct authenticated fetch() against the analytics URLs.
-//      Both providers currently ship a hydration shell, so this almost always
-//      returns "shell-response" — but we keep it in case they add SSR later.
+//   1) Fast path: direct authenticated API fetch(). Claude uses
+//      /api/organizations/{orgId}/usage; Codex uses /backend-api/wham/usage
+//      with the logged-in ChatGPT session's bearer token/account id.
 //   2) Live path: an analytics-scraper.js content script that runs whenever
 //      the user is on either analytics page. When it scrapes a stable
 //      snapshot from the rendered DOM, it ships the result here via

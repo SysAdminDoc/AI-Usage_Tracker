@@ -10,12 +10,13 @@
 // inside the rendered DOM and reads the real values.
 
 import { fetchClaude, parseClaudeDoc } from './scrapers/claude.js';
-import { parseCodexDoc } from './scrapers/codex.js';
+import { fetchCodexApi, parseCodexDoc } from './scrapers/codex.js';
 import { send } from './lib/browser.js';
 
 const POLL_MS = 1000;
 const STABLE_REQUIRED = 2;    // consecutive identical scrapes before we ship
 const CLAUDE_API_MIN_MS = 5000;
+const CODEX_API_MIN_MS = 5000;
 
 const provider = detectProvider();
 if (provider) bootstrap();
@@ -32,6 +33,7 @@ function bootstrap() {
   let lastHash = '';
   let inFlight = false;
   let lastClaudeApiAt = 0;
+  let lastCodexApiAt = 0;
 
   const tick = async () => {
     if (inFlight) return;
@@ -41,6 +43,8 @@ function bootstrap() {
       parsed = await scrapeProvider({
         lastClaudeApiAt,
         setLastClaudeApiAt: (ts) => { lastClaudeApiAt = ts; },
+        lastCodexApiAt,
+        setLastCodexApiAt: (ts) => { lastCodexApiAt = ts; },
       });
     } catch (e) {
       parsed = { ok: false, provider, error: String(e) };
@@ -81,9 +85,19 @@ function bootstrap() {
   mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 }
 
-async function scrapeProvider({ lastClaudeApiAt, setLastClaudeApiAt }) {
+async function scrapeProvider({ lastClaudeApiAt, setLastClaudeApiAt, lastCodexApiAt, setLastCodexApiAt }) {
   const now = new Date();
-  if (provider === 'codex') return parseCodexDoc(document, { now });
+  if (provider === 'codex') {
+    const ts = Date.now();
+    if (ts - lastCodexApiAt >= CODEX_API_MIN_MS) {
+      setLastCodexApiAt(ts);
+      const apiParsed = await fetchCodexApi({ now });
+      if (apiParsed.ok) return apiParsed;
+      const domParsed = parseCodexDoc(document, { now });
+      return domParsed.ok ? domParsed : apiParsed;
+    }
+    return parseCodexDoc(document, { now });
+  }
 
   const ts = Date.now();
   if (ts - lastClaudeApiAt >= CLAUDE_API_MIN_MS) {

@@ -16,7 +16,7 @@ export const DIST = path.join(ROOT, 'dist');
 export const ICONS = path.join(SRC, 'icons');
 
 // Source of truth for the version string.
-export const VERSION = '0.1.3';
+export const VERSION = '0.1.4';
 
 let cachedEsbuild = null;
 

@@ -1,12 +1,19 @@
 # Roadmap
 
-**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.3
+**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.4
 
 This roadmap is a working document, not a wishlist. Every Now / Next / Later item is traceable to a numbered source in the [Appendix](#appendix-sources). Under Consideration entries are tracked but not committed. Rejected entries record decisions so they don't get silently resurrected.
 
 ---
 
 ## Shipped
+
+### v0.1.4 — 2026-05-19 — Codex API repair
+- [x] Codex WHAM usage API is now the primary usage source (`/api/auth/session` -> `/backend-api/wham/usage`)
+- [x] `Authorization: Bearer` and `ChatGPT-Account-Id` headers are derived from the logged-in ChatGPT session when available
+- [x] Codex API payload normalization covers primary/secondary windows, additional model limits, and alternate five-hour/weekly field names
+- [x] Codex analytics page scraping remains as a DOM/raw-HTML fallback
+- [x] Parser smoke coverage added for WHAM payloads and auth/header construction
 
 ### v0.1.3 — 2026-05-19 — premium polish
 - [x] Shared UI primitives moved into `theme.css` for consistent popup/options/widget styling
@@ -47,7 +54,7 @@ External research turned up something we missed at design time: every mature com
 
 ### Data path overhaul
 - [x] **N-01 — Primary scraper: claude.ai JSON API.** Replace the DOM scrape with `GET https://claude.ai/api/organizations/{org_id}/usage`. Completed in v0.1.2 using `GET /api/organizations` org discovery with a 24h session cache; the `lastActiveOrg` cookie shortcut was skipped to avoid adding the `cookies` permission. The live-DOM scraper remains as a hard fallback if the endpoint returns 404 or schema drifts. Sources: [#2], [#3], [#6], [#18].
-- [ ] **N-02 — Primary scraper: chatgpt.com JSON API.** Switch to `GET https://chatgpt.com/backend-api/wham/usage` with `Authorization: Bearer` + `ChatGPT-Account-Id` headers from existing browser session. Tolerate the documented alt field names (`five_hour`/`primary_window`/`five_hour_limit`, `weekly`/`secondary_window`/`weekly_limit`). Source: [#7], [#8].
+- [x] **N-02 — Primary scraper: chatgpt.com JSON API.** Switch to `GET https://chatgpt.com/backend-api/wham/usage` with `Authorization: Bearer` + `ChatGPT-Account-Id` headers from existing browser session. Tolerate the documented alt field names (`five_hour`/`primary_window`/`five_hour_limit`, `weekly`/`secondary_window`/`weekly_limit`). Completed in v0.1.4 using `/api/auth/session` for token/account discovery, WHAM `rate_limit.primary_window` / `secondary_window` normalization, additional model limit support, and DOM/raw-HTML fallback retention. Source: [#7], [#8].
 - [ ] **N-03 — SSE `message_limit` interception (Claude).** Hook into the streamed completion responses on claude.ai to capture unrounded utilization fractions (more accurate than the rounded `/usage` page values). Used to refine the bars in real time as the user sends messages. Source: [#18].
 - [ ] **N-04 — Anthropic rate-limit response header sniffing.** When the user has API traffic flowing, parse `anthropic-ratelimit-unified-*-utilization` / `-reset` / `-status` headers as a third data source. Source: [#10].
 - [ ] **N-05 — Stale-tab refresh becomes opt-in fallback only.** Once API-path data is flowing, retire the auto-opening silent tab from the default refresh loop. Keep the manual "open analytics" button.
