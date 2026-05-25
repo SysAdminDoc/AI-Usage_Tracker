@@ -1,6 +1,6 @@
 const INSTALL_FLAG = '__autClaudeStreamInterceptorInstalled';
 
-export function installClaudeMessageLimitInterceptor({ target = globalThis, emit } = {}) {
+export function installClaudeMessageLimitInterceptor({ target = globalThis, emit, emitRateLimit } = {}) {
   if (!target || typeof emit !== 'function') return false;
   if (target[INSTALL_FLAG]) return false;
   if (typeof target.fetch !== 'function') return false;
@@ -15,7 +15,7 @@ export function installClaudeMessageLimitInterceptor({ target = globalThis, emit
   target.fetch = async function autClaudeFetchInterceptor(...args) {
     const response = await originalFetch.apply(this, args);
     try {
-      inspectClaudeStreamResponse(args[0], response, emit);
+      inspectClaudeResponse(args[0], response, { emit, emitRateLimit });
     } catch {
       // Stream monitoring must never affect the page's own request.
     }
@@ -31,8 +31,12 @@ export function collectClaudeMessageLimitsFromSseText(text) {
   return found;
 }
 
-function inspectClaudeStreamResponse(input, response, emit) {
-  if (!response || !isClaudeCompletionUrl(requestUrl(input))) return;
+function inspectClaudeResponse(input, response, { emit, emitRateLimit }) {
+  if (!response) return;
+  const headerSnapshot = extractClaudeRateLimitHeaders(response.headers);
+  if (headerSnapshot && typeof emitRateLimit === 'function') emitRateLimit(headerSnapshot);
+
+  if (!isClaudeCompletionUrl(requestUrl(input))) return;
   const contentType = response.headers?.get?.('content-type') || '';
   if (contentType && !/text\/event-stream|application\/x-ndjson|text\/plain/i.test(contentType)) return;
   if (!response.body || typeof response.clone !== 'function') return;
@@ -81,12 +85,46 @@ export function consumeClaudeSseText(chunk, state, emit) {
   }
 }
 
+export function extractClaudeRateLimitHeaders(headers) {
+  if (!headers || typeof headers.forEach !== 'function') return null;
+  const windows = {};
+
+  headers.forEach((value, rawName) => {
+    const name = String(rawName || '').toLowerCase();
+    const match = /^anthropic-ratelimit-unified-([a-z0-9_-]+)-(utilization|reset|status)$/.exec(name);
+    if (!match) return;
+
+    const key = normalizeRateLimitClaim(match[1]);
+    windows[key] = windows[key] || {};
+    if (match[2] === 'utilization') {
+      const n = Number(value);
+      if (Number.isFinite(n)) windows[key].utilization = n;
+    } else if (match[2] === 'reset') {
+      windows[key].reset_at = value;
+    } else if (match[2] === 'status') {
+      windows[key].status = value;
+    }
+  });
+
+  for (const key of Object.keys(windows)) {
+    if (windows[key].utilization == null && !windows[key].reset_at) delete windows[key];
+  }
+  return Object.keys(windows).length ? { windows } : null;
+}
+
 function extractMessageLimit(payload) {
   if (!payload || typeof payload !== 'object') return null;
   if (payload.message_limit && typeof payload.message_limit === 'object') return payload.message_limit;
   if (payload.type === 'message_limit' && payload.data?.message_limit) return payload.data.message_limit;
   if (payload.type === 'message_limit' && payload.data) return payload.data;
   return null;
+}
+
+function normalizeRateLimitClaim(claim) {
+  const normalized = String(claim || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (/^(5h|five_hour|session)$/.test(normalized)) return '5h';
+  if (/^(7d|seven_day|weekly|week)$/.test(normalized)) return 'seven_day';
+  return normalized || 'unknown';
 }
 
 function requestUrl(input) {

@@ -12,4 +12,12 @@ installClaudeMessageLimitInterceptor({
       observedAtISO: new Date().toISOString(),
     }, location.origin);
   },
+  emitRateLimit(rateLimit) {
+    window.postMessage({
+      source: SOURCE,
+      type: 'claude-rate-limit-headers',
+      rateLimit,
+      observedAtISO: new Date().toISOString(),
+    }, location.origin);
+  },
 });

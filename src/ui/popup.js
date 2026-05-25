@@ -235,6 +235,7 @@ function sourceLabel(source) {
   if (source === 'live') return 'Live';
   if (source === 'fetch') return 'Fetch';
   if (source === 'stream') return 'Stream';
+  if (source === 'headers') return 'Headers';
   return String(source).slice(0, 12);
 }
 

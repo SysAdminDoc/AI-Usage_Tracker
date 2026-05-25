@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.6 — 2026-05-19
+
+Adds Anthropic unified rate-limit response header capture as another Claude usage source when the browser page can read those headers.
+
+### Added
+- The Claude page-context interceptor now reads `anthropic-ratelimit-unified-*-utilization`, `-reset`, and `-status` response headers.
+- Header-derived 5h and 7d utilization values merge into the same Claude local snapshot path as stream and API data.
+- Widget, popup, and options diagnostics now label header-derived Claude readings distinctly.
+- Parser smoke coverage now verifies unified rate-limit header normalization.
+
 ## v0.1.5 — 2026-05-19
 
 Adds Claude streamed `message_limit` capture so usage bars can update from live completion responses instead of waiting for the rounded usage endpoint.

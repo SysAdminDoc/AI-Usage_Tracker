@@ -11,7 +11,7 @@ function openAnalytics(which) {
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.1.5';
+const VERSION = '0.1.6';
 
 let rootEl = null;
 let tickHandle = null;
@@ -313,6 +313,7 @@ function sourceLabel(source) {
   if (source === 'live') return 'Live';
   if (source === 'fetch') return 'Fetch';
   if (source === 'stream') return 'Stream';
+  if (source === 'headers') return 'Headers';
   return String(source).slice(0, 12);
 }
 

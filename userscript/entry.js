@@ -83,14 +83,19 @@ function installClaudeStreamInterceptor() {
   installClaudeMessageLimitInterceptor({
     target,
     emit(messageLimit) {
-      ingestClaudeMessageLimit(messageLimit)
+      ingestClaudeUsageWindows(messageLimit, { source: 'stream' })
         .then(() => refreshWidget())
         .catch((e) => console.warn('AUT Claude stream ingest failed', e));
+    },
+    emitRateLimit(rateLimit) {
+      ingestClaudeUsageWindows(rateLimit, { source: 'headers' })
+        .then(() => refreshWidget())
+        .catch((e) => console.warn('AUT Claude header ingest failed', e));
     },
   });
 }
 
-async function ingestClaudeMessageLimit(messageLimit) {
+async function ingestClaudeUsageWindows(messageLimit, { source = 'stream' } = {}) {
   const now = new Date();
   const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
   if (!parsed.ok) return;
@@ -102,7 +107,7 @@ async function ingestClaudeMessageLimit(messageLimit) {
     fetchedAtISO: now.toISOString(),
     providers: {
       ...providers,
-      claude: mergeProviderBuckets(previous, { ...parsed, source: 'stream' }),
+      claude: mergeProviderBuckets(previous, { ...parsed, source }),
     },
   };
   state.snapshot = snapshot;

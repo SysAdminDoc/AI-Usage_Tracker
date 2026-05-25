@@ -1,6 +1,6 @@
 import { loadState, saveState, defaultSettings } from '../lib/storage.js';
 
-const VERSION = '0.1.5';
+const VERSION = '0.1.6';
 
 const KNOWN_ROWS = [
   { id: 'claude-session',        label: 'Claude - Current session' },
@@ -238,6 +238,7 @@ function sourceLabel(source) {
   if (source === 'live') return 'live content source';
   if (source === 'fetch') return 'fetch source';
   if (source === 'stream') return 'streamed message-limit source';
+  if (source === 'headers') return 'rate-limit headers source';
   return `${source} source`;
 }
 

@@ -7,7 +7,7 @@ import path from 'node:path';
 import { ROOT } from './common.mjs';
 import { parseClaude, parseClaudeUsageApi } from '../src/scrapers/claude.js';
 import { fetchCodexApi, parseCodex, parseCodexUsageApi } from '../src/scrapers/codex.js';
-import { collectClaudeMessageLimitsFromSseText } from '../src/lib/claude-stream.js';
+import { collectClaudeMessageLimitsFromSseText, extractClaudeRateLimitHeaders } from '../src/lib/claude-stream.js';
 
 async function run() {
   const claudeRaw = await fs.readFile(path.join(ROOT, 'Claude.mhtml'), 'utf8').catch(() => null);
@@ -30,6 +30,7 @@ async function run() {
   }
 
   smokeClaudeStream();
+  smokeClaudeRateLimitHeaders();
   await smokeCodexApi();
 }
 
@@ -80,6 +81,27 @@ function smokeClaudeStream() {
   console.log('\n=== Claude Stream ===');
   console.log('  SSE message_limit payload: OK');
   console.log('  fractional utilization: OK');
+}
+
+function smokeClaudeRateLimitHeaders() {
+  const now = new Date('2026-05-14T12:00:00Z');
+  const headers = new Headers({
+    'anthropic-ratelimit-unified-5h-utilization': '44.5',
+    'anthropic-ratelimit-unified-5h-reset': '2026-05-14T17:05:00.000Z',
+    'anthropic-ratelimit-unified-5h-status': 'allowed_warning',
+    'anthropic-ratelimit-unified-7d-utilization': '62.25',
+    'anthropic-ratelimit-unified-7d-reset': '2026-05-19T17:00:00.000Z',
+  });
+  const snapshot = extractClaudeRateLimitHeaders(headers);
+  assert(snapshot?.windows?.['5h']?.status === 'allowed_warning', 'Claude unified header status should parse');
+
+  const parsed = parseClaudeUsageApi({ message_limit: snapshot }, { now });
+  assert(parsed.ok, 'Claude unified rate-limit headers should parse');
+  assert(nearly(findBucket(parsed, 'claude-session')?.percentUsed, 44.5), 'Claude 5h header utilization maps to session bucket');
+  assert(nearly(findBucket(parsed, 'claude-weekly-all')?.percentUsed, 62.25), 'Claude 7d header utilization maps to weekly bucket');
+
+  console.log('\n=== Claude Headers ===');
+  console.log('  unified rate-limit headers: OK');
 }
 
 async function smokeCodexApi() {

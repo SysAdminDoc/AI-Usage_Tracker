@@ -55,7 +55,11 @@ function bindMessageHandlers() {
       return { ok: true };
     }
     if (msg.type === 'aut/claude-message-limit') {
-      await ingestClaudeMessageLimit(msg.messageLimit);
+      await ingestClaudeUsageWindows(msg.messageLimit, { source: 'stream' });
+      return { ok: true };
+    }
+    if (msg.type === 'aut/claude-rate-limit-headers') {
+      await ingestClaudeUsageWindows(msg.rateLimit, { source: 'headers' });
       return { ok: true };
     }
     return null;
@@ -153,14 +157,14 @@ async function ingestProviderSnapshot(parsed, { source, now = new Date() } = {})
   await fireNotifications(state, now);
 }
 
-async function ingestClaudeMessageLimit(messageLimit, { now = new Date() } = {}) {
+async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now = new Date() } = {}) {
   const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
   if (!parsed.ok) return;
 
   let state = (await loadState()) || defaultState();
   const previous = state.snapshot?.providers?.claude;
-  const merged = mergeProviderBuckets(previous, { ...parsed, source: 'stream' });
-  state = await mergeSnapshot(state, merged, { source: 'stream', now });
+  const merged = mergeProviderBuckets(previous, { ...parsed, source });
+  state = await mergeSnapshot(state, merged, { source, now });
   await fireNotifications(state, now);
 }
 

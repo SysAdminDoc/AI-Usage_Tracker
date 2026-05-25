@@ -1,12 +1,18 @@
 # Roadmap
 
-**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.5
+**Last updated:** 2026-05-19 · **Current shipped version:** v0.1.6
 
 This roadmap is a working document, not a wishlist. Every Now / Next / Later item is traceable to a numbered source in the [Appendix](#appendix-sources). Under Consideration entries are tracked but not committed. Rejected entries record decisions so they don't get silently resurrected.
 
 ---
 
 ## Shipped
+
+### v0.1.6 — 2026-05-19 — Anthropic header usage
+- [x] Claude page-context interceptor now captures `anthropic-ratelimit-unified-*` utilization/reset/status headers
+- [x] Header-derived 5h and 7d readings normalize into the same Claude usage bucket schema
+- [x] Extension and userscript bridges merge header readings while preserving previous API/stream metadata
+- [x] Header source labels and parser smoke coverage were added
 
 ### v0.1.5 — 2026-05-19 — Claude stream usage
 - [x] Claude completion SSE responses are intercepted in the page context at document start
@@ -63,7 +69,7 @@ External research turned up something we missed at design time: every mature com
 - [x] **N-01 — Primary scraper: claude.ai JSON API.** Replace the DOM scrape with `GET https://claude.ai/api/organizations/{org_id}/usage`. Completed in v0.1.2 using `GET /api/organizations` org discovery with a 24h session cache; the `lastActiveOrg` cookie shortcut was skipped to avoid adding the `cookies` permission. The live-DOM scraper remains as a hard fallback if the endpoint returns 404 or schema drifts. Sources: [#2], [#3], [#6], [#18].
 - [x] **N-02 — Primary scraper: chatgpt.com JSON API.** Switch to `GET https://chatgpt.com/backend-api/wham/usage` with `Authorization: Bearer` + `ChatGPT-Account-Id` headers from existing browser session. Tolerate the documented alt field names (`five_hour`/`primary_window`/`five_hour_limit`, `weekly`/`secondary_window`/`weekly_limit`). Completed in v0.1.4 using `/api/auth/session` for token/account discovery, WHAM `rate_limit.primary_window` / `secondary_window` normalization, additional model limit support, and DOM/raw-HTML fallback retention. Source: [#7], [#8].
 - [x] **N-03 — SSE `message_limit` interception (Claude).** Hook into the streamed completion responses on claude.ai to capture unrounded utilization fractions (more accurate than the rounded `/usage` page values). Used to refine the bars in real time as the user sends messages. Completed in v0.1.5 with a main-world document-start fetch interceptor, extension/userscript storage ingest, bucket merge preservation, stream source labels, and SSE smoke coverage. Source: [#18].
-- [ ] **N-04 — Anthropic rate-limit response header sniffing.** When the user has API traffic flowing, parse `anthropic-ratelimit-unified-*-utilization` / `-reset` / `-status` headers as a third data source. Source: [#10].
+- [x] **N-04 — Anthropic rate-limit response header sniffing.** When the user has API traffic flowing, parse `anthropic-ratelimit-unified-*-utilization` / `-reset` / `-status` headers as a third data source. Completed in v0.1.6 through the Claude page-context response interceptor, normalizing 5h/7d headers into the existing Claude bucket schema and labeling the source as headers in diagnostics. Source: [#10].
 - [ ] **N-05 — Stale-tab refresh becomes opt-in fallback only.** Once API-path data is flowing, retire the auto-opening silent tab from the default refresh loop. Keep the manual "open analytics" button.
 
 ### Surfaces & UX
