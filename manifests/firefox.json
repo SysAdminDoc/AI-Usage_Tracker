@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "AI Usage Tracker",
   "short_name": "AI Usage",
-  "version": "0.1.6",
-  "description": "Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget, popup dashboard, and OS alerts.",
+  "version": "0.2.0",
+  "description": "Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget, popup dashboard, and OS alerts. v0.2: native messaging bridge for the QuotaGlass desktop widget.",
   "author": "SysAdminDoc",
   "homepage_url": "https://github.com/SysAdminDoc/AI-Usage_Tracker",
 
@@ -86,7 +86,8 @@
     "storage",
     "alarms",
     "notifications",
-    "tabs"
+    "tabs",
+    "nativeMessaging"
   ],
 
   "host_permissions": [

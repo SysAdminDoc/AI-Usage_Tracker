@@ -18,6 +18,7 @@ import { loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
 import { evaluateRules } from './lib/notify.js';
 import { notify, schedule, onMessage } from './lib/browser.js';
+import { pushSnapshot } from './lib/bridge.js';
 
 const ALARM_NAME = 'aut-refresh';
 
@@ -183,6 +184,14 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   next.snapshot.fetchedAtISO = now.toISOString();
   next.history = recordSnapshot(next.history || [], next.snapshot, { now });
   await saveState(next);
+  // Forward to QuotaGlass desktop widget (no-op if NMH not installed).
+  try {
+    const version = chrome.runtime?.getManifest?.()?.version;
+    pushSnapshot(next, version);
+  } catch (e) {
+    // Bridge failures must never break the extension's own data path.
+    console.info('[AUT] bridge push failed:', e?.message || e);
+  }
   return next;
 }
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.0 — 2026-05-25 — QuotaGlass desktop bridge
+
+Optional integration with [QuotaGlass](https://github.com/SysAdminDoc/QuotaGlass), a Windows desktop widget that displays Claude + Codex quota state on your desktop. The extension forwards every successful state ingest to the QuotaGlass native messaging host. If QuotaGlass is not installed, the bridge is a silent no-op — no behavioral change for existing users beyond the new permission prompt.
+
+### Added
+- `src/lib/bridge.js` — persistent native-messaging port (`com.sysadmindoc.quotaglass`) with reconnect-on-disconnect + 25s keepalive ping. Schema documented at [QuotaGlass/docs/extension-integration.md](https://github.com/SysAdminDoc/QuotaGlass/blob/main/docs/extension-integration.md).
+- `manifests/chrome.json` — added stable `"key"` field (deterministic extension ID `olkdpcileldmdemjbiklkhompnhkhjeh`).
+- Both manifests — added `"nativeMessaging"` permission.
+- `background.js` — `pushSnapshot` invoked after `mergeSnapshot`.
+
+### Notes
+- Existing developer-mode installs will get a new extension ID after pulling v0.2.0; reload via `chrome://extensions/`.
+- The bridge sends nothing if QuotaGlass is not registered as a native messaging host. No data leaves your machine beyond the local stdin/stdout pipe.
+
 ## v0.1.6 — 2026-05-19
 
 Adds Anthropic unified rate-limit response header capture as another Claude usage source when the browser page can read those headers.
