@@ -55,13 +55,25 @@ export function forecastExhaustion(history, bucketId, { now = new Date(), window
 // Per-bucket sparkline: returns up to `n` points spaced ~evenly over last
 // RETAIN_MS, normalized to [0..100] for easy SVG plotting.
 export function sparklineFor(history, bucketId, { n = 24 } = {}) {
+  return sparklineSamplesFor(history, bucketId, { n }).map((s) => s.percentUsed);
+}
+
+export function sparklineSamplesFor(history, bucketId, { n = 24 } = {}) {
   const samples = history.filter((h) => h.bucketId === bucketId).sort((a, b) => a.ts - b.ts);
   if (samples.length === 0) return [];
-  if (samples.length <= n) return samples.map((s) => s.percentUsed);
+  if (samples.length <= n) return samples.map(normalizeSample);
   const step = samples.length / n;
   const out = [];
   for (let i = 0; i < n; i++) {
-    out.push(samples[Math.floor(i * step)].percentUsed);
+    out.push(normalizeSample(samples[Math.floor(i * step)]));
   }
   return out;
+}
+
+function normalizeSample(sample) {
+  return {
+    ts: sample.ts,
+    bucketId: sample.bucketId,
+    percentUsed: Math.max(0, Math.min(100, Number(sample.percentUsed) || 0)),
+  };
 }

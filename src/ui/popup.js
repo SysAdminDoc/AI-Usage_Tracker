@@ -1,6 +1,6 @@
 import { loadState } from '../lib/storage.js';
 import { formatCountdown, formatResetAbsolute, ringColor } from '../lib/countdown.js';
-import { sparklineFor } from '../lib/history.js';
+import { sparklineSamplesFor } from '../lib/history.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
@@ -139,15 +139,16 @@ function renderBucket(b, history) {
 
   const spark = document.createElement('div');
   spark.className = 'popup-bucket__spark';
-  spark.appendChild(buildSparkline(history, b.id));
+  buildSparkline(spark, history, b.id);
   row.appendChild(spark);
   row.setAttribute('aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
 
   return row;
 }
 
-function buildSparkline(history, bucketId) {
-  const pts = sparklineFor(history, bucketId, { n: 24 });
+function buildSparkline(host, history, bucketId) {
+  const samples = sparklineSamplesFor(history, bucketId, { n: 24 });
+  const pts = samples.map((sample) => sample.percentUsed);
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('viewBox', '0 0 80 28');
@@ -160,7 +161,8 @@ function buildSparkline(history, bucketId) {
     text.setAttribute('font-size', '9');
     text.textContent = '-';
     svg.appendChild(text);
-    return svg;
+    host.appendChild(svg);
+    return;
   }
   const w = 80, h = 28;
   const step = w / (pts.length - 1);
@@ -175,7 +177,59 @@ function buildSparkline(history, bucketId) {
   const path = document.createElementNS(svgNS, 'path');
   path.setAttribute('d', d);
   svg.appendChild(path);
-  return svg;
+  host.appendChild(svg);
+  attachSparklineTooltip(host, samples);
+}
+
+function attachSparklineTooltip(host, samples) {
+  if (!samples.length) return;
+  host.tabIndex = 0;
+  host.setAttribute('role', 'img');
+  host.setAttribute('aria-label', sparklineAriaLabel(samples));
+
+  const tip = document.createElement('div');
+  tip.className = 'popup-spark-tooltip';
+  tip.setAttribute('role', 'tooltip');
+  host.appendChild(tip);
+
+  const show = (sample, x = host.clientWidth / 2) => {
+    tip.textContent = `${formatHistoryPercent(sample.percentUsed)} used - ${formatHistoryTime(sample.ts)}`;
+    const safeX = Math.max(34, Math.min(host.clientWidth - 34, x));
+    tip.style.left = `${safeX}px`;
+    tip.classList.add('is-visible');
+  };
+  const hide = () => tip.classList.remove('is-visible');
+
+  host.addEventListener('pointermove', (event) => {
+    const rect = host.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    const idx = Math.max(0, Math.min(samples.length - 1, Math.round((x / rect.width) * (samples.length - 1))));
+    show(samples[idx], x);
+  });
+  host.addEventListener('pointerleave', hide);
+  host.addEventListener('focus', () => show(samples[samples.length - 1]));
+  host.addEventListener('blur', hide);
+}
+
+function sparklineAriaLabel(samples) {
+  const latest = samples[samples.length - 1];
+  return `Usage history sparkline, latest ${formatHistoryPercent(latest.percentUsed)} at ${formatHistoryTime(latest.ts)}`;
+}
+
+function formatHistoryPercent(percentUsed) {
+  const n = Number(percentUsed) || 0;
+  return `${n.toFixed(Math.abs(n - Math.round(n)) < 0.05 ? 0 : 1)}%`;
+}
+
+function formatHistoryTime(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return 'unknown time';
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function renderError(provider, error) {
