@@ -11,6 +11,7 @@ import { evaluateRules } from '../src/lib/notify.js';
 import { notify } from '../src/lib/browser.js';
 import { installClaudeMessageLimitInterceptor } from '../src/lib/claude-stream.js';
 import { startClaudeContextCounter } from '../src/lib/context-counter.js';
+import { extractClaudeCacheTimer, mergeCacheTimer } from '../src/lib/cache-timer.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 
@@ -103,12 +104,17 @@ function installClaudeStreamInterceptor() {
 
 async function ingestClaudeUsageWindows(messageLimit, { source = 'stream' } = {}) {
   const now = new Date();
+  const cacheTimer = extractClaudeCacheTimer(messageLimit, { now, source });
   const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
-  if (!parsed.ok) return;
+  if (!parsed.ok) {
+    if (cacheTimer) await saveState(mergeCacheTimer((await loadState()) || defaultState(), cacheTimer));
+    return;
+  }
 
-  const state = (await loadState()) || defaultState();
+  let state = (await loadState()) || defaultState();
   const previous = state.snapshot?.providers?.claude;
   const providers = state.snapshot?.providers || {};
+  state = mergeCacheTimer(state, cacheTimer);
   const snapshot = {
     fetchedAtISO: now.toISOString(),
     providers: {

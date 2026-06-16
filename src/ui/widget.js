@@ -106,8 +106,9 @@ async function render({ onRefresh, onOpenSettings }) {
     if (!settings.showProviders[provider]) continue;
     const ps = snapshot && snapshot.providers ? snapshot.providers[provider] : null;
     const context = provider === 'claude' ? state.context?.claude : null;
-    if (!ps && context) {
-      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], context));
+    const cache = provider === 'claude' ? state.cache?.claude : null;
+    if (!ps && (context || cache)) {
+      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], { context, cache }));
       drewSomething = true;
       continue;
     }
@@ -118,8 +119,8 @@ async function render({ onRefresh, onOpenSettings }) {
       continue;
     }
     const visibleBuckets = ps.buckets.filter((b) => settings.showRows[b.id] !== false);
-    if (visibleBuckets.length === 0 && !context) continue;
-    body.appendChild(renderProvider(provider, ps, visibleBuckets, context));
+    if (visibleBuckets.length === 0 && !context && !cache) continue;
+    body.appendChild(renderProvider(provider, ps, visibleBuckets, { context, cache }));
     drewSomething = true;
   }
 
@@ -209,7 +210,7 @@ function renderHeader({ onRefresh, onOpenSettings }) {
   return header;
 }
 
-function renderProvider(providerKey, ps, buckets, context = null) {
+function renderProvider(providerKey, ps, buckets, extras = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'aut-provider';
 
@@ -236,10 +237,34 @@ function renderProvider(providerKey, ps, buckets, context = null) {
   for (const b of buckets) {
     wrap.appendChild(renderBucket(b));
   }
-  if (providerKey === 'claude' && context) {
-    wrap.appendChild(renderContextCounter(context));
+  if (providerKey === 'claude' && extras.context) {
+    wrap.appendChild(renderContextCounter(extras.context));
+  }
+  if (providerKey === 'claude' && extras.cache) {
+    wrap.appendChild(renderCacheTimer(extras.cache));
   }
   return wrap;
+}
+
+function renderCacheTimer(cache) {
+  const row = document.createElement('div');
+  row.className = 'aut-cache';
+  const cachedUntil = cache.cachedUntilISO || null;
+  const remainingMs = cachedUntil ? Math.max(0, new Date(cachedUntil).getTime() - Date.now()) : 0;
+  const windowMs = Math.max(1, Number(cache.windowMs) || 5 * 60 * 1000);
+  const percent = Math.max(0, Math.min(100, (remainingMs / windowMs) * 100));
+
+  row.innerHTML = `
+    <div class="aut-cache__head">
+      <span>Cache timer</span>
+      <span class="aut-cache-countdown" data-target="${escapeHtml(cachedUntil || '')}" data-window-ms="${windowMs}">${cachedUntil ? formatCountdown(cachedUntil) : 'unknown'}</span>
+    </div>
+    <div class="aut-cache__bar" aria-hidden="true">
+      <span style="width: ${percent}%;"></span>
+    </div>
+    <div class="aut-cache__meta">Continue before expiry for the cheapest follow-up window.</div>
+  `;
+  return row;
 }
 
 function renderContextCounter(context) {
@@ -387,6 +412,17 @@ function startTicker() {
       const target = el.getAttribute('data-target');
       if (!target) continue;
       el.textContent = formatCountdown(target);
+    }
+    const cacheEls = rootEl.querySelectorAll('.aut-cache-countdown');
+    for (const el of cacheEls) {
+      const target = el.getAttribute('data-target');
+      if (!target) continue;
+      el.textContent = formatCountdown(target);
+      const windowMs = Math.max(1, Number(el.getAttribute('data-window-ms')) || 5 * 60 * 1000);
+      const remainingMs = Math.max(0, new Date(target).getTime() - Date.now());
+      const pct = Math.max(0, Math.min(100, (remainingMs / windowMs) * 100));
+      const bar = el.closest('.aut-cache')?.querySelector('.aut-cache__bar span');
+      if (bar) bar.style.width = `${pct}%`;
     }
   }, 1000);
 }

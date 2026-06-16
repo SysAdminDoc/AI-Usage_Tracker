@@ -11,6 +11,7 @@ Optional integration with [QuotaGlass](https://github.com/SysAdminDoc/QuotaGlass
 - `background.js` — `pushSnapshot` invoked after `mergeSnapshot`.
 - Toolbar badge showing the most-constrained visible bucket's percent used, with green/amber/red badge and action-icon state.
 - Claude widget context counter estimating the visible conversation and draft prompt against the 200k context window.
+- Claude cache timer showing the five-minute cheaper-follow-up window after streamed `message_limit` events.
 
 ### Changed
 - Silent analytics-page tab refresh is now disabled by default and exposed as an opt-in fallback in Settings; API refresh remains primary, with manual usage-page buttons unchanged.

@@ -19,6 +19,7 @@ import { evaluateRules } from './lib/notify.js';
 import { notify, schedule, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
+import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
 
 const ALARM_NAME = 'aut-refresh';
 
@@ -164,12 +165,17 @@ async function ingestProviderSnapshot(parsed, { source, now = new Date() } = {})
 }
 
 async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now = new Date() } = {}) {
+  const cacheTimer = extractClaudeCacheTimer(messageLimit, { now, source });
   const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
-  if (!parsed.ok) return;
+  if (!parsed.ok) {
+    if (cacheTimer) await saveState(mergeCacheTimer((await loadState()) || defaultState(), cacheTimer));
+    return;
+  }
 
   let state = (await loadState()) || defaultState();
   const previous = state.snapshot?.providers?.claude;
   const merged = mergeProviderBuckets(previous, { ...parsed, source });
+  state = mergeCacheTimer(state, cacheTimer);
   state = await mergeSnapshot(state, merged, { source, now });
   await fireNotifications(state, now);
 }
