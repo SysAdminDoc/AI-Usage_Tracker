@@ -18,6 +18,7 @@ import { recordSnapshot } from './lib/history.js';
 import { evaluateRules } from './lib/notify.js';
 import { notify, schedule, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
+import { updateToolbarBadge } from './lib/badge.js';
 
 const ALARM_NAME = 'aut-refresh';
 
@@ -28,6 +29,7 @@ init();
 function init() {
   bindMessageHandlers();
   bindAlarm();
+  refreshToolbarBadge().catch(console.error);
 }
 
 function bindMessageHandlers() {
@@ -40,6 +42,10 @@ function bindMessageHandlers() {
     }
     if (msg.type === 'aut/reschedule') {
       await reschedule();
+      return { ok: true };
+    }
+    if (msg.type === 'aut/settings-updated') {
+      await refreshToolbarBadge();
       return { ok: true };
     }
     if (msg.type === 'aut/get-snapshot') {
@@ -183,6 +189,7 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   next.snapshot.fetchedAtISO = now.toISOString();
   next.history = recordSnapshot(next.history || [], next.snapshot, { now });
   await saveState(next);
+  await updateToolbarBadge(next);
   // Forward to QuotaGlass desktop widget (no-op if NMH not installed).
   try {
     const version = chrome.runtime?.getManifest?.()?.version;
@@ -192,6 +199,10 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
     console.info('[AUT] bridge push failed:', e?.message || e);
   }
   return next;
+}
+
+async function refreshToolbarBadge() {
+  await updateToolbarBadge(await loadState());
 }
 
 function mergeProviderBuckets(previous, next) {

@@ -121,7 +121,10 @@ function bindHandlers() {
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
     if (t.id === 'refreshMinutes' && runtime?.sendMessage) {
-      runtime.sendMessage({ type: 'aut/reschedule' });
+      sendRuntimeMessage({ type: 'aut/reschedule' }).catch(() => {});
+    }
+    if (runtime?.sendMessage) {
+      sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
     }
   });
 
