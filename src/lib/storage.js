@@ -94,6 +94,7 @@ export function defaultState() {
 export function defaultSettings() {
   return {
     refreshMinutes: 5,
+    silentTabRefresh: false,
     showProviders: { claude: true, codex: true },
     showRows: {     // headline buckets default ON; per-model rows default OFF
       'claude-session': true,

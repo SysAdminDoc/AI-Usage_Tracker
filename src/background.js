@@ -8,9 +8,8 @@
 //      the user is on either analytics page. When it scrapes a stable
 //      snapshot from the rendered DOM, it ships the result here via
 //      `aut/scraped` and we persist it.
-//   3) On alarm: if the fast path returned no data and we have stale
-//      cached data, optionally open a silent background tab to force a
-//      live scrape. Enabled via settings.silentTabRefresh (default true).
+//   3) On alarm: if the fast path returned no data and the opt-in fallback
+//      is enabled, open a silent background tab to force a live scrape.
 
 import { fetchClaude, parseClaudeUsageApi } from './scrapers/claude.js';
 import { fetchCodex }  from './scrapers/codex.js';
@@ -98,8 +97,8 @@ async function refreshNow({ allowSilentTab = false } = {}) {
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
 
-  // 2) For any provider that's still stale, ask a silent tab to refresh.
-  if (allowSilentTab) {
+  // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
+  if (allowSilentTab && state.settings?.silentTabRefresh === true) {
     const needsClaude = needsSilentRefresh(state, 'claude', now);
     const needsCodex  = needsSilentRefresh(state, 'codex',  now);
     if (needsClaude) await silentTabRefresh('claude');

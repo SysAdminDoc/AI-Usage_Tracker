@@ -11,7 +11,7 @@ function openAnalytics(which) {
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.1.6';
+const VERSION = '0.2.0';
 
 let rootEl = null;
 let tickHandle = null;

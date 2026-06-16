@@ -1,6 +1,6 @@
 import { loadState, saveState, defaultSettings } from '../lib/storage.js';
 
-const VERSION = '0.1.6';
+const VERSION = '0.2.0';
 
 const KNOWN_ROWS = [
   { id: 'claude-session',        label: 'Claude - Current session' },
@@ -90,6 +90,7 @@ async function loadCurrent() {
     cb.checked = !!s.notifications[cb.dataset.notif];
   }
   document.getElementById('refreshMinutes').value = String(s.refreshMinutes ?? 5);
+  document.getElementById('silentTabRefresh').checked = s.silentTabRefresh === true;
   document.getElementById('dailyBriefingHour').value = String(s.notifications.dailyBriefingHour ?? 8);
 }
 
@@ -106,6 +107,8 @@ function bindHandlers() {
       s.notifications = { ...s.notifications, [t.dataset.notif]: t.checked };
     } else if (t.id === 'refreshMinutes') {
       s.refreshMinutes = parseInt(t.value, 10) || 5;
+    } else if (t.id === 'silentTabRefresh') {
+      s.silentTabRefresh = t.checked;
     } else if (t.id === 'dailyBriefingHour') {
       s.notifications.dailyBriefingHour = parseInt(t.value, 10) || 8;
     } else {
@@ -201,6 +204,7 @@ function buildDiagnostics(state) {
     rows: `${rows} discovered rows; ${visibleRowCount(state)} visible by current settings`,
     settings: {
       refreshMinutes: state.settings?.refreshMinutes,
+      silentTabRefresh: state.settings?.silentTabRefresh === true,
       providers: state.settings?.showProviders,
     },
   };

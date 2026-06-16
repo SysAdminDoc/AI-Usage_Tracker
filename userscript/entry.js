@@ -166,5 +166,5 @@ async function scheduleNext() {
 async function openInlineSettings() {
   const url = 'https://github.com/SysAdminDoc/AI-Usage_Tracker#settings';
   window.open(url, '_blank');
-  // v0.2.0: build a proper in-page modal mirroring options.html.
+  // Future: build a proper in-page modal mirroring options.html.
 }
