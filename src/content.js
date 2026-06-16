@@ -2,8 +2,9 @@
 // Sends refresh requests to the background; renders from cached state.
 
 import { mountWidget, refreshWidget } from './ui/widget.js';
-import { loadState } from './lib/storage.js';
+import { loadState, saveState } from './lib/storage.js';
 import { send } from './lib/browser.js';
+import { startClaudeContextCounter } from './lib/context-counter.js';
 
 (async function main() {
   // Some sub-paths of these origins are full-screen experiences (e.g. inline
@@ -25,6 +26,12 @@ import { send } from './lib/browser.js';
 
   // Listen for storage changes pushed by the background (cross-context sync).
   watchStorage(() => refreshWidget({ onRefresh: () => send({ type: 'aut/refresh' }), onOpenSettings: openOptions }));
+
+  startClaudeContextCounter({
+    readState: loadState,
+    writeState: saveState,
+    onChange: () => refreshWidget({ onRefresh: () => send({ type: 'aut/refresh' }), onOpenSettings: openOptions }),
+  });
 })();
 
 function isHostOk() {

@@ -8,7 +8,8 @@
     "build": "node build/build-all.mjs",
     "build:chrome": "node build/build-chrome.mjs",
     "build:firefox": "node build/build-firefox.mjs",
-    "build:userscript": "node build/build-userscript.mjs"
+    "build:userscript": "node build/build-userscript.mjs",
+    "test": "node build/test-scrapers.mjs && node build/test-context-counter.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.23.0"

@@ -10,6 +10,7 @@ import { recordSnapshot } from '../src/lib/history.js';
 import { evaluateRules } from '../src/lib/notify.js';
 import { notify } from '../src/lib/browser.js';
 import { installClaudeMessageLimitInterceptor } from '../src/lib/claude-stream.js';
+import { startClaudeContextCounter } from '../src/lib/context-counter.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 
@@ -27,6 +28,11 @@ const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
   });
 
   await refreshNow();
+  startClaudeContextCounter({
+    readState: loadState,
+    writeState: saveState,
+    onChange: () => refreshWidget(),
+  });
   scheduleNext();
 
   // Re-render widget every 5s so countdowns tick + "Updated Xs ago" stays fresh.

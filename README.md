@@ -24,6 +24,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
   - **D1 Daily briefing** — one calm summary at 08:00.
 - **Per-row visibility toggles** — by default shows headline buckets only; turn on per-model rows (GPT-5.3-Codex-Spark, Sonnet only, Claude Design, etc.) in Settings.
 - **API-first usage collection** — reads Claude `api/organizations/{orgId}/usage` and Codex `backend-api/wham/usage` for actual usage windows, with Claude stream/header updates and opt-in page-scraper fallback tabs.
+- **Claude context counter** — estimates the visible conversation plus draft prompt against the 200k context window and shows a compact progress bar in the widget.
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **30-day rolling history** with sparklines, persists across browser restart.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.
@@ -67,9 +68,10 @@ Userscript caveats vs. extension:
 cd ~/repos/AI-Usage_Tracker
 node build/build-all.mjs
 # → dist/chrome/, dist/firefox/, dist/userscript/
+npm test
 ```
 
-No package manager / no dependencies — pure Node 20 + a one-file esbuild shim for the userscript bundle.
+Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency.
 
 ## Privacy
 

@@ -105,6 +105,12 @@ async function render({ onRefresh, onOpenSettings }) {
   for (const provider of ['claude', 'codex']) {
     if (!settings.showProviders[provider]) continue;
     const ps = snapshot && snapshot.providers ? snapshot.providers[provider] : null;
+    const context = provider === 'claude' ? state.context?.claude : null;
+    if (!ps && context) {
+      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], context));
+      drewSomething = true;
+      continue;
+    }
     if (!ps) continue;
     if (!ps.ok) {
       body.appendChild(renderProviderError(provider, ps.error));
@@ -112,8 +118,8 @@ async function render({ onRefresh, onOpenSettings }) {
       continue;
     }
     const visibleBuckets = ps.buckets.filter((b) => settings.showRows[b.id] !== false);
-    if (visibleBuckets.length === 0) continue;
-    body.appendChild(renderProvider(provider, ps, visibleBuckets));
+    if (visibleBuckets.length === 0 && !context) continue;
+    body.appendChild(renderProvider(provider, ps, visibleBuckets, context));
     drewSomething = true;
   }
 
@@ -203,7 +209,7 @@ function renderHeader({ onRefresh, onOpenSettings }) {
   return header;
 }
 
-function renderProvider(providerKey, ps, buckets) {
+function renderProvider(providerKey, ps, buckets, context = null) {
   const wrap = document.createElement('div');
   wrap.className = 'aut-provider';
 
@@ -230,7 +236,38 @@ function renderProvider(providerKey, ps, buckets) {
   for (const b of buckets) {
     wrap.appendChild(renderBucket(b));
   }
+  if (providerKey === 'claude' && context) {
+    wrap.appendChild(renderContextCounter(context));
+  }
   return wrap;
+}
+
+function renderContextCounter(context) {
+  const row = document.createElement('div');
+  row.className = 'aut-context';
+  const percent = Math.max(0, Math.min(100, context.percentUsed || 0));
+  const tokenEstimate = Math.max(0, Math.round(context.tokenEstimate || 0));
+  const maxTokens = Math.max(1, Math.round(context.maxTokens || 200_000));
+  const draft = Math.max(0, Math.round(context.draftTokens || 0));
+  const messageText = context.messageCount > 0
+    ? `${context.messageCount} sampled turns`
+    : 'No sampled turns yet';
+  const draftText = draft > 0 ? ` + ${formatTokenCount(draft)} draft` : '';
+
+  row.innerHTML = `
+    <div class="aut-context__head">
+      <span>Context window</span>
+      <span>${percent.toFixed(percent < 10 ? 1 : 0)}%</span>
+    </div>
+    <div class="aut-context__bar" role="meter" aria-valuemin="0" aria-valuemax="${maxTokens}" aria-valuenow="${tokenEstimate}" aria-label="Claude context window usage">
+      <span style="width: ${percent}%;"></span>
+    </div>
+    <div class="aut-context__meta">
+      <span>~${formatTokenCount(tokenEstimate)} / ${formatTokenCount(maxTokens)} tokens</span>
+      <span>${messageText}${draftText}</span>
+    </div>
+  `;
+  return row;
 }
 
 function renderBucket(b) {
@@ -304,6 +341,14 @@ function titleModel(model) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function formatTokenCount(value) {
+  const n = Math.max(0, Math.round(Number(value) || 0));
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
+  if (n >= 10_000) return `${Math.round(n / 1_000)}k`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
 function sourceLabel(source) {
