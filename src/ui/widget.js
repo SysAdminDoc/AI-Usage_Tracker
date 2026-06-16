@@ -2,21 +2,27 @@
 // from storage, renders SVG radial rings, ticks countdowns every 1s.
 
 import { loadState, saveState } from '../lib/storage.js';
-import { formatCountdown, ringColor } from '../lib/countdown.js';
+import { formatCountdown, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { send } from '../lib/browser.js';
 
 function openAnalytics(which) {
-  send({ type: 'aut/open-analytics', provider: which });
+  if (hasExtensionRuntime()) {
+    send({ type: 'aut/open-analytics', provider: which }).catch(() => openAnalyticsFallback(which));
+    return;
+  }
+  openAnalyticsFallback(which);
 }
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 let rootEl = null;
 let tickHandle = null;
 let dragState = null;
 let refreshBusy = false;
+let contextMenuEl = null;
+let hiddenForSession = false;
 
 export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
   if (rootEl) return rootEl;
@@ -36,6 +42,7 @@ export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
 
   const root = document.createElement('div');
   root.className = 'aut-root';
+  root.dataset.autTheme = 'mocha';
   shadow.appendChild(root);
 
   rootEl = root;
@@ -69,8 +76,16 @@ async function fetchInlineCSS(relPath) {
 }
 
 async function render({ onRefresh, onOpenSettings }) {
+  if (hiddenForSession) {
+    if (rootEl) rootEl.style.display = 'none';
+    return;
+  }
+  if (rootEl) rootEl.style.display = '';
+
   const state = await loadState();
   const { snapshot, settings, widget } = state;
+  applyTheme(rootEl, settings);
+  const thresholds = normalizeThresholds(settings.thresholds);
 
   const wrap = document.createElement('div');
   wrap.className = 'aut-widget aut-glass aut-shimmer';
@@ -92,6 +107,8 @@ async function render({ onRefresh, onOpenSettings }) {
       await saveState(s);
       await render({ onRefresh, onOpenSettings });
     });
+    enableDrag(wrap);
+    enableContextMenu(wrap, { onRefresh, onOpenSettings });
     swapRoot(wrap);
     return;
   }
@@ -108,7 +125,7 @@ async function render({ onRefresh, onOpenSettings }) {
     const context = provider === 'claude' ? state.context?.claude : null;
     const cache = provider === 'claude' ? state.cache?.claude : null;
     if (!ps && (context || cache)) {
-      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], { context, cache }));
+      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], { context, cache, thresholds }));
       drewSomething = true;
       continue;
     }
@@ -120,7 +137,7 @@ async function render({ onRefresh, onOpenSettings }) {
     }
     const visibleBuckets = ps.buckets.filter((b) => settings.showRows[b.id] !== false);
     if (visibleBuckets.length === 0 && !context && !cache) continue;
-    body.appendChild(renderProvider(provider, ps, visibleBuckets, { context, cache }));
+    body.appendChild(renderProvider(provider, ps, visibleBuckets, { context, cache, thresholds }));
     drewSomething = true;
   }
 
@@ -151,6 +168,7 @@ async function render({ onRefresh, onOpenSettings }) {
   }
 
   enableDrag(wrap);
+  enableContextMenu(wrap, { onRefresh, onOpenSettings });
   swapRoot(wrap);
 }
 
@@ -235,7 +253,7 @@ function renderProvider(providerKey, ps, buckets, extras = {}) {
   wrap.appendChild(title);
 
   for (const b of buckets) {
-    wrap.appendChild(renderBucket(b));
+    wrap.appendChild(renderBucket(b, extras.thresholds));
   }
   if (providerKey === 'claude' && extras.context) {
     wrap.appendChild(renderContextCounter(extras.context));
@@ -295,7 +313,7 @@ function renderContextCounter(context) {
   return row;
 }
 
-function renderBucket(b) {
+function renderBucket(b, thresholds) {
   const row = document.createElement('div');
   row.className = 'aut-bucket';
 
@@ -315,7 +333,7 @@ function renderBucket(b) {
       <circle class="aut-ring__track" cx="22" cy="22" r="${RING_R}" fill="none" stroke-width="4"></circle>
       <circle class="aut-ring__fill"  cx="22" cy="22" r="${RING_R}" fill="none" stroke-width="4"
               stroke-dasharray="${RING_C}" stroke-dashoffset="${offset}"
-              style="stroke: ${ringColor(percent)};"></circle>
+              style="stroke: ${ringColor(percent, thresholds)};"></circle>
     </svg>
     <div class="aut-ring__label">${Math.round(remaining)}%</div>
   `;
@@ -403,6 +421,29 @@ function formatAgo(iso) {
   return `${h}h ago`;
 }
 
+function hasExtensionRuntime() {
+  return !!((typeof chrome !== 'undefined' && chrome.runtime?.id)
+    || (typeof browser !== 'undefined' && browser.runtime?.id));
+}
+
+function openAnalyticsFallback(which) {
+  const urls = [];
+  if (which === 'both' || which === 'claude') urls.push('https://claude.ai/settings/usage');
+  if (which === 'both' || which === 'codex') urls.push('https://chatgpt.com/codex/cloud/settings/analytics#usage');
+  for (const url of urls) window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function applyTheme(root, settings = {}) {
+  if (!root) return;
+  const requested = settings.theme || 'mocha';
+  const systemLight = typeof matchMedia === 'function'
+    && matchMedia('(prefers-color-scheme: light)').matches;
+  const resolved = requested === 'system'
+    ? (systemLight ? 'latte' : 'mocha')
+    : (requested === 'latte' || requested === 'mocha-light' ? 'latte' : 'mocha');
+  root.dataset.autTheme = resolved;
+}
+
 function startTicker() {
   if (tickHandle) clearInterval(tickHandle);
   tickHandle = setInterval(() => {
@@ -464,4 +505,141 @@ function enableDrag(wrap) {
   if (wrap.classList.contains('aut-widget--mini')) {
     wrap.addEventListener('pointerdown', onPointerDown);
   }
+}
+
+function enableContextMenu(wrap, { onRefresh, onOpenSettings }) {
+  wrap.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showContextMenu(event, { onRefresh, onOpenSettings });
+  });
+}
+
+async function showContextMenu(event, { onRefresh, onOpenSettings }) {
+  closeContextMenu();
+  const state = await loadState();
+  const snoozedUntil = state.settings?.notifications?.snoozedUntilISO || '';
+  const snoozedActive = isFutureISO(snoozedUntil);
+  const menu = document.createElement('div');
+  menu.className = 'aut-menu';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', 'AI Usage widget actions');
+  menu.innerHTML = `
+    <div class="aut-menu__label">Widget actions</div>
+    <button type="button" role="menuitem" data-act="${snoozedActive ? 'unsnooze' : 'snooze'}">${snoozedActive ? 'Resume notifications' : 'Snooze notifications 1 hr'}</button>
+    <button type="button" role="menuitem" data-act="hide">Hide for session</button>
+    <button type="button" role="menuitem" data-act="refresh">Refresh now</button>
+    <div class="aut-menu__rule"></div>
+    <button type="button" role="menuitem" data-act="analytics">Open analytics</button>
+    <button type="button" role="menuitem" data-act="settings">Open settings</button>
+  `;
+  rootEl.appendChild(menu);
+  contextMenuEl = menu;
+
+  const { left, top } = clampMenuPosition(event.clientX, event.clientY, menu);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.querySelector('button')?.focus();
+
+  menu.addEventListener('click', async (clickEvent) => {
+    const button = clickEvent.target.closest('button[data-act]');
+    if (!button) return;
+    clickEvent.stopPropagation();
+    const feedback = await runMenuAction(button.dataset.act, { onRefresh, onOpenSettings });
+    closeContextMenu();
+    if (feedback) showToast(feedback.text, feedback.tone);
+  });
+
+  setTimeout(() => {
+    document.addEventListener('pointerdown', closeContextMenuOnOutsidePointer, { once: true });
+    document.addEventListener('keydown', closeContextMenuOnEscape, { once: true });
+  }, 0);
+}
+
+function clampMenuPosition(x, y, menu) {
+  const rect = menu.getBoundingClientRect();
+  return {
+    left: Math.max(8, Math.min(window.innerWidth - rect.width - 8, x)),
+    top: Math.max(8, Math.min(window.innerHeight - rect.height - 8, y)),
+  };
+}
+
+async function runMenuAction(action, { onRefresh, onOpenSettings }) {
+  if (action === 'snooze') {
+    const state = await loadState();
+    state.settings = state.settings || {};
+    state.settings.notifications = state.settings.notifications || {};
+    state.settings.notifications.snoozedUntilISO = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await saveState(state);
+    return { text: 'Notifications snoozed for 1 hour', tone: 'good' };
+  }
+  if (action === 'unsnooze') {
+    const state = await loadState();
+    state.settings = state.settings || {};
+    state.settings.notifications = state.settings.notifications || {};
+    delete state.settings.notifications.snoozedUntilISO;
+    await saveState(state);
+    return { text: 'Notifications resumed', tone: 'good' };
+  }
+  if (action === 'hide') {
+    hiddenForSession = true;
+    if (rootEl) rootEl.style.display = 'none';
+    return;
+  }
+  if (action === 'refresh' && onRefresh) {
+    await onRefresh();
+    return { text: 'Usage refresh requested', tone: 'info' };
+  }
+  if (action === 'analytics') {
+    openAnalytics('both');
+    return { text: 'Opening usage pages', tone: 'info' };
+  }
+  if (action === 'settings' && onOpenSettings) {
+    onOpenSettings();
+    return { text: 'Opening settings', tone: 'info' };
+  }
+  return null;
+}
+
+function closeContextMenu() {
+  if (contextMenuEl) {
+    contextMenuEl.remove();
+    contextMenuEl = null;
+  }
+}
+
+function closeContextMenuOnOutsidePointer(event) {
+  const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+  if (contextMenuEl && path.includes(contextMenuEl)) {
+    document.addEventListener('pointerdown', closeContextMenuOnOutsidePointer, { once: true });
+    return;
+  }
+  closeContextMenu();
+}
+
+function closeContextMenuOnEscape(event) {
+  if (event.key === 'Escape') closeContextMenu();
+  else document.addEventListener('keydown', closeContextMenuOnEscape, { once: true });
+}
+
+function isFutureISO(iso) {
+  if (!iso) return false;
+  const ts = new Date(iso).getTime();
+  return Number.isFinite(ts) && ts > Date.now();
+}
+
+function showToast(text, tone = 'info') {
+  if (!rootEl || !text) return;
+  const previous = rootEl.querySelector('.aut-toast');
+  if (previous) previous.remove();
+  const toast = document.createElement('div');
+  toast.className = `aut-toast aut-toast--${tone}`;
+  toast.setAttribute('role', 'status');
+  toast.textContent = text;
+  rootEl.appendChild(toast);
+  setTimeout(() => toast.classList.add('is-visible'), 20);
+  setTimeout(() => {
+    toast.classList.remove('is-visible');
+    setTimeout(() => toast.remove(), 180);
+  }, 1800);
 }

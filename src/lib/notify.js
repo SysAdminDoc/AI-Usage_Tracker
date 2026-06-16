@@ -13,6 +13,7 @@ const LEAD_MS = {
 export function evaluateRules({ snapshot, history, settings, firedRules, now = new Date() }) {
   const out = [];
   if (!snapshot || !snapshot.providers) return out;
+  if (isSnoozed(settings, now)) return out;
 
   for (const provider of Object.keys(snapshot.providers)) {
     const ps = snapshot.providers[provider];
@@ -119,6 +120,13 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
   }
 
   return out;
+}
+
+function isSnoozed(settings, now) {
+  const until = settings?.notifications?.snoozedUntilISO;
+  if (!until) return false;
+  const ts = new Date(until).getTime();
+  return Number.isFinite(ts) && ts > now.getTime();
 }
 
 function ruleTitle(ruleId, provider, bucket) {

@@ -1,6 +1,7 @@
 import { loadState, saveState, defaultSettings } from '../lib/storage.js';
+import { normalizeThresholds } from '../lib/countdown.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 const KNOWN_ROWS = [
   { id: 'claude-session',        label: 'Claude - Current session' },
@@ -78,6 +79,8 @@ async function renderRows() {
 async function loadCurrent() {
   const state = await loadState();
   const s = state.settings;
+  const notifications = s.notifications || {};
+  applyTheme(s);
 
   for (const cb of document.querySelectorAll('[data-provider]')) {
     cb.checked = !!s.showProviders[cb.dataset.provider];
@@ -87,11 +90,68 @@ async function loadCurrent() {
     cb.checked = s.showRows[cb.dataset.row] ?? fallback;
   }
   for (const cb of document.querySelectorAll('[data-notif]')) {
-    cb.checked = !!s.notifications[cb.dataset.notif];
+    cb.checked = !!notifications[cb.dataset.notif];
   }
   document.getElementById('refreshMinutes').value = String(s.refreshMinutes ?? 5);
   document.getElementById('silentTabRefresh').checked = s.silentTabRefresh === true;
-  document.getElementById('dailyBriefingHour').value = String(s.notifications.dailyBriefingHour ?? 8);
+  document.getElementById('dailyBriefingHour').value = String(notifications.dailyBriefingHour ?? 8);
+  document.getElementById('theme').value = normalizeThemeValue(s.theme);
+  const thresholds = normalizeThresholds(s.thresholds);
+  document.getElementById('warnAt').value = String(thresholds.warnAt);
+  document.getElementById('dangerAt').value = String(thresholds.dangerAt);
+  setThresholdLabels(thresholds);
+  renderSnoozeStatus(s);
+}
+
+function readThresholdControls(changedId) {
+  let warnAt = parseInt(document.getElementById('warnAt').value, 10) || 50;
+  let dangerAt = parseInt(document.getElementById('dangerAt').value, 10) || 80;
+  if (warnAt >= dangerAt) {
+    if (changedId === 'warnAt') {
+      dangerAt = Math.min(95, warnAt + 5);
+    } else {
+      warnAt = Math.max(25, dangerAt - 5);
+    }
+  }
+  const next = normalizeThresholds({ warnAt, dangerAt });
+  document.getElementById('warnAt').value = String(next.warnAt);
+  document.getElementById('dangerAt').value = String(next.dangerAt);
+  setThresholdLabels(next);
+  return next;
+}
+
+function setThresholdLabels(thresholds) {
+  document.getElementById('warnAtValue').textContent = `${thresholds.warnAt}%`;
+  document.getElementById('dangerAtValue').textContent = `${thresholds.dangerAt}%`;
+}
+
+function renderSnoozeStatus(settings = {}) {
+  const wrap = document.getElementById('snoozeStatus');
+  const clearBtn = document.getElementById('clearSnooze');
+  if (!wrap) return;
+  const until = settings.notifications?.snoozedUntilISO || '';
+  const ts = until ? new Date(until).getTime() : 0;
+  const active = Number.isFinite(ts) && ts > Date.now();
+  wrap.textContent = active
+    ? `Notifications are snoozed until ${new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`
+    : 'Notifications are active. Use snooze for a quiet hour without changing alert rules.';
+  wrap.className = `opt-callout ${active ? 'opt-callout--warn' : 'opt-callout--good'}`;
+  if (clearBtn) clearBtn.disabled = !active;
+}
+
+function normalizeThemeValue(theme) {
+  if (theme === 'latte' || theme === 'mocha-light') return 'latte';
+  if (theme === 'system') return 'system';
+  return 'mocha';
+}
+
+function applyTheme(settings = {}) {
+  const requested = normalizeThemeValue(settings.theme);
+  const systemLight = typeof matchMedia === 'function'
+    && matchMedia('(prefers-color-scheme: light)').matches;
+  document.body.dataset.autTheme = requested === 'system'
+    ? (systemLight ? 'latte' : 'mocha')
+    : requested;
 }
 
 function bindHandlers() {
@@ -110,13 +170,20 @@ function bindHandlers() {
     } else if (t.id === 'silentTabRefresh') {
       s.silentTabRefresh = t.checked;
     } else if (t.id === 'dailyBriefingHour') {
+      s.notifications = s.notifications || {};
       s.notifications.dailyBriefingHour = parseInt(t.value, 10) || 8;
+    } else if (t.id === 'theme') {
+      s.theme = t.value;
+      applyTheme(s);
+    } else if (t.id === 'warnAt' || t.id === 'dangerAt') {
+      s.thresholds = readThresholdControls(t.id);
     } else {
       return;
     }
     state.settings = s;
     await saveState(state);
     await renderDiagnostics();
+    renderSnoozeStatus(s);
     flash('Saved just now');
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
@@ -134,6 +201,32 @@ function bindHandlers() {
     await saveState(state);
     await renderDiagnostics();
     flash('Widget reset');
+  });
+
+  document.getElementById('snoozeNotifications').addEventListener('click', async () => {
+    const state = await loadState();
+    const s = state.settings || defaultSettings();
+    s.notifications = s.notifications || {};
+    s.notifications.snoozedUntilISO = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    state.settings = s;
+    await saveState(state);
+    renderSnoozeStatus(s);
+    await renderDiagnostics();
+    sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
+    flash('Notifications snoozed for 1 hour');
+  });
+
+  document.getElementById('clearSnooze').addEventListener('click', async () => {
+    const state = await loadState();
+    const s = state.settings || defaultSettings();
+    s.notifications = s.notifications || {};
+    delete s.notifications.snoozedUntilISO;
+    state.settings = s;
+    await saveState(state);
+    renderSnoozeStatus(s);
+    await renderDiagnostics();
+    sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
+    flash('Notifications resumed');
   });
 
   document.getElementById('refreshDiagnostics').addEventListener('click', async (e) => {
@@ -177,6 +270,8 @@ async function renderDiagnostics() {
   addDiagnostic(wrap, 'Claude', diag.providers.claude.summary, diag.providers.claude.ok ? 'good' : 'bad');
   addDiagnostic(wrap, 'Codex', diag.providers.codex.summary, diag.providers.codex.ok ? 'good' : 'bad');
   addDiagnostic(wrap, 'Rows', diag.rows);
+  addDiagnostic(wrap, 'Appearance', `${diag.settings.theme}; warn ${diag.settings.thresholds.warnAt}% / danger ${diag.settings.thresholds.dangerAt}%`);
+  addDiagnostic(wrap, 'Alerts', diag.notifications.summary, diag.notifications.snoozed ? 'warn' : 'good');
 }
 
 function addDiagnostic(wrap, key, value, tone = '') {
@@ -194,6 +289,7 @@ function addDiagnostic(wrap, key, value, tone = '') {
 
 function buildDiagnostics(state) {
   const providers = state.snapshot?.providers || {};
+  const thresholds = normalizeThresholds(state.settings?.thresholds);
   const rows = Object.values(providers)
     .filter((ps) => ps?.ok)
     .reduce((sum, ps) => sum + (ps.buckets?.length || 0), 0);
@@ -208,8 +304,23 @@ function buildDiagnostics(state) {
     settings: {
       refreshMinutes: state.settings?.refreshMinutes,
       silentTabRefresh: state.settings?.silentTabRefresh === true,
+      theme: normalizeThemeValue(state.settings?.theme),
+      thresholds,
       providers: state.settings?.showProviders,
     },
+    notifications: notificationDiagnostic(state.settings),
+  };
+}
+
+function notificationDiagnostic(settings = {}) {
+  const until = settings.notifications?.snoozedUntilISO || '';
+  const ts = until ? new Date(until).getTime() : 0;
+  const snoozed = Number.isFinite(ts) && ts > Date.now();
+  return {
+    snoozed,
+    summary: snoozed
+      ? `Snoozed until ${new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+      : 'Active',
   };
 }
 

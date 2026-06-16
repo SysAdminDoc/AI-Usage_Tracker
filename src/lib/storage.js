@@ -116,6 +116,10 @@ export function defaultSettings() {
       'D1':    true,
       dailyBriefingHour: 8,    // 24h local
     },
-    theme: 'mocha',            // 'mocha' (default) | 'mocha-light' (v0.2+)
+    theme: 'mocha',            // 'mocha' (default) | 'latte' | 'system'
+    thresholds: {
+      warnAt: 50,
+      dangerAt: 80,
+    },
   };
 }

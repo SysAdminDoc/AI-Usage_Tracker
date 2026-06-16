@@ -1,3 +1,5 @@
+import { normalizeThresholds } from './countdown.js';
+
 const DEFAULT_TITLE = 'AI Usage Tracker';
 const DEFAULT_ICON = {
   16: 'icons/icon-16.png',
@@ -26,6 +28,7 @@ const ICON_CACHE = new Map();
 export function pickBadgeBucket(state) {
   const providers = state?.snapshot?.providers || {};
   const settings = state?.settings || {};
+  const thresholds = normalizeThresholds(settings.thresholds);
   let best = null;
 
   for (const [provider, snapshot] of Object.entries(providers)) {
@@ -45,7 +48,7 @@ export function pickBadgeBucket(state) {
         label: bucket.label || bucket.id,
         percentUsed: clamped,
         resetTime: Number.isFinite(resetTime) ? resetTime : Number.POSITIVE_INFINITY,
-        tone: badgeTone(clamped),
+        tone: badgeTone(clamped, thresholds),
       };
 
       if (!best || candidate.percentUsed > best.percentUsed || (
@@ -59,9 +62,10 @@ export function pickBadgeBucket(state) {
   return best;
 }
 
-export function badgeTone(percentUsed) {
-  if (percentUsed >= 80) return 'bad';
-  if (percentUsed >= 50) return 'warn';
+export function badgeTone(percentUsed, thresholds = {}) {
+  const t = normalizeThresholds(thresholds);
+  if (percentUsed >= t.dangerAt) return 'bad';
+  if (percentUsed >= t.warnAt) return 'warn';
   return 'good';
 }
 

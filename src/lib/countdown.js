@@ -106,8 +106,25 @@ export function formatResetAbsolute(targetISO) {
 // percentUsed 0-50  → green
 // 50-80  → amber
 // 80-100 → red
-export function ringColor(percentUsed) {
-  if (percentUsed >= 80) return 'var(--aut-red)';
-  if (percentUsed >= 50) return 'var(--aut-amber)';
+const DEFAULT_THRESHOLDS = {
+  warnAt: 50,
+  dangerAt: 80,
+};
+
+export function normalizeThresholds(input = {}) {
+  const source = input?.thresholds || input || {};
+  let warnAt = Number(source.warnAt ?? DEFAULT_THRESHOLDS.warnAt);
+  let dangerAt = Number(source.dangerAt ?? DEFAULT_THRESHOLDS.dangerAt);
+  if (!Number.isFinite(warnAt)) warnAt = DEFAULT_THRESHOLDS.warnAt;
+  if (!Number.isFinite(dangerAt)) dangerAt = DEFAULT_THRESHOLDS.dangerAt;
+  warnAt = Math.max(1, Math.min(98, warnAt));
+  dangerAt = Math.max(warnAt + 1, Math.min(99, dangerAt));
+  return { warnAt, dangerAt };
+}
+
+export function ringColor(percentUsed, thresholds) {
+  const t = normalizeThresholds(thresholds);
+  if (percentUsed >= t.dangerAt) return 'var(--aut-red)';
+  if (percentUsed >= t.warnAt) return 'var(--aut-amber)';
   return 'var(--aut-green)';
 }

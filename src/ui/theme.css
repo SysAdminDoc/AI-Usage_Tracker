@@ -60,17 +60,66 @@
 
   --aut-control-h: 32px;
   --aut-transition: 140ms ease;
+  --aut-transition-slow: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* Typography */
   --aut-font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
               "Inter", "Helvetica Neue", Arial, sans-serif;
 
+  color-scheme: dark;
   color: var(--aut-text);
   font-family: var(--aut-font);
   font-size: 13px;
   line-height: 1.4;
   letter-spacing: 0;
   text-rendering: optimizeLegibility;
+}
+
+.aut-root[data-aut-theme="latte"] {
+  --aut-base:     #eff1f5;
+  --aut-mantle:   #e6e9ef;
+  --aut-crust:    #dce0e8;
+  --aut-surface0: #ccd0da;
+  --aut-surface1: #bcc0cc;
+  --aut-surface2: #acb0be;
+  --aut-overlay0: #9ca0b0;
+  --aut-overlay1: #7c7f93;
+  --aut-overlay2: #6c6f85;
+  --aut-text:     #303446;
+  --aut-subtext0: #6c6f85;
+  --aut-subtext1: #4c4f69;
+  --aut-rosewater:#dc8a78;
+  --aut-flamingo: #dd7878;
+  --aut-pink:     #ea76cb;
+  --aut-mauve:    #8839ef;
+  --aut-red:      #d20f39;
+  --aut-maroon:   #e64553;
+  --aut-peach:    #fe640b;
+  --aut-yellow:   #df8e1d;
+  --aut-green:    #40a02b;
+  --aut-teal:     #179299;
+  --aut-sky:      #04a5e5;
+  --aut-sapphire: #209fb5;
+  --aut-blue:     #1e66f5;
+  --aut-lavender: #7287fd;
+  --aut-accent:   var(--aut-blue);
+  --aut-amber:    var(--aut-yellow);
+  --aut-focus:    rgba(30, 102, 245, 0.52);
+  --aut-card-bg:       rgba(239, 241, 245, 0.98);
+  --aut-panel-bg:      rgba(255, 255, 255, 0.86);
+  --aut-row-bg:        rgba(220, 224, 232, 0.62);
+  --aut-row-bg-hover:  rgba(204, 208, 218, 0.80);
+  --aut-border:        rgba(76, 79, 105, 0.18);
+  --aut-border-subtle: rgba(76, 79, 105, 0.10);
+  --aut-glass-bg:      var(--aut-card-bg);
+  --aut-glass-border:  var(--aut-border);
+  --aut-glass-shadow:  0 18px 44px -24px rgba(49, 50, 68, 0.34),
+                       0 0 0 1px rgba(255, 255, 255, 0.64) inset;
+  --aut-good-bg: rgba(64, 160, 43, 0.12);
+  --aut-warn-bg: rgba(223, 142, 29, 0.13);
+  --aut-bad-bg:  rgba(210, 15, 57, 0.11);
+  --aut-info-bg: rgba(30, 102, 245, 0.11);
+  color-scheme: light;
 }
 
 /* Shared utilities */
@@ -178,9 +227,83 @@
 .aut-link-btn:active {
   transform: translateY(0);
 }
+.aut-link-btn:disabled,
+.aut-link-btn[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.58;
+  transform: none;
+}
+
+.aut-link-btn--primary {
+  color: var(--aut-crust);
+  background: linear-gradient(135deg, var(--aut-sapphire), var(--aut-lavender));
+  border-color: rgba(180, 190, 254, 0.34);
+  box-shadow: 0 10px 22px -16px rgba(137, 180, 250, 0.95);
+}
+.aut-link-btn--primary:hover {
+  color: var(--aut-crust);
+  border-color: rgba(180, 190, 254, 0.52);
+}
 
 .aut-muted {
   color: var(--aut-subtext0);
+}
+
+.aut-status-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-sm);
+  color: var(--aut-subtext1);
+  background: rgba(49, 50, 68, 0.52);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.aut-root[data-aut-theme="latte"] .aut-status-label {
+  background: rgba(220, 224, 232, 0.68);
+}
+.aut-status-label--good {
+  color: var(--aut-green);
+  background: var(--aut-good-bg);
+  border-color: rgba(166, 227, 161, 0.22);
+}
+.aut-status-label--warn {
+  color: var(--aut-yellow);
+  background: var(--aut-warn-bg);
+  border-color: rgba(249, 226, 175, 0.24);
+}
+.aut-status-label--bad {
+  color: var(--aut-red);
+  background: var(--aut-bad-bg);
+  border-color: rgba(243, 139, 168, 0.25);
+}
+.aut-status-label--info {
+  color: var(--aut-sapphire);
+  background: var(--aut-info-bg);
+  border-color: rgba(137, 180, 250, 0.24);
+}
+
+.aut-field {
+  background: var(--aut-row-bg);
+  color: var(--aut-text);
+  border: 1px solid var(--aut-border);
+  border-radius: var(--aut-r-sm);
+  min-height: 34px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+}
+.aut-field:focus-visible {
+  outline: 2px solid var(--aut-focus);
+  outline-offset: 2px;
+}
+.aut-field:disabled {
+  cursor: default;
+  opacity: 0.58;
 }
 
 @keyframes aut-spin {

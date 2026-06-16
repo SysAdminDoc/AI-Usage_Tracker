@@ -11,39 +11,81 @@
   <header class="opt-head">
     <span class="aut-widget__brand-dot"></span>
     <h1>AI Usage Tracker</h1>
-    <span class="opt-head__sub">Settings - v0.2.0</span>
+    <span class="opt-head__sub">Settings - v0.2.1</span>
   </header>
 
-  <main class="opt-main">
-    <section class="opt-card">
+  <main class="opt-shell">
+    <nav class="opt-nav" aria-label="Settings sections">
+      <a href="#providers">Providers</a>
+      <a href="#rows">Rows</a>
+      <a href="#refresh">Refresh</a>
+      <a href="#appearance">Appearance</a>
+      <a href="#notifications">Alerts</a>
+      <a href="#widget">Widget</a>
+      <a href="#status">Status</a>
+    </nav>
+
+    <div class="opt-main">
+    <section id="providers" class="opt-card">
       <h2>Providers</h2>
       <p class="opt-hint">Choose which accounts appear in the widget and popup.</p>
       <div id="provider-toggles" class="opt-grid"></div>
     </section>
 
-    <section class="opt-card">
-      <h2>Visible rows</h2>
+    <section id="rows" class="opt-card">
+      <h2>Quota rows</h2>
       <p class="opt-hint">Keep the dashboard compact or add per-model quota rows when you need detail.</p>
       <div id="row-toggles" class="opt-grid"></div>
     </section>
 
-    <section class="opt-card">
+    <section id="refresh" class="opt-card">
       <h2>Refresh</h2>
-      <p class="opt-hint">Background refresh cadence for logged-in browser sessions.</p>
-      <select id="refreshMinutes" class="opt-select">
-        <option value="1">Every 1 minute</option>
-        <option value="5">Every 5 minutes</option>
-        <option value="15">Every 15 minutes</option>
-        <option value="30">Every 30 minutes</option>
-      </select>
+      <p class="opt-hint">Background refresh cadence for signed-in browser sessions.</p>
+      <div class="opt-row">
+        <label for="refreshMinutes">Refresh interval</label>
+        <select id="refreshMinutes" class="opt-select aut-field">
+          <option value="1">Every 1 minute</option>
+          <option value="5">Every 5 minutes</option>
+          <option value="15">Every 15 minutes</option>
+          <option value="30">Every 30 minutes</option>
+        </select>
+      </div>
       <div class="opt-row">
         <label class="opt-toggle"><input id="silentTabRefresh" type="checkbox"> Use hidden fallback tabs when API refresh fails</label>
       </div>
     </section>
 
-    <section class="opt-card">
+    <section id="appearance" class="opt-card">
+      <h2>Appearance</h2>
+      <p class="opt-hint">Tune the visual pressure scale without changing alert rules.</p>
+      <div class="opt-row">
+        <label for="theme">Theme</label>
+        <select id="theme" class="opt-select aut-field">
+          <option value="mocha">Mocha dark</option>
+          <option value="latte">Latte light</option>
+          <option value="system">Follow system</option>
+        </select>
+      </div>
+      <div class="opt-thresholds">
+        <label class="opt-range">
+          <span>Warn at <strong id="warnAtValue">50%</strong></span>
+          <input id="warnAt" type="range" min="25" max="85" step="5">
+        </label>
+        <label class="opt-range">
+          <span>Danger at <strong id="dangerAtValue">80%</strong></span>
+          <input id="dangerAt" type="range" min="55" max="95" step="5">
+        </label>
+      </div>
+    </section>
+
+    <section id="notifications" class="opt-card">
       <h2>Notifications</h2>
       <p class="opt-hint">Quota alerts are deduped per reset window so notifications stay useful.</p>
+      <div id="snoozeStatus" class="opt-callout"></div>
+      <div class="opt-row opt-row--wrap">
+        <button id="snoozeNotifications" class="opt-btn">Snooze for 1 hour</button>
+        <button id="clearSnooze" class="opt-btn opt-btn--quiet">Resume notifications</button>
+      </div>
       <div class="opt-grid">
         <label class="opt-toggle"><input type="checkbox" data-notif="R1-60"> Renewal - 60 min before reset</label>
         <label class="opt-toggle"><input type="checkbox" data-notif="R1-15"> Renewal - 15 min before reset</label>
@@ -57,19 +99,19 @@
       </div>
       <div class="opt-row">
         <label for="dailyBriefingHour">Daily briefing time</label>
-        <select id="dailyBriefingHour" class="opt-select"></select>
+        <select id="dailyBriefingHour" class="opt-select aut-field"></select>
       </div>
     </section>
 
-    <section class="opt-card">
+    <section id="widget" class="opt-card">
       <h2>Widget</h2>
-      <p class="opt-hint">Restore the floating card if it was moved off-screen or minimized.</p>
+      <p class="opt-hint">Restore the floating card if it was moved off-screen, minimized, or hidden for the current page session.</p>
       <div class="opt-row">
         <button id="resetWidgetPosition" class="opt-btn">Reset widget to bottom-right</button>
       </div>
     </section>
 
-    <section class="opt-card">
+    <section id="status" class="opt-card">
       <h2>Status</h2>
       <p class="opt-hint">Local snapshot health, collection path, and provider freshness.</p>
       <div id="diagnostics" class="opt-diagnostics"></div>
@@ -78,10 +120,11 @@
         <button id="copyDiagnostics" class="opt-btn">Copy diagnostics</button>
       </div>
     </section>
+    </div>
   </main>
 
   <footer class="opt-foot">
-    <span id="saveStatus">Saved.</span>
+    <span id="saveStatus" role="status" aria-live="polite">Saved.</span>
     <span class="opt-foot__right">
       <a href="https://github.com/SysAdminDoc/AI-Usage_Tracker" target="_blank">GitHub</a>
     </span>

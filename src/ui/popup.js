@@ -1,13 +1,16 @@
 import { loadState } from '../lib/storage.js';
-import { formatCountdown, formatResetAbsolute, ringColor } from '../lib/countdown.js';
+import { formatCountdown, formatResetAbsolute, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { sparklineSamplesFor } from '../lib/history.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
+const VERSION = '0.2.1';
 
 const dashboard = document.getElementById('dashboard');
 const updatedEl = document.getElementById('updated');
 const refreshBtn = document.getElementById('refresh');
+const versionEl = document.querySelector('.version');
+if (versionEl) versionEl.textContent = `v${VERSION}`;
 
 refreshBtn.addEventListener('click', async () => {
   refreshBtn.disabled = true;
@@ -36,8 +39,12 @@ setInterval(render, 1000);
 async function render() {
   const state = await loadState();
   const { snapshot, settings, history } = state;
+  applyTheme(settings);
+  const thresholds = normalizeThresholds(settings.thresholds);
 
   dashboard.innerHTML = '';
+  const overview = buildOverview(snapshot, settings, thresholds);
+  if (overview) dashboard.appendChild(renderOverview(overview));
 
   let drew = false;
   for (const provider of ['claude', 'codex']) {
@@ -51,7 +58,7 @@ async function render() {
     }
     const visibleBuckets = ps.buckets.filter((b) => settings.showRows[b.id] !== false);
     if (!visibleBuckets.length) continue;
-    dashboard.appendChild(renderProvider(provider, ps, visibleBuckets, history));
+    dashboard.appendChild(renderProvider(provider, ps, visibleBuckets, history, thresholds));
     drew = true;
   }
 
@@ -59,10 +66,10 @@ async function render() {
     const empty = document.createElement('div');
     empty.className = 'popup-empty';
     empty.innerHTML = `
-      <div class="popup-empty__title">No usage data yet</div>
-      <div>Open a signed-in usage page once, then refresh this dashboard.</div>
+      <div class="popup-empty__title">No local usage snapshot yet</div>
+      <div>Open a signed-in usage page once. The tracker stores the reading locally, then this popup stays useful all day.</div>
       <div class="popup-empty__actions">
-        <button class="aut-link-btn" data-provider="claude">Open Claude</button>
+        <button class="aut-link-btn aut-link-btn--primary" data-provider="claude">Open Claude</button>
         <button class="aut-link-btn" data-provider="codex">Open Codex</button>
       </div>
     `;
@@ -76,7 +83,25 @@ async function render() {
     : 'Never updated';
 }
 
-function renderProvider(providerKey, ps, buckets, history) {
+function renderOverview(overview) {
+  const wrap = document.createElement('section');
+  wrap.className = `popup-overview popup-overview--${overview.tone}`;
+  wrap.setAttribute('aria-label', 'Usage overview');
+  wrap.innerHTML = `
+    <div class="popup-overview__copy">
+      <span class="popup-overview__label">Most constrained</span>
+      <strong>${escapeHtml(overview.title)}</strong>
+      <span>${escapeHtml(overview.detail)}</span>
+    </div>
+    <div class="popup-overview__meta">
+      <span class="aut-status-label aut-status-label--${overview.tone}">${overview.percent}% used</span>
+      <span class="aut-status-label aut-status-label--info">Local only</span>
+    </div>
+  `;
+  return wrap;
+}
+
+function renderProvider(providerKey, ps, buckets, history, thresholds) {
   const wrap = document.createElement('section');
   wrap.className = 'popup-provider';
 
@@ -87,13 +112,13 @@ function renderProvider(providerKey, ps, buckets, history) {
   meta.className = 'popup-provider__meta';
   if (ps.plan) {
     const plan = document.createElement('span');
-    plan.className = 'popup-provider__plan';
+    plan.className = 'popup-provider__plan aut-status-label';
     plan.textContent = ps.plan;
     meta.appendChild(plan);
   }
   if (ps.source) {
     const source = document.createElement('span');
-    source.className = 'popup-provider__source';
+    source.className = 'popup-provider__source aut-status-label aut-status-label--good';
     source.textContent = sourceLabel(ps.source);
     meta.appendChild(source);
   }
@@ -101,12 +126,12 @@ function renderProvider(providerKey, ps, buckets, history) {
   wrap.appendChild(head);
 
   for (const b of buckets) {
-    wrap.appendChild(renderBucket(b, history));
+    wrap.appendChild(renderBucket(b, history, thresholds));
   }
   return wrap;
 }
 
-function renderBucket(b, history) {
+function renderBucket(b, history, thresholds) {
   const row = document.createElement('div');
   row.className = 'popup-bucket';
 
@@ -118,7 +143,7 @@ function renderBucket(b, history) {
   ring.innerHTML = `
     <svg viewBox="0 0 52 52" style="transform:rotate(-90deg);">
       <circle cx="26" cy="26" r="${RING_R}" fill="none" stroke="var(--aut-surface0)" stroke-width="4"></circle>
-      <circle cx="26" cy="26" r="${RING_R}" fill="none" stroke="${ringColor(percent)}" stroke-width="4"
+      <circle cx="26" cy="26" r="${RING_R}" fill="none" stroke="${ringColor(percent, thresholds)}" stroke-width="4"
               stroke-dasharray="${RING_C}" stroke-dashoffset="${offset}" stroke-linecap="round"></circle>
     </svg>
     <div style="margin-top:-36px;text-align:center;font-size:11px;font-weight:700;">${Math.round(remaining)}%</div>
@@ -144,6 +169,40 @@ function renderBucket(b, history) {
   row.setAttribute('aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
 
   return row;
+}
+
+function buildOverview(snapshot, settings, thresholds) {
+  const buckets = [];
+  const providers = snapshot?.providers || {};
+  for (const provider of ['claude', 'codex']) {
+    if (settings?.showProviders?.[provider] === false) continue;
+    const ps = providers[provider];
+    if (!ps?.ok) continue;
+    for (const bucket of ps.buckets || []) {
+      if (settings?.showRows?.[bucket.id] === false) continue;
+      const percent = Math.max(0, Math.min(100, Number(bucket.percentUsed) || 0));
+      buckets.push({ provider, bucket, percent });
+    }
+  }
+  if (!buckets.length) return null;
+  buckets.sort((a, b) => b.percent - a.percent);
+  const best = buckets[0];
+  const reset = best.bucket.resetISO
+    ? `${formatCountdown(best.bucket.resetISO)} until reset`
+    : 'Reset time not published';
+  return {
+    title: `${best.provider === 'claude' ? 'Claude' : 'Codex'} ${humanBucketLabel(best.bucket)}`,
+    detail: `${Math.round(100 - best.percent)}% remaining - ${reset}`,
+    percent: Math.round(best.percent),
+    tone: statusTone(best.percent, thresholds),
+  };
+}
+
+function statusTone(percent, thresholds) {
+  const t = normalizeThresholds(thresholds);
+  if (percent >= t.dangerAt) return 'bad';
+  if (percent >= t.warnAt) return 'warn';
+  return 'good';
 }
 
 function buildSparkline(host, history, bucketId) {
@@ -291,6 +350,15 @@ function sourceLabel(source) {
   if (source === 'stream') return 'Stream';
   if (source === 'headers') return 'Headers';
   return String(source).slice(0, 12);
+}
+
+function applyTheme(settings = {}) {
+  const requested = settings.theme || 'mocha';
+  const systemLight = typeof matchMedia === 'function'
+    && matchMedia('(prefers-color-scheme: light)').matches;
+  document.body.dataset.autTheme = requested === 'system'
+    ? (systemLight ? 'latte' : 'mocha')
+    : (requested === 'latte' || requested === 'mocha-light' ? 'latte' : 'mocha');
 }
 
 function openAnalytics(provider) {

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.1 — 2026-06-16 — Premium UI polish
+
+### Added
+- Widget right-click menu with notification snooze/resume, hide-for-session, refresh, analytics, and settings actions.
+- Manual theme selection with Mocha dark, Latte light, and system-following modes.
+- Configurable visual warn/danger thresholds shared by widget rings, popup rings, and the toolbar badge.
+- Options-page notification snooze status and controls.
+- Appearance smoke coverage for shared threshold behavior.
+
+### Changed
+- Refined popup hierarchy with a most-constrained quota overview, clearer local-only trust signal, and stronger empty-state action hierarchy.
+- Reworked settings into a compact sectioned control surface with navigation, tighter spacing, clearer diagnostics, and responsive mobile collapse.
+- Polished menu, focus, hover, disabled, status, and feedback states across shared UI primitives.
+- Userscript widget usage-page actions now fall back to direct `window.open()` when extension messaging is unavailable.
+
 ## v0.2.0 — 2026-05-25 — QuotaGlass desktop bridge
 
 Optional integration with [QuotaGlass](https://github.com/SysAdminDoc/QuotaGlass), a Windows desktop widget that displays Claude + Codex quota state on your desktop. The extension forwards every successful state ingest to the QuotaGlass native messaging host. If QuotaGlass is not installed, the bridge is a silent no-op — no behavioral change for existing users beyond the new permission prompt.
