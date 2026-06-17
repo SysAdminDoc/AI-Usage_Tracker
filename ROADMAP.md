@@ -269,6 +269,20 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: State includes `stateVersion`, migrations cover old shapes, corrupt state falls back to a recoverable error with export/reset options, and tests prove upgrades preserve history/settings.
   Complexity: M
 
+- [ ] P0 — Production storage adapter hardening
+  Why: The fallback adapter can write tracker state into provider-page `localStorage` if extension/GM storage is unavailable, exposing usage metadata to the host origin.
+  Evidence: `src/lib/storage.js`, README local-only privacy claim, Chrome storage docs.
+  Touches: `src/lib/storage.js`, test setup, userscript bootstrap, diagnostics copy
+  Acceptance: `localStorage` fallback is test-only or explicit dev-only; production extension/userscript paths fail closed with a visible degraded state instead of writing to provider-origin storage.
+  Complexity: S
+
+- [ ] P0 — Page-message bridge validation
+  Why: Same-page scripts can spoof the current `source`/`type` convention and poison stream/header-derived usage before it reaches history, notifications, badge, or native bridge output.
+  Evidence: `src/page-interceptor.js`, `src/page-bridge.js`, `src/background.js`, Chrome content-script isolation docs, postMessage extension security research.
+  Touches: `src/page-interceptor.js`, `src/page-bridge.js`, `src/background.js`, `src/lib/claude-stream.js`, tests
+  Acceptance: Bridge messages validate origin, frame, nonce or equivalent capability, schema, payload size, percent/range bounds, and timestamp freshness before background ingestion.
+  Complexity: M
+
 ### P1
 - [ ] P1 — Missed-notification catch-up scheduler
   Why: Reset and daily briefing alerts can be missed when the browser or MV3 service worker wakes outside the current narrow windows.
@@ -312,6 +326,48 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Automated checks render first-run, loading, stale, error, disabled, snoozed, and reduced-motion states for popup/options/widget and fail on console errors, missing labels, focus traps, or obvious overflow.
   Complexity: M
 
+- [ ] P1 — Native bridge payload minimization
+  Why: The optional desktop bridge currently receives the whole extension state even though the mirror only needs current usage/reset display data.
+  Evidence: `src/lib/bridge.js`, `src/background.js`, README privacy claim, Chrome native messaging docs, native-messaging security research.
+  Touches: `src/lib/bridge.js`, `src/background.js`, QuotaGlass schema docs/tests
+  Acceptance: Bridge output is a versioned redacted envelope containing only provider, bucket, percent, reset, source, freshness, and display settings required by QuotaGlass; history, raw errors, org/account IDs, and secrets are excluded by default.
+  Complexity: M
+
+- [ ] P1 — Manifest and host matrix validator
+  Why: Content scripts cover wildcard subdomains, but host permissions and web-accessible resources are apex-only; userscript metadata and runtime host checks also disagree on `openai.com`.
+  Evidence: `manifests/chrome.json`, `manifests/firefox.json`, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, Chrome content-script and web-accessible resource docs.
+  Touches: manifests, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, build validation
+  Acceptance: A build/test step fails when content script matches, host permissions, web-accessible resource matches, userscript `@match/@connect`, README hosts, and runtime host predicates drift.
+  Complexity: S
+
+- [ ] P1 — Analytics fallback observer backpressure
+  Why: The fallback scraper attaches a broad `MutationObserver` to high-churn settings pages and can keep parsing after the initial stable snapshot.
+  Evidence: `src/analytics-scraper.js`, Chrome content-script performance guidance, current direct API-first fallback design.
+  Touches: `src/analytics-scraper.js`, parser tests, diagnostics
+  Acceptance: The observer debounces mutations, pauses when the document is hidden, disconnects or backs off after stable success, and reports fallback activity counts in diagnostics.
+  Complexity: M
+
+- [ ] P1 — Deterministic release dependency and workflow hardening
+  Why: Release builds use mutable dependency/action resolution, which weakens artifact trust even after version provenance checks.
+  Evidence: `.github/workflows/release.yml`, `.gitignore`, ignored `package-lock.json`, npm `ci` docs, GitHub Actions secure-use guidance.
+  Touches: `.gitignore`, `package-lock.json`, `.github/workflows/release.yml`, release validation
+  Acceptance: The lockfile is tracked or an explicit alternate lock strategy is documented; CI uses `npm ci`; actions are pinned or covered by an allowlist policy; release artifacts remain byte-stable for the same commit and lockfile.
+  Complexity: M
+
+- [ ] P1 — Safe DOM rendering policy
+  Why: The UI uses scattered `innerHTML` writes with local escape helpers, making future dynamic copy changes easy to get wrong.
+  Evidence: `src/ui/widget.js`, `src/ui/popup.js`, `src/ui/options.js`, Chrome extension CSP docs, Trusted Types docs.
+  Touches: UI render helpers, CSS, CSP/report-only test harness
+  Acceptance: Dynamic user/provider data is rendered through shared safe text/attribute helpers or DOM builders; any retained HTML templates are static-reviewed; a Trusted Types or equivalent unsafe-sink audit runs in CI.
+  Complexity: M
+
+- [ ] P1 — WebExtension API compatibility contract tests
+  Why: The shared browser wrapper assumes both Chrome callback APIs and Firefox promise APIs behave the same for notifications, tabs, alarms, storage, and messaging.
+  Evidence: `src/lib/browser.js`, `src/background.js`, MDN notification promise docs, Chrome notification/tabs callback docs.
+  Touches: `src/lib/browser.js`, `src/background.js`, tests, build matrix
+  Acceptance: Unit tests simulate Chrome callback style and Firefox promise style for used APIs; failures are visible before packaging Chrome/Firefox builds.
+  Complexity: M
+
 ### P2
 - [ ] P2 — Store-readiness disclosure matrix
   Why: Store reviewers and privacy-sensitive users need a precise explanation of permissions, host access, data storage, native messaging, and no-telemetry behavior.
@@ -333,6 +389,20 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Touches: `src/ui/options.js`, `src/lib/storage.js`, provider error types
   Acceptance: Copy/export diagnostics includes version, manifest channel, permissions, provider freshness/source/error codes, storage usage, and redacted identifiers.
   Complexity: M
+
+- [ ] P2 — Notification permission preflight and test alert
+  Why: Userscript users can lose the first important alert to a browser permission prompt because permission is requested only when a rule fires.
+  Evidence: `src/lib/browser.js`, `userscript/entry.js`, README userscript notification caveat, MDN/Chrome notification APIs.
+  Touches: `src/lib/browser.js`, `src/ui/options.js`, `userscript/entry.js`, README FAQ
+  Acceptance: Settings show notification permission state, provide a test notification, and explain userscript tab-open requirements before alerts are needed.
+  Complexity: S
+
+- [ ] P2 — Runtime floor and browser compatibility matrix
+  Why: README, build targets, manifests, and platform API choices do not share one checked compatibility floor.
+  Evidence: README says Chromium 109+, build targets Chrome 111/Firefox 115, Firefox manifest has `strict_min_version`, Chrome manifest lacks `minimum_chrome_version`.
+  Touches: `README.md`, `manifests/chrome.json`, `manifests/firefox.json`, build validation
+  Acceptance: Supported Chrome/Firefox/userscript versions are declared in one matrix and build validation fails when a used API exceeds the documented floor.
+  Complexity: S
 
 ### P3
 - [ ] P3 — Claude cache-hit ratio metric

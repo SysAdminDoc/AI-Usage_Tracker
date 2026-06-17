@@ -14,6 +14,14 @@ Top opportunities in priority order:
 - [Verified] Userscript parity: `userscript/entry.js` still has a stubbed inline settings path; Tampermonkey and Violentmonkey provide menu/storage APIs that can close the gap without new dependencies.
 - [Likely] Multi-provider/API expansion should wait until the reliability layer lands; OpenUsage, CodexBar, Tokens 4 Breakfast, and WakaTime show the market value, but this repo's trust story depends on local, auditable browser behavior.
 
+Second-pass misses now added:
+- [Verified] Production storage fallback risk: `src/lib/storage.js` falls back to page `localStorage`; outside tests that could place usage/account metadata in claude.ai/chatgpt.com origin storage readable by the host page.
+- [Verified] Page bridge trust boundary: `src/page-bridge.js` accepts same-window `postMessage` payloads by `source`/`type` only, without origin, nonce, size, or schema bounds before forwarding to the privileged background path.
+- [Verified] Native bridge minimization: `src/lib/bridge.js` forwards the whole extension state to QuotaGlass, including history/settings/provider metadata, instead of a minimal redacted envelope.
+- [Verified] Manifest parity gap: content scripts match wildcard subdomains, while host permissions and web-accessible CSS/icon resources are apex-only; widget CSS fetches can fail if wildcard matches are ever used.
+- [Verified] Analytics fallback backpressure: `src/analytics-scraper.js` installs a broad `MutationObserver` on high-churn analytics pages with no disconnect, visibility pause, or debounce beyond the in-flight guard.
+- [Verified] Deterministic release gap: `.github/workflows/release.yml` uses `npm install`, actions are tag-pinned, and `package-lock.json` is ignored, so release artifacts are not reproducible from a committed dependency graph.
+
 ## Product Map
 Core workflows:
 - Monitor Claude and ChatGPT/Codex quota windows in a floating page widget, toolbar popup, and badge.
@@ -87,6 +95,15 @@ Bugs or risks found:
 - [Verified] `package.json` pins vulnerable dev tooling through `esbuild ^0.23.0`; `npm audit --omit=dev` is clean, but build tooling should still be upgraded.
 - [Verified] `manifests/*.json` always request `nativeMessaging`; this raises install-warning and store-review surface for an optional bridge.
 - [Verified] `userscript/entry.js` routes settings to a GitHub page instead of a real in-page settings modal.
+- [Verified] `src/lib/storage.js` uses a page `localStorage` fallback after WebExtension/GM adapters; in production that would expose tracker state to the provider origin rather than extension/userscript storage.
+- [Verified] `src/page-interceptor.js` and `src/page-bridge.js` bridge page-context data through `window.postMessage`; the bridge lacks explicit `event.origin`, nonce, payload-size, and value-range validation before background ingestion.
+- [Verified] `src/lib/bridge.js` sends `state` wholesale to the native host; this is broader than the README's local-only trust story needs for an optional desktop mirror.
+- [Verified] `manifests/chrome.json` and `manifests/firefox.json` inject on `https://*.claude.ai/*` and `https://*.chatgpt.com/*`, but `host_permissions` and `web_accessible_resources.matches` include only apex origins.
+- [Verified] `src/analytics-scraper.js` leaves a broad document-level `MutationObserver` active after the 30-second polling window and calls the scrape path on every observed mutation.
+- [Verified] UI code uses many localized `innerHTML` writes in `src/ui/widget.js`, `src/ui/popup.js`, and `src/ui/options.js`; most dynamic values are escaped, but there is no central safe-rendering policy or Trusted Types/CSP report-only pass.
+- [Verified] `.github/workflows/release.yml` uses `npm install`, `actions/checkout@v4`, and `actions/setup-node@v4` while `package-lock.json` is ignored; release dependencies and actions are not pinned for reproducible artifact builds.
+- [Verified] `src/lib/browser.js` claims to bridge Chrome callbacks and Firefox promise APIs, but no test harness simulates real WebExtension API shape differences for notifications, tabs, alarms, or runtime messaging.
+- [Verified] Userscript notifications request Web Notification permission only when a rule tries to fire, which can turn the first important alert into a browser permission prompt instead of a delivered notification.
 
 Missing guardrails:
 - [Verified] No release gate proves `package.json`, extension manifests, userscript metadata, release workflow inputs, README version text, and built asset names are synchronized.
@@ -94,6 +111,11 @@ Missing guardrails:
 - [Verified] No corruption recovery UI exists when local storage cannot be parsed or migrated.
 - [Verified] No automated DOM UI harness renders popup/options/widget states for overflow, focusability, reduced motion, contrast, and empty/error copy.
 - [Verified] No provider contract matrix exercises representative API, stream, header, DOM, and failure payload variants from Claude and ChatGPT/Codex.
+- [Verified] No production guard prevents the localStorage storage adapter from being used on provider origins.
+- [Verified] No manifest matrix test proves content script matches, host permissions, web-accessible resource matches, userscript `@match`, and runtime host predicates are aligned.
+- [Verified] No threat-model test covers page-script spoofing of stream/header bridge messages or poisoned values reaching history, notifications, badge state, or native bridge output.
+- [Verified] No release reproducibility gate uses a committed lockfile, `npm ci`, pinned GitHub Actions, and deterministic checksum generation.
+- [Verified] No notification permission preflight/test notification flow exists for userscript users.
 
 Recovery and rollback needs:
 - [Verified] Add export-before-clear/prune for history and settings; the current clear/export roadmap item should be implemented with data-loss confirmation.
@@ -106,6 +128,10 @@ Module or boundary improvements needed:
 - [Verified] Add a storage migration module around `defaultState`, `loadState`, and `saveState` rather than allowing every UI surface to defensively patch missing settings.
 - [Verified] Convert notification evaluation into a scheduler-friendly model that stores last-fired and last-eligible timestamps, then tests catch-up behavior independently from UI.
 - [Verified] Introduce a provider-contract test directory for Claude and Codex fixtures so endpoint/schema changes fail with actionable parser errors.
+- [Verified] Add a storage adapter boundary that can be explicitly set to test-only `localStorage`, rather than falling through silently in production.
+- [Verified] Add a manifest/build validation module that compares content script matches, host permissions, web-accessible resource matches, userscript metadata, and runtime host allowlists.
+- [Verified] Add a page-message ingestion boundary with explicit validation before `aut/claude-message-limit`, `aut/claude-rate-limit-headers`, and `aut/scraped` messages update state.
+- [Verified] Add a native bridge envelope module that serializes only the fields the desktop mirror needs.
 - [Likely] Keep the native bridge isolated behind a build/profile boundary; the optional bridge should not shape the permission story for users who never install QuotaGlass.
 
 Refactor candidates:
@@ -115,12 +141,19 @@ Refactor candidates:
 - [Verified] `src/lib/history.js`: add storage quota telemetry, retention policy, and downsampling boundaries.
 - [Verified] `src/ui/options.js` and `src/ui/popup.js`: diagnostics, destructive confirmations, export/import, and accessibility states should share smaller rendering helpers.
 - [Verified] `userscript/entry.js`: inline settings, manager menu commands, and cross-tab GM storage sync are currently underbuilt compared with the extension path.
+- [Verified] `src/page-bridge.js` and `src/page-interceptor.js`: add bridge authentication/validation or collapse to a more constrained event path.
+- [Verified] `src/lib/bridge.js`: replace whole-state forwarding with a minimal, versioned, redacted snapshot schema.
+- [Verified] `src/analytics-scraper.js`: add observer lifecycle/backpressure and visibility-aware pause/resume.
+- [Verified] `.github/workflows/release.yml` and `.gitignore`: decide lockfile tracking, switch release builds to `npm ci`, and pin actions.
+- [Verified] `manifests/*.json`, `userscript/header.txt`, and `src/content.js`/`userscript/entry.js`: validate the supported host matrix in one place.
 
 Test and documentation gaps:
 - [Verified] `npm test` covers parsers and helper libraries, but not rendered popup/options/widget flows across first-run, loading, stale, error, disabled, and reduced-motion states.
 - [Verified] Release packaging is not asserted against live GitHub release state, checksums, or userscript update/download URLs.
 - [Verified] README privacy language is strong, but store-readiness disclosures for `nativeMessaging`, data collection, and browser permissions are not yet structured enough for Chrome Web Store/AMO review.
 - [Likely] API-provider expansion will need a documented auth/secret boundary before OpenAI, Anthropic Admin, Copilot, Cursor, Gemini, or OpenRouter keys are accepted.
+- [Verified] Browser-specific API behavior is untested; Firefox promise-returning WebExtension APIs and Chrome callback APIs should be contract-tested instead of assumed by `src/lib/browser.js`.
+- [Verified] Store/readability posture is strong because builds are unminified, but there is no automated check that release bundles remain readable and contain no remote-hosted code, obfuscated blobs, or accidental source maps.
 
 ## Rejected Ideas
 - Cloud sync/Firebase usage history - source: lugia19/Claude-Usage-Extension. Reason: contradicts README's local-only/no telemetry promise.
@@ -131,6 +164,9 @@ Test and documentation gaps:
 - Default telemetry/Sentry error reporting - source: Claude-Code-Usage-Monitor. Reason: even opt-in telemetry changes the privacy story and adds infrastructure.
 - New policy markdown files during this pass - source: repo/user file-hygiene rules. Reason: this pass is limited to `RESEARCH.md` and `ROADMAP.md`; policy work should update allowed docs in a later implementation pass.
 - Hard request blocking at 100 percent usage - source: Chrome declarativeNetRequest API. Reason: a false positive would directly disrupt user work; warning and explicit user choice should come first.
+- Broad `<all_urls>` or `cookies` permission expansion - source: Chrome permission guidance. Reason: current narrow host access is a product trust asset; add runtime permission UX only for providers that truly need it.
+- Generic native bridge command channel - source: native-messaging security research. Reason: the bridge should remain one-way/minimal for display data, not a privileged command proxy from page-origin messages to local processes.
+- Production page `localStorage` fallback - source: `src/lib/storage.js`. Reason: acceptable for tests only; production state belongs in extension/GM storage so provider pages cannot inspect tracker data.
 
 ## Sources
 Direct OSS:
@@ -139,7 +175,6 @@ Direct OSS:
 - https://github.com/steipete/CodexBar
 - https://github.com/janekbaraniewski/openusage
 - https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor
-- https://github.com/ccusage/ccusage
 - https://github.com/openai/codex/issues/15281
 - https://github.com/openai/codex/issues/10869
 - https://github.com/openai/codex/discussions/19303
@@ -147,28 +182,34 @@ Direct OSS:
 Commercial and adjacent:
 - https://www.tokens4breakfast.app/
 - https://www.tokenwatch.one/
-- https://costgoat.com/pricing/openai-api
 - https://wakatime.com/ai
 
 Standards, platform, and dependency docs:
 - https://developer.chrome.com/docs/extensions/reference/api/storage
 - https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle
 - https://developer.chrome.com/docs/extensions/reference/api/sidePanel
-- https://developer.chrome.com/docs/extensions/reference/api/offscreen
+- https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts
+- https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions
+- https://developer.chrome.com/docs/extensions/reference/manifest/content-security-policy
+- https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
+- https://developer.chrome.com/docs/webstore/program-policies/code-readability
 - https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/browser_specific_settings
+- https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/create
 - https://www.tampermonkey.net/documentation.php?locale=en
-- https://violentmonkey.github.io/api/gm/
 - https://www.w3.org/TR/WCAG22/
+- https://www.w3.org/TR/trusted-types/
 - https://platform.openai.com/docs/api-reference/usage
 - https://support.claude.com/en/articles/13703965-claude-enterprise-analytics-api-reference-guide
 - https://github.com/advisories/GHSA-67mh-4wv8-2f99
-- https://github.com/evanw/esbuild/releases
+- https://docs.npmjs.com/cli/v9/commands/npm-ci/
+- https://docs.github.com/en/actions/reference/security/secure-use
 
 Community signal:
-- https://www.reddit.com/r/ClaudeAI/comments/1qiw89j/built_a_chrome_extension_to_monitor_claude_usage/
-- https://www.reddit.com/r/ClaudeAI/comments/1s9aavm/just_integrated_claude_code_into_cursor_token/
+- https://spaceraccoon.dev/universal-code-execution-browser-extensions/
 
 ## Open Questions
 - [Needs live validation] Is the project intended for Chrome Web Store and AMO submission, or only GitHub ZIP/XPI distribution?
 - [Needs live validation] Should QuotaGlass remain part of the default extension permission set, or should bridge support move to a separate build/channel?
 - [Needs live validation] Are private Claude/ChatGPT web endpoints acceptable for the intended store/distribution channel, or should public API-key providers become the store-safe path?
+- [Needs live validation] Are wildcard Claude/ChatGPT subdomains intentionally supported, or should manifests/userscript/runtime checks be narrowed to apex hosts?
+- [Needs live validation] Does QuotaGlass need full local history/settings, or only current redacted usage buckets and reset times?
