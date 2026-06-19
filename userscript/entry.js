@@ -145,9 +145,31 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream' } = {}
 }
 
 function keepPreviousSuccess(previous, next) {
-  if (next && next.ok) return next;
-  if (previous && previous.ok) return previous;
-  return next;
+  const nowISO = new Date().toISOString();
+  if (next && next.ok) {
+    return {
+      ...next,
+      lastSuccessISO: nowISO,
+      lastSuccessSource: next.source || 'unknown',
+      lastErrorISO: previous?.lastErrorISO || null,
+      lastErrorDetail: previous?.lastErrorDetail || null,
+      stale: false,
+    };
+  }
+  if (previous && previous.ok) {
+    return {
+      ...previous,
+      lastErrorISO: nowISO,
+      lastErrorDetail: next?.error || 'unknown',
+      stale: true,
+    };
+  }
+  return {
+    ...next,
+    lastErrorISO: nowISO,
+    lastErrorDetail: next?.error || 'unknown',
+    stale: true,
+  };
 }
 
 function mergeProviderBuckets(previous, next) {

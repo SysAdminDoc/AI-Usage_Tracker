@@ -326,14 +326,16 @@ function notificationDiagnostic(settings = {}) {
 
 function providerDiagnostic(provider, ps) {
   if (!ps) return { ok: false, summary: 'No local snapshot yet' };
-  if (!ps.ok) return { ok: false, summary: ps.error || 'Last refresh failed' };
+  if (!ps.ok && !ps.stale) return { ok: false, summary: ps.lastErrorDetail || ps.error || 'Last refresh failed' };
   const parts = [
     `${ps.buckets?.length || 0} rows`,
-    sourceLabel(ps.source),
+    sourceLabel(ps.lastSuccessSource || ps.source),
   ];
   if (provider === 'claude' && ps.orgId) parts.push(`org ${shortId(ps.orgId)}`);
   if (ps.plan) parts.push(ps.plan);
-  return { ok: true, summary: parts.filter(Boolean).join(' - ') };
+  if (ps.lastSuccessISO) parts.push(`fresh ${formatAgo(ps.lastSuccessISO)}`);
+  if (ps.stale) parts.push('(stale - last fetch failed)');
+  return { ok: !ps.stale && ps.ok !== false, summary: parts.filter(Boolean).join(' - ') };
 }
 
 function visibleRowCount(state) {

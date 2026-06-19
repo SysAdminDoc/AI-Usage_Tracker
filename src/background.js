@@ -121,7 +121,10 @@ async function refreshNow({ allowSilentTab = false } = {}) {
 function needsSilentRefresh(state, provider, now) {
   const ps = state?.snapshot?.providers?.[provider];
   if (!ps || !ps.ok) return true;
-  const ts = state.snapshot.fetchedAtISO ? new Date(state.snapshot.fetchedAtISO).getTime() : 0;
+  // Use per-provider freshness timestamp if available, else fall back to snapshot-level.
+  const providerTs = ps.lastSuccessISO ? new Date(ps.lastSuccessISO).getTime() : 0;
+  const snapshotTs = state.snapshot.fetchedAtISO ? new Date(state.snapshot.fetchedAtISO).getTime() : 0;
+  const ts = providerTs || snapshotTs;
   return (now.getTime() - ts) > STALE_MS;
 }
 
@@ -183,16 +186,41 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now =
 async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   if (!providerSnapshot || !providerSnapshot.provider) return state;
   const next = { ...state };
+  const providerKey = providerSnapshot.provider;
   next.snapshot = next.snapshot || { fetchedAtISO: null, providers: {} };
-  // If we already have a successful snapshot and the new one failed,
-  // keep the previous one rather than overwriting it with an error.
-  const prev = next.snapshot.providers[providerSnapshot.provider];
+
+  const prev = next.snapshot.providers[providerKey];
+  const nowISO = now.toISOString();
+
   if (!providerSnapshot.ok && prev && prev.ok) {
-    // Keep prev; do not overwrite.
+    // Keep previous successful data, but stamp error freshness so the UI
+    // can show that the latest fetch failed while displaying preserved data.
+    next.snapshot.providers[providerKey] = {
+      ...prev,
+      lastErrorISO: nowISO,
+      lastErrorDetail: providerSnapshot.error || 'unknown',
+      stale: true,
+    };
+  } else if (providerSnapshot.ok) {
+    next.snapshot.providers[providerKey] = {
+      ...providerSnapshot,
+      lastSuccessISO: nowISO,
+      lastSuccessSource: source || providerSnapshot.source || 'unknown',
+      lastErrorISO: prev?.lastErrorISO || null,
+      lastErrorDetail: prev?.lastErrorDetail || null,
+      stale: false,
+    };
   } else {
-    next.snapshot.providers[providerSnapshot.provider] = providerSnapshot;
+    // No previous success and new fetch failed.
+    next.snapshot.providers[providerKey] = {
+      ...providerSnapshot,
+      lastErrorISO: nowISO,
+      lastErrorDetail: providerSnapshot.error || 'unknown',
+      stale: true,
+    };
   }
-  next.snapshot.fetchedAtISO = now.toISOString();
+
+  next.snapshot.fetchedAtISO = nowISO;
   next.history = recordSnapshot(next.history || [], next.snapshot, { now });
   await saveState(next);
   await updateToolbarBadge(next);

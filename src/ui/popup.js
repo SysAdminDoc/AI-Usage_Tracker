@@ -119,8 +119,19 @@ function renderProvider(providerKey, ps, buckets, history, thresholds) {
   if (ps.source) {
     const source = document.createElement('span');
     source.className = 'popup-provider__source aut-status-label aut-status-label--good';
-    source.textContent = sourceLabel(ps.source);
+    source.textContent = sourceLabel(ps.lastSuccessSource || ps.source);
     meta.appendChild(source);
+  }
+  if (ps.stale) {
+    const staleLabel = document.createElement('span');
+    staleLabel.className = 'aut-status-label aut-status-label--warn';
+    staleLabel.textContent = ps.lastSuccessISO
+      ? `Stale (${formatAgo(ps.lastSuccessISO)})`
+      : 'Stale';
+    staleLabel.title = ps.lastErrorDetail
+      ? `Last error: ${ps.lastErrorDetail}`
+      : 'Preserved from a previous successful fetch';
+    meta.appendChild(staleLabel);
   }
   if (meta.childNodes.length) head.appendChild(meta);
   wrap.appendChild(head);

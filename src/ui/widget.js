@@ -246,8 +246,15 @@ function renderProvider(providerKey, ps, buckets, extras = {}) {
   if (ps.source) {
     const source = document.createElement('span');
     source.className = 'aut-provider__source';
-    source.textContent = sourceLabel(ps.source);
+    source.textContent = sourceLabel(ps.lastSuccessSource || ps.source);
     meta.appendChild(source);
+  }
+  if (ps.stale) {
+    const staleLabel = document.createElement('span');
+    staleLabel.className = 'aut-provider__stale';
+    staleLabel.textContent = 'Stale';
+    staleLabel.title = ps.lastErrorDetail || 'Data preserved from a previous successful fetch';
+    meta.appendChild(staleLabel);
   }
   if (meta.childNodes.length) title.appendChild(meta);
   wrap.appendChild(title);
