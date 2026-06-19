@@ -49,18 +49,47 @@ function pickAdapter() {
     };
   }
 
-  // 3) DOM localStorage fallback.
+  // 3) DOM localStorage fallback — test/dev only.
+  //    In production (extension or userscript), writing tracker state to the
+  //    provider page's localStorage would expose usage metadata to the host
+  //    origin.  We allow it only when an explicit flag is set (unit tests) or
+  //    when the page origin is NOT a provider site.
+  const PROVIDER_HOSTS = ['claude.ai', 'chatgpt.com', 'openai.com'];
+
+  function isProviderOrigin() {
+    try {
+      const host = typeof location !== 'undefined' ? location.hostname : '';
+      return PROVIDER_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+    } catch { return false; }
+  }
+
+  const localStorageAllowed = typeof globalThis.__AUT_ALLOW_LOCALSTORAGE__ !== 'undefined'
+    ? !!globalThis.__AUT_ALLOW_LOCALSTORAGE__
+    : !isProviderOrigin();
+
+  if (localStorageAllowed) {
+    return {
+      type: 'localstorage',
+      async get(key) {
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+        return raw ? JSON.parse(raw) : null;
+      },
+      async set(key, value) {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(key, JSON.stringify(value));
+        }
+      },
+    };
+  }
+
+  // 4) No suitable adapter — fail closed with a degraded in-memory stub that
+  //    keeps the current session working but does not persist or leak state.
+  console.warn('[AUT] No safe storage adapter available — running in degraded memory-only mode.');
+  const memStore = new Map();
   return {
-    type: 'localstorage',
-    async get(key) {
-      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-      return raw ? JSON.parse(raw) : null;
-    },
-    async set(key, value) {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(key, JSON.stringify(value));
-      }
-    },
+    type: 'memory',
+    async get(key) { return memStore.get(key) ?? null; },
+    async set(key, value) { memStore.set(key, value); },
   };
 }
 
