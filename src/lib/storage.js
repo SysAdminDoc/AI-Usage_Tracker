@@ -95,11 +95,119 @@ function pickAdapter() {
 
 export const storageType = adapter.type;
 
+// --- Schema versioning and migration ---
+
+const CURRENT_STATE_VERSION = 2;
+
+/**
+ * Migration table. Each entry upgrades from version N to version N+1.
+ * Migrations receive the raw state object and return the upgraded version.
+ */
+const MIGRATIONS = [
+  // v0 / v1 (unversioned) -> v2: add stateVersion, ensure settings shape.
+  function migrateV1toV2(state) {
+    const next = { ...state };
+    next.stateVersion = 2;
+    // Ensure all expected top-level keys exist.
+    if (!next.snapshot) next.snapshot = { fetchedAtISO: null, providers: { claude: null, codex: null } };
+    if (!next.snapshot.providers) next.snapshot.providers = { claude: null, codex: null };
+    if (!Array.isArray(next.history)) next.history = [];
+    if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
+    if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
+    // Merge in any missing settings with defaults.
+    next.settings = mergeDefaults(next.settings, defaultSettings());
+    return next;
+  },
+];
+
+/**
+ * Deep-merge defaults into an existing settings object without overwriting
+ * user-set values.
+ */
+function mergeDefaults(current, defaults) {
+  if (!current || typeof current !== 'object') return { ...defaults };
+  const out = { ...defaults };
+  for (const key of Object.keys(current)) {
+    if (current[key] != null && typeof current[key] === 'object' && !Array.isArray(current[key])
+        && defaults[key] && typeof defaults[key] === 'object' && !Array.isArray(defaults[key])) {
+      out[key] = mergeDefaults(current[key], defaults[key]);
+    } else if (current[key] !== undefined) {
+      out[key] = current[key];
+    }
+  }
+  return out;
+}
+
+/**
+ * Apply migrations to bring state up to CURRENT_STATE_VERSION.
+ * Returns { state, migrated } where migrated is true if any migration ran.
+ */
+export function migrateState(raw) {
+  let state = raw;
+  let migrated = false;
+  let version = typeof state?.stateVersion === 'number' ? state.stateVersion : 1;
+
+  while (version < CURRENT_STATE_VERSION) {
+    const migrationIndex = version - 1;
+    if (migrationIndex < 0 || migrationIndex >= MIGRATIONS.length) break;
+    try {
+      state = MIGRATIONS[migrationIndex](state);
+      migrated = true;
+    } catch (e) {
+      console.error(`[AUT] Migration v${version}->v${version + 1} failed:`, e);
+      // Return a default state rather than losing everything.
+      return { state: defaultState(), migrated: true, error: `migration-v${version}-failed` };
+    }
+    version = typeof state?.stateVersion === 'number' ? state.stateVersion : version + 1;
+  }
+  return { state, migrated };
+}
+
+/**
+ * Validate that a raw state object has the minimum expected shape.
+ * Returns true if the state appears safe to use.
+ */
+function isStateValid(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  if (Array.isArray(raw)) return false;
+  // Must have at least a snapshot key.
+  if (!raw.snapshot || typeof raw.snapshot !== 'object') return false;
+  return true;
+}
+
 export async function loadState() {
-  return (await adapter.get(STORE_KEY)) || defaultState();
+  let raw;
+  try {
+    raw = await adapter.get(STORE_KEY);
+  } catch (e) {
+    console.error('[AUT] Storage read failed:', e);
+    return defaultState();
+  }
+
+  if (!raw) return defaultState();
+
+  // Corruption guard: if the raw data isn't a valid object, reset.
+  if (!isStateValid(raw)) {
+    console.warn('[AUT] Stored state is corrupt — resetting to defaults. Previous value type:', typeof raw);
+    const fresh = defaultState();
+    try { await adapter.set(STORE_KEY, fresh); } catch { /* best effort */ }
+    return fresh;
+  }
+
+  // Run migrations if needed.
+  const { state, migrated, error } = migrateState(raw);
+  if (error) {
+    console.warn('[AUT] Migration error:', error);
+  }
+  if (migrated) {
+    try { await adapter.set(STORE_KEY, state); } catch { /* best effort */ }
+  }
+  return state;
 }
 
 export async function saveState(state) {
+  // Stamp current version on every write.
+  state.stateVersion = CURRENT_STATE_VERSION;
   await adapter.set(STORE_KEY, state);
 }
 
@@ -112,6 +220,7 @@ export async function patchState(patch) {
 
 export function defaultState() {
   return {
+    stateVersion: CURRENT_STATE_VERSION,
     snapshot: { fetchedAtISO: null, providers: { claude: null, codex: null } },
     history: [],          // [{ ts, bucketId, percentUsed }]
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
