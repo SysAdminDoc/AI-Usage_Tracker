@@ -18,7 +18,7 @@
 
 const HOST_NAME = 'com.sysadmindoc.quotaglass';
 const PING_INTERVAL_MS = 25_000;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 let port = null;
 let pingHandle = null;
@@ -84,9 +84,51 @@ function stopPing() {
 }
 
 /**
- * Push the current extension state envelope to QuotaGlass. No-op when the
+ * Build a minimal, redacted envelope containing only the fields
+ * QuotaGlass needs to display usage status. Excludes history, raw
+ * errors, org/account IDs, secrets, and full settings.
+ */
+function buildBridgeEnvelope(state) {
+  const providers = {};
+  const snapshot = state?.snapshot;
+  if (snapshot?.providers) {
+    for (const [key, ps] of Object.entries(snapshot.providers)) {
+      if (!ps) continue;
+      providers[key] = {
+        ok: !!ps.ok,
+        stale: !!ps.stale,
+        source: ps.lastSuccessSource || ps.source || null,
+        lastSuccessISO: ps.lastSuccessISO || null,
+        plan: ps.plan || null,
+        buckets: (ps.buckets || []).map((b) => ({
+          id: b.id,
+          label: b.label,
+          kind: b.kind,
+          model: b.model,
+          percentUsed: b.percentUsed,
+          resetISO: b.resetISO || null,
+        })),
+      };
+    }
+  }
+  return {
+    fetchedAtISO: snapshot?.fetchedAtISO || null,
+    providers,
+    display: {
+      theme: state?.settings?.theme || 'mocha',
+      thresholds: state?.settings?.thresholds || { warnAt: 50, dangerAt: 80 },
+    },
+  };
+}
+
+/**
+ * Push a minimal, redacted state envelope to QuotaGlass. No-op when the
  * native host isn't installed. Called from background.js after a successful
  * mergeSnapshot or notification fire.
+ *
+ * Only provider, bucket, percent, reset, source, freshness, and display
+ * settings are forwarded. History, raw errors, org/account IDs, and secrets
+ * are excluded by default.
  */
 export function pushSnapshot(state, extensionVersion) {
   try {
@@ -97,7 +139,7 @@ export function pushSnapshot(state, extensionVersion) {
       schemaVersion: SCHEMA_VERSION,
       ts: new Date().toISOString(),
       extensionVersion,
-      state,
+      state: buildBridgeEnvelope(state),
     });
   } catch (e) {
     console.info('[AUT-bridge] push failed; will retry next tick', e?.message || e);
