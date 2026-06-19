@@ -11,7 +11,7 @@
 //   3) On alarm: if the fast path returned no data and the opt-in fallback
 //      is enabled, open a silent background tab to force a live scrape.
 
-import { fetchClaude, parseClaudeUsageApi } from './scrapers/claude.js';
+import { fetchClaude, parseClaudeUsageApi, clearClaudeOrgCache } from './scrapers/claude.js';
 import { fetchCodex }  from './scrapers/codex.js';
 import { loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
@@ -67,6 +67,11 @@ function bindMessageHandlers() {
     }
     if (msg.type === 'aut/claude-rate-limit-headers') {
       await ingestClaudeUsageWindows(msg.rateLimit, { source: 'headers' });
+      return { ok: true };
+    }
+    if (msg.type === 'aut/reset-claude-org') {
+      clearClaudeOrgCache();
+      await refreshNow({ allowSilentTab: false });
       return { ok: true };
     }
     return null;

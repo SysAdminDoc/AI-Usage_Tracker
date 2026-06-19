@@ -229,6 +229,24 @@ function bindHandlers() {
     flash('Notifications resumed');
   });
 
+  document.getElementById('resetClaudeOrg').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      await sendRuntimeMessage({ type: 'aut/reset-claude-org' });
+      setTimeout(async () => {
+        await renderRows();
+        await renderDiagnostics();
+        await loadCurrent();
+        flash('Claude org cache cleared and usage refreshed');
+        btn.disabled = false;
+      }, 1000);
+    } catch (err) {
+      flash(`Reset failed: ${String(err?.message || err)}`, 'bad');
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById('refreshDiagnostics').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
