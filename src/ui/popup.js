@@ -4,7 +4,7 @@ import { sparklineSamplesFor } from '../lib/history.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 
 const dashboard = document.getElementById('dashboard');
 const updatedEl = document.getElementById('updated');

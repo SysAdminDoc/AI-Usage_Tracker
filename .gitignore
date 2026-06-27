@@ -19,7 +19,6 @@ dist/
 
 # Node
 node_modules/
-package-lock.json
 .pnpm-store/
 npm-debug.log*
 

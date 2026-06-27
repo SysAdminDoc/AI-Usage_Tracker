@@ -65,11 +65,28 @@ export async function buildExtension({ target }) {
     ? `ai-usage-tracker-firefox-v${VERSION}.xpi`
     : `AI-Usage-Tracker-${target}-v${VERSION}.zip`;
   const zipPath = path.join(DIST, zipName);
+  await removeStalePackages(target, zipPath);
   await zipDir(outDir, zipPath);
 
   log('extension', `built ${target} → ${path.relative(ROOT, outDir)}`);
   log('extension', `packaged ${path.relative(ROOT, zipPath)}`);
   return { outDir, zipPath };
+}
+
+async function removeStalePackages(target, keepPath) {
+  await ensureDir(DIST);
+  const prefix = target === 'firefox'
+    ? 'ai-usage-tracker-firefox-v'
+    : `AI-Usage-Tracker-${target}-v`;
+  const suffix = target === 'firefox' ? '.xpi' : '.zip';
+  const entries = await fs.readdir(DIST, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.startsWith(prefix) || !entry.name.endsWith(suffix)) continue;
+    const abs = path.join(DIST, entry.name);
+    if (abs !== keepPath) await fs.rm(abs, { force: true });
+  }
+  await fs.rm(keepPath, { force: true });
 }
 
 // Simple ZIP packer using Node's built-in zlib — avoids an extra dependency.

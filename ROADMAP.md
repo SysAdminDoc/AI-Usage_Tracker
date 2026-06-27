@@ -12,13 +12,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Userscript users can change rows, theme, thresholds, notifications, and fallback behavior in an in-page modal persisted through GM storage.
   Complexity: M
 
-- [ ] P1 — Reset cached Claude organization ID
-  Why: Workspace/team switches can strand users on a stale Claude org.
-  Evidence: `src/scrapers/claude.js` already caches org IDs and exposes `clearClaudeOrgCache()`.
-  Touches: `src/scrapers/claude.js`, `src/background.js`, `src/ui/options.js`, `userscript/entry.js`
-  Acceptance: Options diagnostics include a reset action that clears the Claude org cache and immediately refreshes usage.
-  Complexity: S
-
 - [ ] P1 — Clear and export history
   Why: Local-only history needs explicit user control before retention, migration, or pruning work lands.
   Evidence: `src/lib/history.js` stores rolling samples; OpenUsage, CodexBar, and Tokens 4 Breakfast all expose export surfaces.
@@ -39,13 +32,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Touches: `src/ui/theme.js`, `src/styles/theme.css`, `src/styles/widget.css`, `src/styles/popup.css`
   Acceptance: A high-contrast option adds shape/pattern cues and preserves 4.5:1 text contrast across widget, popup, and options.
   Complexity: M
-
-- [ ] P1 — Expand countdown, history, and notify unit coverage
-  Why: Reset parsing, history trimming, and alert timing are high-trust logic that can regress silently.
-  Evidence: Current tests cover helper basics, but not DST, month-end, stale sample, catch-up, or duplicate-fire edge cases.
-  Touches: `build/test-cache-timer.mjs`, `build/test-history.mjs`, `build/test-notify.mjs`, `src/lib/cache-timer.js`, `src/lib/history.js`, `src/lib/notify.js`
-  Acceptance: Tests cover DST, last-day-of-month, weekday rollover, late refresh, stale data, disabled rule, snooze, and duplicate-fire scenarios.
-  Complexity: S
 
 ### P2
 - [ ] P2 — TypeScript migration
@@ -247,42 +233,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 
 ## Research-Driven Additions
 
-### P0
-- [ ] P0 — Release artifact and version provenance gate
-  Why: Users following the README can install stale assets because documented v0.2.1 does not match the latest GitHub release.
-  Evidence: `README.md`, `package.json`, `manifests/*.json`, `.github/workflows/release.yml`, `gh release list`, CodexBar/OpenUsage release assets.
-  Touches: `build/build-all.mjs`, `.github/workflows/release.yml`, `package.json`, `README.md`, userscript metadata, release checklist/tests
-  Acceptance: CI fails if package/manifests/userscript/README/release workflow asset names disagree; v0.2.1 release assets include Chrome ZIP, Firefox XPI, userscript, and SHA256 checksums.
-  Complexity: M
-
-- [ ] P0 — Provider-level freshness and stale-data ledger
-  Why: A partial provider failure must not make preserved old data look freshly fetched.
-  Evidence: `src/background.js` snapshot merge behavior; Codex issue #15281; CodexBar issue #1600; existing diagnostics.
-  Touches: `src/background.js`, `src/lib/storage.js`, `src/ui/popup.js`, `src/ui/widget.js`, `src/ui/options.js`, `userscript/entry.js`, tests
-  Acceptance: Each provider stores and displays `lastSuccessISO`, `lastErrorISO`, age, source, fallback source, and stale status; preserved data is visually and textually labelled stale.
-  Complexity: M
-
-- [ ] P0 — State schema migration and repair path
-  Why: Settings/history shapes are evolving and the current single storage blob has no explicit upgrade or corruption recovery contract.
-  Evidence: `src/lib/storage.js`, `src/ui/options.js` defensive fallbacks, Chrome storage docs.
-  Touches: `src/lib/storage.js`, `src/ui/options.js`, `src/ui/popup.js`, `userscript/entry.js`, tests
-  Acceptance: State includes `stateVersion`, migrations cover old shapes, corrupt state falls back to a recoverable error with export/reset options, and tests prove upgrades preserve history/settings.
-  Complexity: M
-
-- [ ] P0 — Production storage adapter hardening
-  Why: The fallback adapter can write tracker state into provider-page `localStorage` if extension/GM storage is unavailable, exposing usage metadata to the host origin.
-  Evidence: `src/lib/storage.js`, README local-only privacy claim, Chrome storage docs.
-  Touches: `src/lib/storage.js`, test setup, userscript bootstrap, diagnostics copy
-  Acceptance: `localStorage` fallback is test-only or explicit dev-only; production extension/userscript paths fail closed with a visible degraded state instead of writing to provider-origin storage.
-  Complexity: S
-
-- [ ] P0 — Page-message bridge validation
-  Why: Same-page scripts can spoof the current `source`/`type` convention and poison stream/header-derived usage before it reaches history, notifications, badge, or native bridge output.
-  Evidence: `src/page-interceptor.js`, `src/page-bridge.js`, `src/background.js`, Chrome content-script isolation docs, postMessage extension security research.
-  Touches: `src/page-interceptor.js`, `src/page-bridge.js`, `src/background.js`, `src/lib/claude-stream.js`, tests
-  Acceptance: Bridge messages validate origin, frame, nonce or equivalent capability, schema, payload size, percent/range bounds, and timestamp freshness before background ingestion.
-  Complexity: M
-
 ### P1
 - [ ] P1 — Missed-notification catch-up scheduler
   Why: Reset and daily briefing alerts can be missed when the browser or MV3 service worker wakes outside the current narrow windows.
@@ -297,13 +247,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Touches: `src/lib/history.js`, `src/lib/storage.js`, `src/ui/options.js`, `userscript/entry.js`, tests
   Acceptance: Options show storage bytes used, retention length, compact/prune controls, export-before-prune copy, and tests for retention/downsampling behavior.
   Complexity: M
-
-- [ ] P1 — Upgrade esbuild and add audit gate
-  Why: Build tooling is affected by GHSA-67mh-4wv8-2f99 and should not ship with known vulnerable dev dependencies.
-  Evidence: `package.json`, `npm audit --json`, GitHub Advisory GHSA-67mh-4wv8-2f99, esbuild releases.
-  Touches: `package.json`, `package-lock.json`, CI/test scripts
-  Acceptance: esbuild is upgraded to a patched/current release, `npm audit` has no actionable findings, and build/test outputs stay stable.
-  Complexity: S
 
 - [ ] P1 — Split optional native bridge permission surface
   Why: `nativeMessaging` is requested for every install even though QuotaGlass integration is optional.
@@ -326,33 +269,12 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Automated checks render first-run, loading, stale, error, disabled, snoozed, and reduced-motion states for popup/options/widget and fail on console errors, missing labels, focus traps, or obvious overflow.
   Complexity: M
 
-- [ ] P1 — Native bridge payload minimization
-  Why: The optional desktop bridge currently receives the whole extension state even though the mirror only needs current usage/reset display data.
-  Evidence: `src/lib/bridge.js`, `src/background.js`, README privacy claim, Chrome native messaging docs, native-messaging security research.
-  Touches: `src/lib/bridge.js`, `src/background.js`, QuotaGlass schema docs/tests
-  Acceptance: Bridge output is a versioned redacted envelope containing only provider, bucket, percent, reset, source, freshness, and display settings required by QuotaGlass; history, raw errors, org/account IDs, and secrets are excluded by default.
-  Complexity: M
-
 - [ ] P1 — Manifest and host matrix validator
   Why: Content scripts cover wildcard subdomains, but host permissions and web-accessible resources are apex-only; userscript metadata and runtime host checks also disagree on `openai.com`.
   Evidence: `manifests/chrome.json`, `manifests/firefox.json`, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, Chrome content-script and web-accessible resource docs.
   Touches: manifests, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, build validation
   Acceptance: A build/test step fails when content script matches, host permissions, web-accessible resource matches, userscript `@match/@connect`, README hosts, and runtime host predicates drift.
   Complexity: S
-
-- [ ] P1 — Analytics fallback observer backpressure
-  Why: The fallback scraper attaches a broad `MutationObserver` to high-churn settings pages and can keep parsing after the initial stable snapshot.
-  Evidence: `src/analytics-scraper.js`, Chrome content-script performance guidance, current direct API-first fallback design.
-  Touches: `src/analytics-scraper.js`, parser tests, diagnostics
-  Acceptance: The observer debounces mutations, pauses when the document is hidden, disconnects or backs off after stable success, and reports fallback activity counts in diagnostics.
-  Complexity: M
-
-- [ ] P1 — Deterministic release dependency and workflow hardening
-  Why: Release builds use mutable dependency/action resolution, which weakens artifact trust even after version provenance checks.
-  Evidence: `.github/workflows/release.yml`, `.gitignore`, ignored `package-lock.json`, npm `ci` docs, GitHub Actions secure-use guidance.
-  Touches: `.gitignore`, `package-lock.json`, `.github/workflows/release.yml`, release validation
-  Acceptance: The lockfile is tracked or an explicit alternate lock strategy is documented; CI uses `npm ci`; actions are pinned or covered by an allowlist policy; release artifacts remain byte-stable for the same commit and lockfile.
-  Complexity: M
 
 - [ ] P1 — Safe DOM rendering policy
   Why: The UI uses scattered `innerHTML` writes with local escape helpers, making future dynamic copy changes easy to get wrong.

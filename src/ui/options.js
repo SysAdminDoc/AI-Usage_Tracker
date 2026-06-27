@@ -1,7 +1,7 @@
 import { loadState, saveState, defaultSettings } from '../lib/storage.js';
 import { normalizeThresholds } from '../lib/countdown.js';
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 
 const KNOWN_ROWS = [
   { id: 'claude-session',        label: 'Claude - Current session' },

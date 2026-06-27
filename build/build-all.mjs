@@ -1,5 +1,7 @@
 // Build everything — Chrome, Firefox, userscript.
 import { buildExtension } from './build-extension.mjs';
+import { clean, DIST } from './common.mjs';
+import { validateReleaseProvenance, writeReleaseChecksums } from './release-provenance.mjs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
+  await validateReleaseProvenance();
+  await clean(DIST);
+
   await buildExtension({ target: 'chrome' });
   await buildExtension({ target: 'firefox' });
 
@@ -16,6 +21,7 @@ async function main() {
   });
   if (us.status !== 0) process.exit(us.status || 1);
 
+  await writeReleaseChecksums();
   console.log('\n[build] All targets built.');
 }
 

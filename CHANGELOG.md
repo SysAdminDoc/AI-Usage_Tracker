@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.2 - 2026-06-27 - Release hardening
+
+### Added
+- Local release provenance validation covering package, lockfile, manifests, userscript metadata, README asset names, changelog, and disallowed workflow files.
+- SHA256 checksum generation for Chrome ZIP, Firefox XPI, and userscript release artifacts.
+
+### Changed
+- Full builds now clean stale artifacts before packaging and run the provenance gate before producing release assets.
+- `package-lock.json` is tracked for deterministic local builds.
+
 ## v0.2.1 — 2026-06-16 — Premium UI polish
 
 ### Added
