@@ -4,6 +4,12 @@ import {
   importSettings,
   loadState,
   saveState,
+  createProfile,
+  deleteProfile,
+  getActiveProfile,
+  listProfiles,
+  renameProfile,
+  switchProfile,
 } from '../lib/storage.js';
 import {
   compactHistory,
@@ -198,6 +204,14 @@ const MODAL_CSS = `
 .aut-inline-settings__button--primary:hover { background: linear-gradient(135deg, var(--aut-blue), var(--aut-lavender)); }
 .aut-inline-settings__history-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .aut-inline-settings__notification { display: grid; gap: 7px; margin-top: 10px; }
+.aut-inline-settings__profiles { display: grid; gap: 7px; }
+.aut-inline-settings__profile { display: grid; gap: 7px; padding: 9px 10px; background: var(--aut-row-bg); border: 1px solid var(--aut-border-subtle); border-radius: var(--aut-r-md); }
+.aut-inline-settings__profile-head { display: flex; align-items: baseline; gap: 8px; }
+.aut-inline-settings__profile-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--aut-text); font-weight: 700; }
+.aut-inline-settings__profile-meta { color: var(--aut-subtext0); font-size: 10px; }
+.aut-inline-settings__profile-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.aut-inline-settings__profile-rename { flex: 1 1 160px; min-height: 40px; min-width: 0; box-sizing: border-box; padding: 7px 9px; color: var(--aut-text); background: var(--aut-surface0); border: 1px solid var(--aut-border); border-radius: var(--aut-r-sm); font: inherit; font-size: 11px; }
+.aut-inline-settings__profile-rename:focus-visible { outline: 2px solid var(--aut-focus); outline-offset: 2px; }
 @media (max-width: 520px) {
   .aut-inline-settings__row { align-items: stretch; flex-direction: column; }
   .aut-inline-settings__row > label:first-child { min-width: 0; }
@@ -243,12 +257,20 @@ export async function openInlineSettings({ onSaved } = {}) {
   body.className = 'aut-inline-settings__body';
   dialog.appendChild(body);
   const controls = buildControls(body, state);
+  await renderProfileControls(controls.profiles);
   const foot = buildFooter();
   dialog.appendChild(foot);
   applyDraft(controls, draft);
   applyTheme(root, draft);
   await updateHistorySummary(controls.history, state);
   bindHistoryActions(controls.history, foot, () => state, (next) => { state = next; });
+  bindProfileControls(controls.profiles, async (message) => {
+    host.remove();
+    modalHost = null;
+    if (onSaved) await onSaved();
+    await openInlineSettings({ onSaved });
+    return message;
+  });
   await renderNotificationPermission(controls.notificationPermission);
 
   const focusables = () => [...dialog.querySelectorAll('button, input, select')]
@@ -340,6 +362,9 @@ function buildHeader() {
 
 function buildControls(body, state) {
   const controls = {};
+  body.appendChild(buildSection('Profiles', 'Keep personal, work, or client accounts separate. Profiles have independent settings, history, quota snapshots, and API credentials.', (section) => {
+    controls.profiles = buildProfileControls(section);
+  }));
   body.appendChild(buildSection('Providers', 'Choose which providers appear in the widget.', (section) => {
     controls.providers = addToggleGrid(section, [
       ['claude', 'Claude'],
@@ -372,6 +397,109 @@ function buildControls(body, state) {
     controls.history = buildHistoryControls(section);
   }));
   return controls;
+}
+
+function buildProfileControls(parent) {
+  const status = document.createElement('p');
+  status.className = 'aut-inline-settings__hint';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const list = document.createElement('div');
+  list.className = 'aut-inline-settings__profiles';
+  const row = document.createElement('div');
+  row.className = 'aut-inline-settings__profile-actions';
+  const input = document.createElement('input');
+  input.className = 'aut-inline-settings__profile-rename';
+  input.type = 'text';
+  input.maxLength = 48;
+  input.autocomplete = 'off';
+  input.placeholder = 'New profile name';
+  input.setAttribute('aria-label', 'New profile name');
+  const create = historyActionButton('Create profile');
+  row.append(input, create);
+  parent.append(status, list, row);
+  return { status, list, input, create };
+}
+
+async function renderProfileControls(controls) {
+  if (!controls) return;
+  const [profiles, active] = await Promise.all([listProfiles(), getActiveProfile()]);
+  controls.list.replaceChildren();
+  for (const profile of profiles) {
+    const item = document.createElement('div');
+    item.className = 'aut-inline-settings__profile';
+    item.dataset.profileId = profile.id;
+    const head = document.createElement('div');
+    head.className = 'aut-inline-settings__profile-head';
+    const name = document.createElement('strong');
+    name.className = 'aut-inline-settings__profile-name';
+    name.textContent = profile.name;
+    const meta = document.createElement('span');
+    meta.className = 'aut-inline-settings__profile-meta';
+    meta.textContent = profile.id === active.id ? 'Active' : 'Local';
+    head.append(name, meta);
+    const actions = document.createElement('div');
+    actions.className = 'aut-inline-settings__profile-actions';
+    const renameInput = document.createElement('input');
+    renameInput.className = 'aut-inline-settings__profile-rename';
+    renameInput.type = 'text';
+    renameInput.maxLength = 48;
+    renameInput.value = profile.name;
+    renameInput.setAttribute('aria-label', `Rename ${profile.name}`);
+    renameInput.dataset.profileRename = profile.id;
+    const switchButton = historyActionButton(profile.id === active.id ? 'Active' : 'Switch');
+    switchButton.dataset.profileAction = 'switch';
+    switchButton.dataset.profileId = profile.id;
+    switchButton.disabled = profile.id === active.id;
+    const renameButton = historyActionButton('Rename');
+    renameButton.dataset.profileAction = 'rename';
+    renameButton.dataset.profileId = profile.id;
+    const deleteButton = historyActionButton('Delete');
+    deleteButton.dataset.profileAction = 'delete';
+    deleteButton.dataset.profileId = profile.id;
+    deleteButton.disabled = profiles.length <= 1;
+    actions.append(renameInput, switchButton, renameButton, deleteButton);
+    item.append(head, actions);
+    controls.list.appendChild(item);
+  }
+  controls.status.textContent = `${active.name} is active. ${profiles.length} local profile${profiles.length === 1 ? '' : 's'} available.`;
+}
+
+function bindProfileControls(controls, reload) {
+  if (!controls) return;
+  controls.create.addEventListener('click', async () => {
+    try {
+      const profile = await createProfile(controls.input.value);
+      await switchProfile(profile.id);
+      await reload(`Switched to ${profile.name}`);
+    } catch (error) {
+      controls.status.textContent = `Profile creation failed: ${error?.message || 'unknown error'}`;
+    }
+  });
+  controls.list.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-profile-action]');
+    if (!button) return;
+    const profileId = button.dataset.profileId;
+    try {
+      if (button.dataset.profileAction === 'switch') {
+        const profile = await switchProfile(profileId);
+        await reload(`Switched to ${profile.name}`);
+      } else if (button.dataset.profileAction === 'rename') {
+        const input = [...controls.list.querySelectorAll('input[data-profile-rename]')]
+          .find((candidate) => candidate.dataset.profileRename === profileId);
+        const profile = await renameProfile(profileId, input?.value || '');
+        await reload(`Renamed profile to ${profile.name}`);
+      } else if (button.dataset.profileAction === 'delete') {
+        const profile = (await listProfiles()).find((candidate) => candidate.id === profileId);
+        if (!profile || !confirmAction(`Delete the local profile “${profile.name}” and its history and API keys?`)) return;
+        const registry = await deleteProfile(profileId);
+        const active = registry.profiles.find((candidate) => candidate.id === registry.activeId);
+        await reload(`Active profile: ${active?.name || 'Default'}`);
+      }
+    } catch (error) {
+      controls.status.textContent = `Profile update failed: ${error?.message || 'unknown error'}`;
+    }
+  });
 }
 
 function buildHistoryControls(parent) {

@@ -22,6 +22,7 @@
 - A strict TypeScript model boundary now checks provider snapshots, settings, history samples, and storage state guards before tests and builds without changing the existing esbuild runtime shape.
 - Dashboard status strings now use a centralized locale table with English fallback, Spanish/French/German entries, a persisted language setting, and `Intl` formatting for percentages and dates.
 - Optional official Anthropic and OpenAI API provider paths now keep admin keys in a separate local-only store, normalize token/cost reports into metric rows, and redact credentials from settings/diagnostics exports.
+- Local profile management now supports create, rename, switch, and delete flows with isolated settings, snapshots, history, and API credentials across the extension settings page and userscript modal.
 - README now includes current widget, popup, settings, first-run, degraded-state, and animated product captures.
 
 ### Fixed

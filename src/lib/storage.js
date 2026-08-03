@@ -6,8 +6,13 @@ import { SUPPORTED_HOSTS } from './hosts.js';
 import { invokeWebExtension } from './browser.js';
 import { isTrackerState } from './type-guards.js';
 
-const STORE_KEY = 'aut.state.v1';
+const LEGACY_STORE_KEY = 'aut.state.v1';
+export const PROFILE_REGISTRY_KEY = 'aut.profiles.v1';
+export const PROFILE_STATE_PREFIX = 'aut.state.v1.profile.';
 const API_CREDENTIALS_KEY = 'aut.api-credentials.v1';
+const PROFILE_CREDENTIALS_PREFIX = 'aut.api-credentials.v1.profile.';
+const DEFAULT_PROFILE_ID = 'default';
+const PROFILE_NAME_MAX = 48;
 export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api']);
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
@@ -27,6 +32,9 @@ function pickAdapter() {
       async set(key, value) {
         await invokeWebExtension(ext.local, 'set', [{ [key]: value }]);
       },
+      async remove(key) {
+        await invokeWebExtension(ext.local, 'remove', [key]);
+      },
     };
   }
 
@@ -41,6 +49,10 @@ function pickAdapter() {
       async set(key, value) {
         await GM.setValue(key, JSON.stringify(value));
       },
+      async remove(key) {
+        if (typeof GM.deleteValue === 'function') await GM.deleteValue(key);
+        else await GM.setValue(key, null);
+      },
     };
   }
   if (typeof GM_setValue === 'function') {
@@ -52,6 +64,10 @@ function pickAdapter() {
       },
       async set(key, value) {
         GM_setValue(key, JSON.stringify(value));
+      },
+      async remove(key) {
+        if (typeof GM_deleteValue === 'function') GM_deleteValue(key);
+        else GM_setValue(key, '');
       },
     };
   }
@@ -72,7 +88,7 @@ function pickAdapter() {
     ? !!globalThis.__AUT_ALLOW_LOCALSTORAGE__
     : !isProviderOrigin();
 
-  if (localStorageAllowed) {
+  if (localStorageAllowed && typeof localStorage !== 'undefined') {
     return {
       type: 'localstorage',
       async get(key) {
@@ -83,6 +99,9 @@ function pickAdapter() {
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(key, JSON.stringify(value));
         }
+      },
+      async remove(key) {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
       },
     };
   }
@@ -95,6 +114,7 @@ function pickAdapter() {
     type: 'memory',
     async get(key) { return memStore.get(key) ?? null; },
     async set(key, value) { memStore.set(key, value); },
+    async remove(key) { memStore.delete(key); },
   };
 }
 
@@ -104,7 +124,8 @@ export async function getStorageUsage(state = null) {
   const ext = getWebExtensionStorage();
   if (ext?.local?.getBytesInUse) {
     try {
-      const bytes = await invokeStorageMethod(ext.local, 'getBytesInUse', 'aut.state.v1');
+      const profileId = await getActiveProfileId();
+      const bytes = await invokeStorageMethod(ext.local, 'getBytesInUse', profileStateStorageKey(profileId));
       return {
         bytes: Number(bytes) || 0,
         quotaBytes: Number(ext.local.QUOTA_BYTES) || null,
@@ -234,22 +255,215 @@ function isStateValid(raw) {
   return isTrackerState(raw);
 }
 
-export async function loadState() {
-  let raw;
+const PROFILE_VERSION = 1;
+
+export function profileStateStorageKey(profileId) {
+  const id = normalizeProfileId(profileId);
+  if (!id) throw new Error(`Invalid profile id: ${String(profileId)}`);
+  return `${PROFILE_STATE_PREFIX}${id}`;
+}
+
+function profileCredentialsStorageKey(profileId) {
+  return `${PROFILE_CREDENTIALS_PREFIX}${profileStateStorageKey(profileId).slice(PROFILE_STATE_PREFIX.length)}`;
+}
+
+export function defaultProfileRegistry(nowISO = new Date().toISOString()) {
+  return {
+    profileVersion: PROFILE_VERSION,
+    activeId: DEFAULT_PROFILE_ID,
+    profiles: [{ id: DEFAULT_PROFILE_ID, name: 'Default', createdAtISO: nowISO }],
+  };
+}
+
+function normalizeProfileId(value) {
+  const id = String(value ?? '').trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9-]{0,47}$/.test(id) ? id : null;
+}
+
+function normalizeProfileName(value, fallback = '') {
+  const name = String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, PROFILE_NAME_MAX);
+  return name || fallback;
+}
+
+function normalizeProfileRegistry(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)
+      || raw.profileVersion !== PROFILE_VERSION || !Array.isArray(raw.profiles)) return null;
+
+  const seen = new Set();
+  const profiles = [];
+  for (const candidate of raw.profiles) {
+    const id = normalizeProfileId(candidate?.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    profiles.push({
+      id,
+      name: normalizeProfileName(candidate?.name, id === DEFAULT_PROFILE_ID ? 'Default' : id),
+      createdAtISO: typeof candidate?.createdAtISO === 'string' ? candidate.createdAtISO : null,
+    });
+  }
+  if (!profiles.length) return null;
+  const activeId = normalizeProfileId(raw.activeId);
+  return {
+    profileVersion: PROFILE_VERSION,
+    activeId: profiles.some((profile) => profile.id === activeId) ? activeId : profiles[0].id,
+    profiles,
+  };
+}
+
+async function readLegacyCredentials() {
   try {
-    raw = await adapter.get(STORE_KEY);
-  } catch (e) {
-    console.error('[AUT] Storage read failed:', e);
-    return defaultState();
+    const value = await adapter.get(API_CREDENTIALS_KEY);
+    return normalizeCredentialMap(value);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeCredentialMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(API_CREDENTIAL_PROVIDERS
+    .filter((provider) => typeof value[provider] === 'string' && value[provider].trim())
+    .map((provider) => [provider, value[provider].trim()]));
+}
+
+async function ensureProfileRegistry() {
+  let raw = null;
+  try { raw = await adapter.get(PROFILE_REGISTRY_KEY); } catch { /* recover below */ }
+  const normalized = normalizeProfileRegistry(raw);
+  if (normalized) {
+    if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
+      try { await adapter.set(PROFILE_REGISTRY_KEY, normalized); } catch { /* best effort */ }
+    }
+    return normalized;
   }
 
-  if (!raw) return defaultState();
+  let legacyState = null;
+  try { legacyState = await adapter.get(LEGACY_STORE_KEY); } catch { /* default below */ }
+  const registry = defaultProfileRegistry();
+  const state = isStateValid(legacyState) ? legacyState : defaultState();
+  try {
+    await adapter.set(PROFILE_REGISTRY_KEY, registry);
+    await adapter.set(profileStateStorageKey(DEFAULT_PROFILE_ID), state);
+    const legacyCredentials = await readLegacyCredentials();
+    if (Object.keys(legacyCredentials).length) {
+      await adapter.set(profileCredentialsStorageKey(DEFAULT_PROFILE_ID), legacyCredentials);
+    }
+  } catch (error) {
+    console.warn('[AUT] Profile registry migration failed:', error);
+  }
+  return registry;
+}
+
+function profileFromRegistry(registry, profileId = registry.activeId) {
+  return registry.profiles.find((profile) => profile.id === profileId) || registry.profiles[0];
+}
+
+export async function loadProfileRegistry() {
+  return cloneJSON(await ensureProfileRegistry());
+}
+
+export async function listProfiles() {
+  return (await loadProfileRegistry()).profiles;
+}
+
+export async function getActiveProfileId() {
+  return (await ensureProfileRegistry()).activeId;
+}
+
+export async function getActiveProfile() {
+  const registry = await ensureProfileRegistry();
+  return cloneJSON(profileFromRegistry(registry));
+}
+
+export async function createProfile(name) {
+  const normalizedName = normalizeProfileName(name);
+  if (!normalizedName) throw new Error('Profile name is required');
+  const registry = await ensureProfileRegistry();
+  const base = (normalizeProfileId(normalizedName.replace(/[^a-z0-9]+/gi, '-')) || 'profile').slice(0, 40);
+  let id = base;
+  let suffix = 2;
+  while (registry.profiles.some((profile) => profile.id === id)) id = `${base}-${suffix++}`.slice(0, 48);
+  const profile = { id, name: normalizedName, createdAtISO: new Date().toISOString() };
+  const next = { ...registry, profiles: [...registry.profiles, profile] };
+  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  await adapter.set(profileStateStorageKey(id), defaultState());
+  return cloneJSON(profile);
+}
+
+export async function switchProfile(profileId) {
+  const id = normalizeProfileId(profileId);
+  const registry = await ensureProfileRegistry();
+  if (!id || !registry.profiles.some((profile) => profile.id === id)) {
+    throw new Error(`Unknown profile: ${String(profileId)}`);
+  }
+  if (registry.activeId === id) return cloneJSON(profileFromRegistry(registry, id));
+  const next = { ...registry, activeId: id };
+  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  return cloneJSON(profileFromRegistry(next, id));
+}
+
+export async function renameProfile(profileId, name) {
+  const id = normalizeProfileId(profileId);
+  const normalizedName = normalizeProfileName(name);
+  if (!id) throw new Error(`Unknown profile: ${String(profileId)}`);
+  if (!normalizedName) throw new Error('Profile name is required');
+  const registry = await ensureProfileRegistry();
+  if (!registry.profiles.some((profile) => profile.id === id)) {
+    throw new Error(`Unknown profile: ${String(profileId)}`);
+  }
+  const next = {
+    ...registry,
+    profiles: registry.profiles.map((profile) => profile.id === id
+      ? { ...profile, name: normalizedName }
+      : profile),
+  };
+  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  return cloneJSON(profileFromRegistry(next, id));
+}
+
+export async function deleteProfile(profileId) {
+  const id = normalizeProfileId(profileId);
+  const registry = await ensureProfileRegistry();
+  if (!id || !registry.profiles.some((profile) => profile.id === id)) {
+    throw new Error(`Unknown profile: ${String(profileId)}`);
+  }
+  if (registry.profiles.length <= 1) throw new Error('At least one profile must remain');
+  const profiles = registry.profiles.filter((profile) => profile.id !== id);
+  const next = {
+    ...registry,
+    activeId: registry.activeId === id ? profiles[0].id : registry.activeId,
+    profiles,
+  };
+  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  if (typeof adapter.remove === 'function') {
+    await adapter.remove(profileStateStorageKey(id));
+    await adapter.remove(profileCredentialsStorageKey(id));
+  }
+  return cloneJSON(next);
+}
+
+export async function loadState() {
+  const profileId = await getActiveProfileId();
+  const stateKey = profileStateStorageKey(profileId);
+  let raw;
+  try {
+    raw = await adapter.get(stateKey);
+  } catch (e) {
+    console.error('[AUT] Storage read failed:', e);
+    return { ...defaultState(), profileId };
+  }
+
+  if (!raw) {
+    const fresh = { ...defaultState(), profileId };
+    try { await adapter.set(stateKey, fresh); } catch { /* best effort */ }
+    return fresh;
+  }
 
   // Corruption guard: if the raw data isn't a valid object, reset.
   if (!isStateValid(raw)) {
     console.warn('[AUT] Stored state is corrupt — resetting to defaults. Previous value type:', typeof raw);
-    const fresh = defaultState();
-    try { await adapter.set(STORE_KEY, fresh); } catch { /* best effort */ }
+    const fresh = { ...defaultState(), profileId };
+    try { await adapter.set(stateKey, fresh); } catch { /* best effort */ }
     return fresh;
   }
 
@@ -259,15 +473,22 @@ export async function loadState() {
     console.warn('[AUT] Migration error:', error);
   }
   if (migrated) {
-    try { await adapter.set(STORE_KEY, state); } catch { /* best effort */ }
+    try { await adapter.set(stateKey, state); } catch { /* best effort */ }
   }
+  state.profileId = profileId;
   return state;
 }
 
 export async function saveState(state) {
+  const registry = await ensureProfileRegistry();
+  const requestedId = normalizeProfileId(state?.profileId);
+  const profileId = requestedId && registry.profiles.some((profile) => profile.id === requestedId)
+    ? requestedId
+    : registry.activeId;
   // Stamp current version on every write.
   state.stateVersion = CURRENT_STATE_VERSION;
-  await adapter.set(STORE_KEY, state);
+  state.profileId = profileId;
+  await adapter.set(profileStateStorageKey(profileId), state);
 }
 
 export async function patchState(patch) {
@@ -285,7 +506,7 @@ export async function patchState(patch) {
 export async function loadApiCredential(provider) {
   if (!API_CREDENTIAL_PROVIDERS.includes(provider)) return null;
   try {
-    const credentials = await adapter.get(API_CREDENTIALS_KEY);
+    const credentials = await adapter.get(profileCredentialsStorageKey(await getActiveProfileId()));
     const value = credentials?.[provider];
     return typeof value === 'string' && value.trim() ? value.trim() : null;
   } catch (error) {
@@ -300,22 +521,24 @@ export async function saveApiCredential(provider, credential) {
   if (!value) return removeApiCredential(provider);
   if (value.length > 4096) throw new Error('API credential is too long');
 
-  const credentials = await readApiCredentials();
+  const profileId = await getActiveProfileId();
+  const credentials = await readApiCredentials(profileId);
   credentials[provider] = value;
-  await adapter.set(API_CREDENTIALS_KEY, credentials);
+  await adapter.set(profileCredentialsStorageKey(profileId), credentials);
   return { configured: true };
 }
 
 export async function removeApiCredential(provider) {
   assertApiCredentialProvider(provider);
-  const credentials = await readApiCredentials();
+  const profileId = await getActiveProfileId();
+  const credentials = await readApiCredentials(profileId);
   delete credentials[provider];
-  await adapter.set(API_CREDENTIALS_KEY, credentials);
+  await adapter.set(profileCredentialsStorageKey(profileId), credentials);
   return { configured: false };
 }
 
 export async function getApiCredentialStatus() {
-  const credentials = await readApiCredentials();
+  const credentials = await readApiCredentials(await getActiveProfileId());
   return Object.fromEntries(API_CREDENTIAL_PROVIDERS.map((provider) => [provider, {
     configured: typeof credentials[provider] === 'string' && credentials[provider].trim().length > 0,
     storage: 'local-only',
@@ -323,13 +546,10 @@ export async function getApiCredentialStatus() {
   }]));
 }
 
-async function readApiCredentials() {
+async function readApiCredentials(profileId = null) {
   try {
-    const value = await adapter.get(API_CREDENTIALS_KEY);
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return Object.fromEntries(API_CREDENTIAL_PROVIDERS
-      .filter((provider) => typeof value[provider] === 'string' && value[provider].trim())
-      .map((provider) => [provider, value[provider].trim()]));
+    const id = profileId || await getActiveProfileId();
+    return normalizeCredentialMap(await adapter.get(profileCredentialsStorageKey(id)));
   } catch (error) {
     console.warn('[AUT] API credential map read failed:', error);
     return {};

@@ -1,4 +1,4 @@
-import { loadState } from '../lib/storage.js';
+import { getActiveProfile, loadState } from '../lib/storage.js';
 import { formatCountdown, formatResetAbsolute, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { sparklineSamplesFor } from '../lib/history.js';
 import {
@@ -56,6 +56,12 @@ function updateCountdowns() {
 
 export async function render() {
   const state = await loadState();
+  const activeProfile = await getActiveProfile();
+  const profileName = document.getElementById('profileName');
+  if (profileName) {
+    profileName.textContent = activeProfile?.name || 'Default';
+    profileName.title = `Active local profile: ${activeProfile?.name || 'Default'}`;
+  }
   const { snapshot, settings, history } = state;
   const i18n = createI18n(settings.locale);
   applyTheme(settings);

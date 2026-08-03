@@ -45,6 +45,19 @@
   letter-spacing: 0;
   color: var(--aut-subtext1);
 }
+.aut-widget__profile {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 6px;
+  color: var(--aut-subtext0);
+  background: var(--aut-row-bg);
+  border: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-sm);
+  font-size: 9px;
+  font-weight: 650;
+}
 
 .aut-widget__actions {
   margin-left: auto;

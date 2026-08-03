@@ -6,13 +6,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 
 ### P1
 ### P2
-- [ ] P2 — Multi-profile manager
-  Why: Users with personal/work Claude or ChatGPT accounts need explicit profile separation without account-switch automation.
-  Evidence: Existing roadmap research; multi-account tools demonstrate demand, while auto-switching remains rejected.
-  Touches: `src/lib/storage.js`, `src/background.js`, `src/ui/popup.js`, `src/ui/options.js`, `userscript/entry.js`
-  Acceptance: Users can create, rename, switch, and delete local profiles; each profile has isolated settings/history/provider state.
-  Complexity: L
-
 - [ ] P2 — Incognito-window separate tracking
   Why: Incognito sessions should not merge silently with normal-window usage or history.
   Evidence: Chrome extension incognito split behavior; prior roadmap item NX-08.

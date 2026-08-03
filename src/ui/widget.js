@@ -1,7 +1,7 @@
 // Floating widget renderer. Pure DOM, no framework. Reads snapshot+settings
 // from storage, renders SVG radial rings, ticks countdowns every 1s.
 
-import { loadState, saveState } from '../lib/storage.js';
+import { getActiveProfile, loadState, saveState } from '../lib/storage.js';
 import { formatCountdown, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { send } from '../lib/browser.js';
 import {
@@ -100,6 +100,7 @@ async function render({ onRefresh, onOpenSettings }) {
   if (rootEl) rootEl.style.display = '';
 
   const state = await loadState();
+  const activeProfile = await getActiveProfile();
   const { snapshot, settings, widget } = state;
   applyTheme(rootEl, settings);
   const thresholds = normalizeThresholds(settings.thresholds);
@@ -130,7 +131,7 @@ async function render({ onRefresh, onOpenSettings }) {
     return;
   }
 
-  wrap.appendChild(renderHeader({ onRefresh, onOpenSettings }));
+  wrap.appendChild(renderHeader({ onRefresh, onOpenSettings, profileName: activeProfile?.name }));
 
   const body = document.createElement('div');
   body.className = 'aut-widget__body';
@@ -204,7 +205,7 @@ function swapRoot(newWrap) {
   root.appendChild(newWrap);
 }
 
-function renderHeader({ onRefresh, onOpenSettings }) {
+function renderHeader({ onRefresh, onOpenSettings, profileName = 'Default' }) {
   const header = document.createElement('div');
   header.className = 'aut-widget__header';
   setStaticMarkup(header, `
@@ -222,6 +223,9 @@ function renderHeader({ onRefresh, onOpenSettings }) {
       </button>
     </div>
   `);
+  const profile = createElement('span', { className: 'aut-widget__profile', text: profileName || 'Default' });
+  setSafeAttribute(profile, 'title', `Active local profile: ${profileName || 'Default'}`);
+  header.insertBefore(profile, header.querySelector('.aut-widget__actions'));
   header.querySelector('[data-act="refresh"]').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!onRefresh || refreshBusy) return;

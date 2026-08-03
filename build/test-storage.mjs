@@ -5,6 +5,16 @@ import {
   parseSettingsImport,
   defaultState,
   defaultSettings,
+  createProfile,
+  deleteProfile,
+  getApiCredentialStatus,
+  getActiveProfile,
+  loadProfileRegistry,
+  loadState,
+  renameProfile,
+  saveApiCredential,
+  saveState,
+  switchProfile,
 } from '../src/lib/storage.js';
 
 // --- Test: fresh defaultState has current version ---
@@ -102,5 +112,50 @@ assert.throws(
   /History sample 1 is invalid/,
   'invalid history must be rejected before import',
 );
+
+// --- Test: profiles migrate the legacy state and isolate state + credentials ---
+const initialProfiles = await loadProfileRegistry();
+assert.equal(initialProfiles.activeId, 'default', 'legacy storage should create the default profile');
+const defaultStateForProfiles = await loadState();
+defaultStateForProfiles.settings.theme = 'latte';
+defaultStateForProfiles.history = [{ ts: 1234, bucketId: 'default-only', percentUsed: 12 }];
+await saveState(defaultStateForProfiles);
+await saveApiCredential('anthropic-api', 'default-secret');
+
+const workProfile = await createProfile('Work Account');
+assert.equal(workProfile.id, 'work-account');
+const longProfileName = 'x'.repeat(48);
+const longProfile = await createProfile(longProfileName);
+const duplicateLongProfile = await createProfile(longProfileName);
+assert.notEqual(longProfile.id, duplicateLongProfile.id, 'long duplicate profile names should still receive unique ids');
+await deleteProfile(longProfile.id);
+await deleteProfile(duplicateLongProfile.id);
+await switchProfile(workProfile.id);
+const workState = await loadState();
+assert.equal(workState.settings.theme, 'mocha', 'new profiles should start from clean defaults');
+assert.equal(workState.history.length, 0, 'new profiles should not inherit history');
+assert.equal((await getApiCredentialStatus())['anthropic-api'].configured, false, 'API credentials should be profile-local');
+workState.settings.theme = 'system';
+workState.history = [{ ts: 5678, bucketId: 'work-only', percentUsed: 88 }];
+await saveState(workState);
+await saveApiCredential('anthropic-api', 'work-secret');
+
+await switchProfile('default');
+assert.equal((await getActiveProfile()).name, 'Default');
+assert.equal((await loadState()).settings.theme, 'latte', 'default settings should remain isolated');
+assert.equal((await loadState()).history[0].bucketId, 'default-only');
+assert.equal((await getApiCredentialStatus())['anthropic-api'].configured, true);
+await renameProfile('default', 'Personal');
+assert.equal((await getActiveProfile()).name, 'Personal');
+
+await switchProfile(workProfile.id);
+assert.equal((await loadState()).settings.theme, 'system', 'work settings should survive switching back');
+assert.equal((await loadState()).history[0].bucketId, 'work-only');
+assert.equal((await getApiCredentialStatus())['anthropic-api'].configured, true);
+await deleteProfile(workProfile.id);
+const afterDelete = await loadProfileRegistry();
+assert.equal(afterDelete.profiles.length, 1, 'deleting a profile should remove it from the registry');
+assert.equal(afterDelete.activeId, 'default', 'deleting the active profile should select a remaining profile');
+await assert.rejects(() => deleteProfile('missing'), /Unknown profile/);
 
 console.log('storage migration smoke: OK');

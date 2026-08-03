@@ -20,6 +20,19 @@ html, body {
   letter-spacing: 0;
   color: var(--aut-subtext1);
 }
+.popup-profile {
+  max-width: 104px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 6px;
+  color: var(--aut-subtext0);
+  background: var(--aut-row-bg);
+  border: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-sm);
+  font-size: 9px;
+  font-weight: 650;
+}
 .popup-actions {
   margin-left: auto;
   display: flex;

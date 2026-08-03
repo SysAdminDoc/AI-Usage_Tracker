@@ -53,6 +53,11 @@ function bindMessageHandlers() {
       await refreshToolbarBadge();
       return { ok: true };
     }
+    if (msg.type === 'aut/profile-updated') {
+      await reschedule();
+      await refreshToolbarBadge();
+      return { ok: true };
+    }
     if (msg.type === 'aut/get-snapshot') {
       return await loadState();
     }

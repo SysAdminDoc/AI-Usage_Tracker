@@ -16,6 +16,7 @@
 
   <main class="opt-shell">
     <nav class="opt-nav" aria-label="Settings sections">
+      <a href="#profiles">Profiles</a>
       <a href="#providers">Providers</a>
       <a href="#api">API access</a>
       <a href="#rows">Rows</a>
@@ -28,6 +29,18 @@
     </nav>
 
     <div class="opt-main">
+    <section id="profiles" class="opt-card">
+      <h2>Local profiles</h2>
+      <p class="opt-hint">Keep personal, work, or client accounts separate without switching provider accounts for you. Each profile has its own settings, quota snapshot, history, and API keys.</p>
+      <div id="profileStatus" class="opt-callout" role="status" aria-live="polite">Loading local profiles...</div>
+      <div id="profileList" class="profile-list"></div>
+      <div class="opt-row opt-row--wrap">
+        <label for="newProfileName">New profile</label>
+        <input id="newProfileName" class="opt-text" type="text" maxlength="48" autocomplete="off" placeholder="e.g. Work" aria-label="New profile name">
+        <button id="createProfile" class="opt-btn">Create profile</button>
+      </div>
+    </section>
+
     <section id="providers" class="opt-card">
       <h2>Providers</h2>
       <p class="opt-hint">Choose which accounts appear in the widget and popup.</p>

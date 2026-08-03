@@ -5,6 +5,13 @@ import {
   loadState,
   saveState,
   defaultSettings,
+  createProfile,
+  deleteProfile,
+  getActiveProfile,
+  listProfiles,
+  renameProfile,
+  loadProfileRegistry,
+  switchProfile,
   getApiCredentialStatus,
   removeApiCredential,
   saveApiCredential,
@@ -45,6 +52,7 @@ export async function init() {
     hourSelect.appendChild(opt);
   }
 
+  await renderProfiles();
   await renderProviders();
   await renderApiCredentials();
   await renderRows();
@@ -53,6 +61,73 @@ export async function init() {
   await renderHistoryStatus();
   await renderDiagnostics();
   bindHandlers();
+}
+
+export async function renderProfiles() {
+  const list = document.getElementById('profileList');
+  const status = document.getElementById('profileStatus');
+  if (!list) return;
+  const registry = await loadProfileRegistry();
+  const active = await getActiveProfile();
+  clearChildren(list);
+  for (const profile of registry.profiles) {
+    const item = document.createElement('article');
+    item.className = 'profile-item';
+    item.dataset.profileId = profile.id;
+
+    const identity = document.createElement('div');
+    identity.className = 'profile-item__identity';
+    const name = document.createElement('strong');
+    name.className = 'profile-item__name';
+    name.textContent = profile.name;
+    const meta = document.createElement('span');
+    meta.className = 'profile-item__meta';
+    meta.textContent = profile.id === active.id ? 'Active profile' : 'Local profile';
+    identity.append(name, meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'profile-item__actions';
+    const rename = document.createElement('input');
+    rename.className = 'profile-item__rename';
+    rename.type = 'text';
+    rename.maxLength = 48;
+    rename.value = profile.name;
+    rename.setAttribute('aria-label', `Rename ${profile.name}`);
+    rename.dataset.profileRename = profile.id;
+    const switchButton = profileButton('switch', profile.id, profile.id === active.id ? 'Active' : 'Switch');
+    switchButton.disabled = profile.id === active.id;
+    const renameButton = profileButton('rename', profile.id, 'Rename');
+    const deleteButton = profileButton('delete', profile.id, 'Delete', 'opt-btn--quiet');
+    deleteButton.disabled = registry.profiles.length <= 1;
+    actions.append(rename, switchButton, renameButton, deleteButton);
+    item.append(identity, actions);
+    list.appendChild(item);
+  }
+  if (status) {
+    status.textContent = `${active.name} is active. ${registry.profiles.length} local profile${registry.profiles.length === 1 ? '' : 's'} available.`;
+    status.className = 'opt-callout opt-callout--good';
+  }
+}
+
+function profileButton(action, profileId, text, extraClass = '') {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `opt-btn ${extraClass}`.trim();
+  button.dataset.profileAction = action;
+  button.dataset.profileId = profileId;
+  button.textContent = text;
+  return button;
+}
+
+async function refreshAfterProfileChange(message) {
+  await renderProfiles();
+  await renderApiCredentials();
+  await renderRows();
+  await loadCurrent();
+  await renderHistoryStatus();
+  await renderDiagnostics();
+  flash(message);
+  sendRuntimeMessage({ type: 'aut/profile-updated' }).catch(() => {});
 }
 
 async function renderProviders() {
@@ -247,6 +322,45 @@ function applyTheme(settings = {}) {
 }
 
 function bindHandlers() {
+  document.getElementById('createProfile')?.addEventListener('click', async () => {
+    const input = document.getElementById('newProfileName');
+    const name = input?.value?.trim() || '';
+    try {
+      const profile = await createProfile(name);
+      await switchProfile(profile.id);
+      if (input) input.value = '';
+      await refreshAfterProfileChange(`Switched to ${profile.name}`);
+    } catch (error) {
+      flash(`Profile creation failed: ${error?.message || 'unknown error'}`, 'bad');
+    }
+  });
+
+  document.getElementById('profileList')?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-profile-action]');
+    if (!button) return;
+    const profileId = button.dataset.profileId;
+    const action = button.dataset.profileAction;
+    try {
+      if (action === 'switch') {
+        const profile = await switchProfile(profileId);
+        await refreshAfterProfileChange(`Switched to ${profile.name}`);
+      } else if (action === 'rename') {
+        const input = [...document.querySelectorAll('input[data-profile-rename]')]
+          .find((candidate) => candidate.getAttribute('data-profile-rename') === profileId);
+        const profile = await renameProfile(profileId, input?.value || '');
+        await refreshAfterProfileChange(`Renamed profile to ${profile.name}`);
+      } else if (action === 'delete') {
+        const profile = (await listProfiles()).find((candidate) => candidate.id === profileId);
+        if (!profile || !confirmAction(`Delete the local profile “${profile.name}” and its settings, history, snapshot, and API keys?`)) return;
+        const registry = await deleteProfile(profileId);
+        const active = registry.profiles.find((candidate) => candidate.id === registry.activeId);
+        await refreshAfterProfileChange(`Active profile: ${active?.name || 'Default'}`);
+      }
+    } catch (error) {
+      flash(`Profile update failed: ${error?.message || 'unknown error'}`, 'bad');
+    }
+  });
+
   document.body.addEventListener('change', async (e) => {
     const t = e.target;
     const state = await loadState();

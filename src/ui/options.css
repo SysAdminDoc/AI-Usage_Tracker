@@ -137,6 +137,73 @@ html, body {
   font-size: 11px;
   line-height: 1.4;
 }
+
+.profile-list {
+  display: grid;
+  gap: 8px;
+}
+.profile-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--aut-row-bg);
+  border: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-md);
+}
+.profile-item__identity {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.profile-item__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--aut-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.profile-item__meta {
+  color: var(--aut-subtext0);
+  font-size: 10px;
+}
+.profile-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.profile-item__rename {
+  min-height: 38px;
+  width: min(180px, 32vw);
+  box-sizing: border-box;
+  padding: 6px 9px;
+  color: var(--aut-text);
+  background: var(--aut-surface0);
+  border: 1px solid var(--aut-border);
+  border-radius: var(--aut-r-sm);
+  font: inherit;
+  font-size: 11px;
+}
+.profile-item__rename:focus-visible,
+.opt-text:focus-visible {
+  outline: 2px solid var(--aut-focus);
+  outline-offset: 2px;
+}
+.opt-text {
+  min-height: 44px;
+  min-width: min(240px, 100%);
+  box-sizing: border-box;
+  padding: 8px 10px;
+  color: var(--aut-text);
+  background: var(--aut-row-bg);
+  border: 1px solid var(--aut-border);
+  border-radius: var(--aut-r-sm);
+  font: inherit;
+  font-size: 12px;
+}
 .api-credential__actions {
   display: flex;
   flex-wrap: wrap;
