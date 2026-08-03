@@ -4,6 +4,7 @@ import { applyBridgeProfile } from './build-extension.mjs';
 
 for (const target of ['chrome', 'firefox']) {
   const source = JSON.parse(await fs.readFile(new URL(`../manifests/${target}.json`, import.meta.url), 'utf8'));
+  assert.equal(source.incognito, target === 'chrome' ? 'split' : 'not_allowed', `${target} incognito policy must fail closed`);
   assert.equal(source.permissions.includes('nativeMessaging'), false, `${target} default should not request native messaging`);
   const defaultManifest = applyBridgeProfile(source);
   assert.equal(defaultManifest.permissions.includes('nativeMessaging'), false, `${target} default profile should stay permission-minimized`);

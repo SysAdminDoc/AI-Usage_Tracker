@@ -6,6 +6,7 @@
   "description": "Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget, popup dashboard, and OS alerts.",
   "author": "SysAdminDoc",
   "homepage_url": "https://github.com/SysAdminDoc/AI-Usage_Tracker",
+  "incognito": "not_allowed",
 
   "browser_specific_settings": {
     "gecko": {

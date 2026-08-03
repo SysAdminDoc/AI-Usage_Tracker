@@ -37,6 +37,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
 - **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
 - **Local profile manager** — create, rename, switch, and delete independent personal/work profiles with separate settings, snapshots, history, and API credentials.
+- **Incognito-safe tracking** — Chromium split-incognito windows use separate local keys and show an Incognito marker; the Firefox package fails closed by keeping private windows disabled because Firefox does not support split mode.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.
 
 ## Product captures
@@ -102,8 +103,8 @@ Default extension packages do not request the optional `nativeMessaging` permiss
 
 | Target | Supported floor | Notes |
 | --- | --- | --- |
-| Chrome, Edge, Brave, and other Chromium browsers | 114+ | MV3 extension; uses local storage, alarms, notifications, tabs, side panel, and runtime messaging. |
-| Firefox | 115+ | MV3 extension; the manifest declares `strict_min_version` 115. |
+| Chrome, Edge, Brave, and other Chromium browsers | 114+ | MV3 extension; uses local storage, alarms, notifications, tabs, side panel, runtime messaging, and split-incognito state. |
+| Firefox | 115+ | MV3 extension; the manifest declares `strict_min_version` 115 and explicitly disables private-window access because Firefox does not support split mode. |
 | Userscript managers | Chrome/Chromium 111+ or Firefox 115+ | Requires a modern manager with `GM.getValue`/`GM.setValue` or legacy equivalents; notification delivery also requires the manager API or page notifications. |
 
 The release build checks this matrix against both extension manifests, userscript metadata, README copy, and the browser adapter’s API surface before packaging.
@@ -116,7 +117,7 @@ The default extension packages use this narrow, local-first permission boundary:
 
 | Surface | Why it is requested | What stays local |
 | --- | --- | --- |
-| `storage` | Save the current snapshot, settings, and rolling history | All tracker state remains in local extension storage; it is not put in sync storage. |
+| `storage` | Save the current snapshot, settings, and rolling history | All tracker state remains in local extension storage; Chromium incognito state uses separate prefixed keys and nothing is put in sync storage. |
 | `alarms` | Refresh the snapshot and recover notification deadlines after service-worker sleep | Alarm names and times are local browser scheduling metadata. |
 | `notifications` | Show the alert rules that you enable | Notification text is derived from local snapshot state. |
 | `tabs` | Open provider analytics pages and, only when explicitly enabled, a hidden fallback tab | The extension does not read arbitrary tabs or cookies. |
@@ -170,6 +171,8 @@ The host matrix is checked at test and build time: wildcard content scripts cove
 **Can I use it without a provider tab open?** The extension can use its authenticated API path and service-worker alarms. The userscript requires an open Claude or ChatGPT tab for refresh and browser notifications.
 
 **How do local profiles work?** Open Settings → Profiles to create or switch profiles. Each profile stays in local browser/userscript storage and keeps its own settings, quota snapshot, history, and API credentials. Deleting a profile removes that profile's local records; one profile must always remain.
+
+**What happens in an incognito window?** Chromium split-incognito windows get an independent Default/profile registry, state, history, and API-key namespace, and the widget/popup label the context “Incognito.” The Firefox package does not run in private windows because its platform cannot provide the same split behavior.
 
 **How do I disable background page fallback?** It is off by default. If enabled for a debugging case, turn off “Use hidden fallback tabs when API refresh fails” in Settings; the extension does not silently enable it.
 

@@ -58,6 +58,10 @@
   font-size: 9px;
   font-weight: 650;
 }
+.aut-widget__profile--incognito {
+  color: var(--aut-peach);
+  border-color: rgba(250, 179, 135, 0.36);
+}
 
 .aut-widget__actions {
   margin-left: auto;

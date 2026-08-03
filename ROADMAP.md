@@ -6,13 +6,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 
 ### P1
 ### P2
-- [ ] P2 — Incognito-window separate tracking
-  Why: Incognito sessions should not merge silently with normal-window usage or history.
-  Evidence: Chrome extension incognito split behavior; prior roadmap item NX-08.
-  Touches: `src/background.js`, `src/lib/storage.js`, `src/ui/widget.js`, manifests
-  Acceptance: Incognito context uses isolated state keys and shows a visible incognito profile marker.
-  Complexity: M
-
 - [ ] P2 — chrome.storage.sync settings opt-in
   Why: Cross-device settings sync is useful, but history and credentials must stay local.
   Evidence: Chrome storage docs: `storage.sync` quotas are small and sync-specific.

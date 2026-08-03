@@ -110,6 +110,15 @@ try {
   assert.ok(widgetHost.shadowRoot.querySelector('[data-act="unsnooze"]'), 'widget snoozed state should offer resume notifications');
   await tick();
 
+  globalThis.chrome = { extension: { inIncognitoContext: true } };
+  await popup.render();
+  assert.match(document.getElementById('profileName').textContent, /^Incognito · /,
+    'popup should visibly identify incognito context');
+  await widget.refreshWidget();
+  assert.match(widgetHost.shadowRoot.querySelector('.aut-widget__profile').textContent, /^Incognito · /,
+    'widget should visibly identify incognito context');
+  delete globalThis.chrome;
+
   const optionsState = makeState({
     claude: {
       ok: false,

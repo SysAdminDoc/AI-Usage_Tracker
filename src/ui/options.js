@@ -8,6 +8,7 @@ import {
   createProfile,
   deleteProfile,
   getActiveProfile,
+  isIncognitoContext,
   listProfiles,
   renameProfile,
   loadProfileRegistry,
@@ -40,7 +41,7 @@ const saveStatus = document.getElementById('saveStatus');
 export const ready = init();
 
 export async function init() {
-  document.querySelector('.opt-head__sub').textContent = `Settings - v${VERSION}`;
+  document.querySelector('.opt-head__sub').textContent = `${isIncognitoContext() ? 'Incognito · ' : ''}Settings - v${VERSION}`;
   saveStatus.textContent = 'Ready';
 
   // Populate daily-briefing hour select
@@ -104,7 +105,8 @@ export async function renderProfiles() {
     list.appendChild(item);
   }
   if (status) {
-    status.textContent = `${active.name} is active. ${registry.profiles.length} local profile${registry.profiles.length === 1 ? '' : 's'} available.`;
+    const scope = isIncognitoContext() ? 'Incognito context. ' : '';
+    status.textContent = `${scope}${active.name} is active. ${registry.profiles.length} local profile${registry.profiles.length === 1 ? '' : 's'} available.`;
     status.className = 'opt-callout opt-callout--good';
   }
 }

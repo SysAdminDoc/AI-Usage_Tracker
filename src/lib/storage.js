@@ -11,6 +11,9 @@ export const PROFILE_REGISTRY_KEY = 'aut.profiles.v1';
 export const PROFILE_STATE_PREFIX = 'aut.state.v1.profile.';
 const API_CREDENTIALS_KEY = 'aut.api-credentials.v1';
 const PROFILE_CREDENTIALS_PREFIX = 'aut.api-credentials.v1.profile.';
+export const INCOGNITO_STORAGE_PREFIX = 'aut.incognito.';
+export const STORAGE_SCOPE_REGULAR = 'regular';
+export const STORAGE_SCOPE_INCOGNITO = 'incognito';
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
 export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api']);
@@ -119,6 +122,37 @@ function pickAdapter() {
 }
 
 export const storageType = adapter.type;
+
+export function isIncognitoContext() {
+  if (typeof globalThis.__AUT_INCOGNITO_CONTEXT__ !== 'undefined') {
+    return globalThis.__AUT_INCOGNITO_CONTEXT__ === true;
+  }
+  const ext = (typeof browser !== 'undefined' && browser.extension)
+    || (typeof chrome !== 'undefined' && chrome.extension);
+  return ext?.inIncognitoContext === true;
+}
+
+export function getStorageScope() {
+  return isIncognitoContext() ? STORAGE_SCOPE_INCOGNITO : STORAGE_SCOPE_REGULAR;
+}
+
+export const storageScope = getStorageScope();
+
+function scopedStorageKey(key, scope = getStorageScope()) {
+  return scope === STORAGE_SCOPE_INCOGNITO ? `${INCOGNITO_STORAGE_PREFIX}${key}` : key;
+}
+
+export function getProfileRegistryStorageKey(scope = getStorageScope()) {
+  return scopedStorageKey(PROFILE_REGISTRY_KEY, scope);
+}
+
+export function getProfileStateStoragePrefix(scope = getStorageScope()) {
+  return scopedStorageKey(PROFILE_STATE_PREFIX, scope);
+}
+
+export function getProfileCredentialsStoragePrefix(scope = getStorageScope()) {
+  return scopedStorageKey(PROFILE_CREDENTIALS_PREFIX, scope);
+}
 
 export async function getStorageUsage(state = null) {
   const ext = getWebExtensionStorage();
@@ -260,11 +294,11 @@ const PROFILE_VERSION = 1;
 export function profileStateStorageKey(profileId) {
   const id = normalizeProfileId(profileId);
   if (!id) throw new Error(`Invalid profile id: ${String(profileId)}`);
-  return `${PROFILE_STATE_PREFIX}${id}`;
+  return `${getProfileStateStoragePrefix()}${id}`;
 }
 
 function profileCredentialsStorageKey(profileId) {
-  return `${PROFILE_CREDENTIALS_PREFIX}${profileStateStorageKey(profileId).slice(PROFILE_STATE_PREFIX.length)}`;
+  return `${getProfileCredentialsStoragePrefix()}${profileStateStorageKey(profileId).slice(getProfileStateStoragePrefix().length)}`;
 }
 
 export function defaultProfileRegistry(nowISO = new Date().toISOString()) {
@@ -327,26 +361,32 @@ function normalizeCredentialMap(value) {
 }
 
 async function ensureProfileRegistry() {
+  const scope = getStorageScope();
+  const registryKey = getProfileRegistryStorageKey(scope);
   let raw = null;
-  try { raw = await adapter.get(PROFILE_REGISTRY_KEY); } catch { /* recover below */ }
+  try { raw = await adapter.get(registryKey); } catch { /* recover below */ }
   const normalized = normalizeProfileRegistry(raw);
   if (normalized) {
     if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      try { await adapter.set(PROFILE_REGISTRY_KEY, normalized); } catch { /* best effort */ }
+      try { await adapter.set(registryKey, normalized); } catch { /* best effort */ }
     }
     return normalized;
   }
 
   let legacyState = null;
-  try { legacyState = await adapter.get(LEGACY_STORE_KEY); } catch { /* default below */ }
+  if (scope === STORAGE_SCOPE_REGULAR) {
+    try { legacyState = await adapter.get(LEGACY_STORE_KEY); } catch { /* default below */ }
+  }
   const registry = defaultProfileRegistry();
   const state = isStateValid(legacyState) ? legacyState : defaultState();
   try {
-    await adapter.set(PROFILE_REGISTRY_KEY, registry);
+    await adapter.set(registryKey, registry);
     await adapter.set(profileStateStorageKey(DEFAULT_PROFILE_ID), state);
-    const legacyCredentials = await readLegacyCredentials();
-    if (Object.keys(legacyCredentials).length) {
-      await adapter.set(profileCredentialsStorageKey(DEFAULT_PROFILE_ID), legacyCredentials);
+    if (scope === STORAGE_SCOPE_REGULAR) {
+      const legacyCredentials = await readLegacyCredentials();
+      if (Object.keys(legacyCredentials).length) {
+        await adapter.set(profileCredentialsStorageKey(DEFAULT_PROFILE_ID), legacyCredentials);
+      }
     }
   } catch (error) {
     console.warn('[AUT] Profile registry migration failed:', error);
@@ -385,7 +425,7 @@ export async function createProfile(name) {
   while (registry.profiles.some((profile) => profile.id === id)) id = `${base}-${suffix++}`.slice(0, 48);
   const profile = { id, name: normalizedName, createdAtISO: new Date().toISOString() };
   const next = { ...registry, profiles: [...registry.profiles, profile] };
-  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  await adapter.set(getProfileRegistryStorageKey(), next);
   await adapter.set(profileStateStorageKey(id), defaultState());
   return cloneJSON(profile);
 }
@@ -398,7 +438,7 @@ export async function switchProfile(profileId) {
   }
   if (registry.activeId === id) return cloneJSON(profileFromRegistry(registry, id));
   const next = { ...registry, activeId: id };
-  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  await adapter.set(getProfileRegistryStorageKey(), next);
   return cloneJSON(profileFromRegistry(next, id));
 }
 
@@ -417,7 +457,7 @@ export async function renameProfile(profileId, name) {
       ? { ...profile, name: normalizedName }
       : profile),
   };
-  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  await adapter.set(getProfileRegistryStorageKey(), next);
   return cloneJSON(profileFromRegistry(next, id));
 }
 
@@ -434,7 +474,7 @@ export async function deleteProfile(profileId) {
     activeId: registry.activeId === id ? profiles[0].id : registry.activeId,
     profiles,
   };
-  await adapter.set(PROFILE_REGISTRY_KEY, next);
+  await adapter.set(getProfileRegistryStorageKey(), next);
   if (typeof adapter.remove === 'function') {
     await adapter.remove(profileStateStorageKey(id));
     await adapter.remove(profileCredentialsStorageKey(id));

@@ -33,6 +33,10 @@ html, body {
   font-size: 9px;
   font-weight: 650;
 }
+.popup-profile--incognito {
+  color: var(--aut-peach);
+  border-color: rgba(250, 179, 135, 0.36);
+}
 .popup-actions {
   margin-left: auto;
   display: flex;

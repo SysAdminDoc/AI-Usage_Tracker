@@ -158,4 +158,33 @@ assert.equal(afterDelete.profiles.length, 1, 'deleting a profile should remove i
 assert.equal(afterDelete.activeId, 'default', 'deleting the active profile should select a remaining profile');
 await assert.rejects(() => deleteProfile('missing'), /Unknown profile/);
 
+// --- Test: incognito storage scope never reuses regular profile keys ---
+const savedChrome = globalThis.chrome;
+const privateStore = new Map();
+globalThis.chrome = {
+  extension: { inIncognitoContext: true },
+  runtime: { lastError: null },
+  storage: {
+    local: {
+      get(key, callback) { callback({ [key]: privateStore.get(key) }); },
+      set(values, callback) {
+        Object.entries(values).forEach(([key, value]) => privateStore.set(key, value));
+        callback();
+      },
+      remove(key, callback) { privateStore.delete(key); callback(); },
+    },
+  },
+};
+const incognitoStorage = await import('../src/lib/storage.js?incognito-contract');
+assert.equal(incognitoStorage.storageScope, 'incognito');
+assert.equal(incognitoStorage.isIncognitoContext(), true);
+assert.equal(incognitoStorage.getProfileRegistryStorageKey(), 'aut.incognito.aut.profiles.v1');
+assert.equal(incognitoStorage.profileStateStorageKey('default'), 'aut.incognito.aut.state.v1.profile.default');
+await incognitoStorage.loadState();
+assert.equal(privateStore.has('aut.profiles.v1'), false, 'incognito initialization must not write regular registry keys');
+assert.equal(privateStore.has('aut.incognito.aut.profiles.v1'), true, 'incognito registry must use a scoped key');
+assert.equal(privateStore.has('aut.incognito.aut.state.v1.profile.default'), true, 'incognito state must use a scoped key');
+if (savedChrome === undefined) delete globalThis.chrome;
+else globalThis.chrome = savedChrome;
+
 console.log('storage migration smoke: OK');

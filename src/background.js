@@ -13,7 +13,7 @@
 
 import { fetchClaude, parseClaudeUsageApi, clearClaudeOrgCache } from './scrapers/claude.js';
 import { fetchCodex }  from './scrapers/codex.js';
-import { loadState, saveState, defaultState } from './lib/storage.js';
+import { isIncognitoContext, loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
 import { deriveNextNotificationAlarm, evaluateRules } from './lib/notify.js';
 import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
@@ -252,7 +252,7 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   // Forward to QuotaGlass desktop widget (no-op if NMH not installed).
   try {
     const version = chrome.runtime?.getManifest?.()?.version;
-    pushSnapshot(next, version);
+    if (!isIncognitoContext()) pushSnapshot(next, version);
   } catch (e) {
     // Bridge failures must never break the extension's own data path.
     console.info('[AUT] bridge push failed:', e?.message || e);

@@ -1,4 +1,4 @@
-import { getActiveProfile, loadState } from '../lib/storage.js';
+import { getActiveProfile, isIncognitoContext, loadState } from '../lib/storage.js';
 import { formatCountdown, formatResetAbsolute, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { sparklineSamplesFor } from '../lib/history.js';
 import {
@@ -58,9 +58,12 @@ export async function render() {
   const state = await loadState();
   const activeProfile = await getActiveProfile();
   const profileName = document.getElementById('profileName');
+  const incognito = isIncognitoContext();
   if (profileName) {
-    profileName.textContent = activeProfile?.name || 'Default';
-    profileName.title = `Active local profile: ${activeProfile?.name || 'Default'}`;
+    const name = activeProfile?.name || 'Default';
+    profileName.textContent = incognito ? `Incognito · ${name}` : name;
+    profileName.title = `Active local profile: ${name}${incognito ? ' (Incognito)' : ''}`;
+    profileName.classList.toggle('popup-profile--incognito', incognito);
   }
   const { snapshot, settings, history } = state;
   const i18n = createI18n(settings.locale);

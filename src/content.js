@@ -2,11 +2,15 @@
 // Sends refresh requests to the background; renders from cached state.
 
 import { mountWidget, refreshWidget } from './ui/widget.js';
-import { loadState, saveState } from './lib/storage.js';
+import {
+  getProfileRegistryStorageKey,
+  getProfileStateStoragePrefix,
+  loadState,
+  saveState,
+} from './lib/storage.js';
 import { send } from './lib/browser.js';
 import { startClaudeContextCounter } from './lib/context-counter.js';
 import { isSupportedHost } from './lib/hosts.js';
-import { PROFILE_REGISTRY_KEY, PROFILE_STATE_PREFIX } from './lib/storage.js';
 
 (async function main() {
   // Some sub-paths of these origins are full-screen experiences (e.g. inline
@@ -52,7 +56,7 @@ function watchStorage(handler) {
   if (!api || !api.onChanged) return;
   api.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
-    if (changes && (changes[PROFILE_REGISTRY_KEY]
-      || Object.keys(changes).some((key) => key.startsWith(PROFILE_STATE_PREFIX)))) handler();
+    if (changes && (changes[getProfileRegistryStorageKey()]
+      || Object.keys(changes).some((key) => key.startsWith(getProfileStateStoragePrefix())))) handler();
   });
 }
