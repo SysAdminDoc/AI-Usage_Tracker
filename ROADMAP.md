@@ -206,12 +206,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Research-Driven Additions
 
 ### P1
-- [ ] P1 — WebExtension API compatibility contract tests
-  Why: The shared browser wrapper assumes both Chrome callback APIs and Firefox promise APIs behave the same for notifications, tabs, alarms, storage, and messaging.
-  Evidence: `src/lib/browser.js`, `src/background.js`, MDN notification promise docs, Chrome notification/tabs callback docs.
-  Touches: `src/lib/browser.js`, `src/background.js`, tests, build matrix
-  Acceptance: Unit tests simulate Chrome callback style and Firefox promise style for used APIs; failures are visible before packaging Chrome/Firefox builds.
-  Complexity: M
 
 ### P2
 - [ ] P2 — Store-readiness disclosure matrix
