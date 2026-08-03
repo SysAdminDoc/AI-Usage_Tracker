@@ -11,9 +11,9 @@ import { MANIFESTS, ROOT } from './common.mjs';
 export const RUNTIME_MATRIX = Object.freeze({
   chrome: Object.freeze({
     label: 'Chrome / Chromium browsers',
-    minimum: '111',
+    minimum: '114',
     manifestField: 'minimum_chrome_version',
-    apiFloor: ['Manifest V3', 'storage.local', 'alarms', 'notifications', 'tabs', 'runtime messaging'],
+    apiFloor: ['Manifest V3', 'storage.local', 'alarms', 'notifications', 'tabs', 'sidePanel', 'runtime messaging'],
   }),
   firefox: Object.freeze({
     label: 'Firefox',
@@ -47,12 +47,14 @@ export async function validateRuntimeMatrix() {
   ]);
 
   assert.equal(chrome.minimum_chrome_version, RUNTIME_MATRIX.chrome.minimum, 'Chrome manifest floor drifted');
+  assert.equal(chrome.side_panel?.default_path, 'ui/sidepanel.html', 'Chrome side panel path drifted');
+  assert.ok(chrome.permissions?.includes('sidePanel'), 'Chrome sidePanel permission missing');
   assert.equal(
     majorVersion(firefox.browser_specific_settings?.gecko?.strict_min_version),
     RUNTIME_MATRIX.firefox.minimum,
     'Firefox manifest floor drifted',
   );
-  assert.match(readme, /Chrome \/ Edge \/ Brave \/ any Chromium 111\+/i, 'README Chromium floor drifted');
+  assert.match(readme, /Chrome \/ Edge \/ Brave \/ any Chromium 114\+/i, 'README Chromium floor drifted');
   assert.match(readme, /Firefox 115\+/i, 'README Firefox floor drifted');
   assert.match(readme, /Chrome\/Chromium 111\+ or Firefox 115\+/i, 'README userscript floor missing');
   assert.match(userscriptSource, /@grant\s+GM\.getValue/i, 'userscript storage grant missing');

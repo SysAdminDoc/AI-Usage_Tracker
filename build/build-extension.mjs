@@ -26,6 +26,7 @@ export async function buildExtension({ target, bridge = false }) {
     { entry: path.join(SRC, 'content.js'),          out: path.join(outDir, 'content.js'),          format: 'iife', isWorker: false },
     { entry: path.join(SRC, 'analytics-scraper.js'),out: path.join(outDir, 'analytics-scraper.js'),format: 'iife', isWorker: false },
     { entry: path.join(SRC, 'ui', 'popup.js'),      out: path.join(outDir, 'ui', 'popup.js'),      format: 'iife', isWorker: false },
+    { entry: path.join(SRC, 'ui', 'sidepanel.js'),  out: path.join(outDir, 'ui', 'sidepanel.js'),  format: 'iife', isWorker: false },
     { entry: path.join(SRC, 'ui', 'options.js'),    out: path.join(outDir, 'ui', 'options.js'),    format: 'iife', isWorker: false },
   ];
 
@@ -48,6 +49,8 @@ export async function buildExtension({ target, bridge = false }) {
   // 2) Copy static HTML / CSS / icons.
   await copyFile(path.join(SRC, 'ui', 'popup.html'),  path.join(outDir, 'ui', 'popup.html'));
   await copyFile(path.join(SRC, 'ui', 'popup.css'),   path.join(outDir, 'ui', 'popup.css'));
+  await copyFile(path.join(SRC, 'ui', 'sidepanel.html'), path.join(outDir, 'ui', 'sidepanel.html'));
+  await copyFile(path.join(SRC, 'ui', 'sidepanel.css'), path.join(outDir, 'ui', 'sidepanel.css'));
   await copyFile(path.join(SRC, 'ui', 'options.html'),path.join(outDir, 'ui', 'options.html'));
   await copyFile(path.join(SRC, 'ui', 'options.css'), path.join(outDir, 'ui', 'options.css'));
   await copyFile(path.join(SRC, 'ui', 'theme.css'),   path.join(outDir, 'ui', 'theme.css'));

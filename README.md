@@ -42,7 +42,7 @@ The widget, popup, options page, and userscript settings support keyboard focus,
 
 ## Install
 
-### Chrome / Edge / Brave / any Chromium 111+
+### Chrome / Edge / Brave / any Chromium 114+
 
 1. Download `AI-Usage-Tracker-chrome-v0.2.2.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Unzip it anywhere.
@@ -83,11 +83,13 @@ Default extension packages do not request the optional `nativeMessaging` permiss
 
 | Target | Supported floor | Notes |
 | --- | --- | --- |
-| Chrome, Edge, Brave, and other Chromium browsers | 111+ | MV3 extension; uses local storage, alarms, notifications, tabs, and runtime messaging. |
+| Chrome, Edge, Brave, and other Chromium browsers | 114+ | MV3 extension; uses local storage, alarms, notifications, tabs, side panel, and runtime messaging. |
 | Firefox | 115+ | MV3 extension; the manifest declares `strict_min_version` 115. |
 | Userscript managers | Chrome/Chromium 111+ or Firefox 115+ | Requires a modern manager with `GM.getValue`/`GM.setValue` or legacy equivalents; notification delivery also requires the manager API or page notifications. |
 
 The release build checks this matrix against both extension manifests, userscript metadata, README copy, and the browser adapter’s API surface before packaging.
+
+Chrome 114+ users can open **AI Usage Tracker** from the browser’s side-panel menu. The persistent panel keeps the current dashboard, local history count, provider freshness/error codes, and a link to full settings visible while the popup remains a compact glance surface.
 
 ## Permissions and data
 
@@ -99,6 +101,7 @@ The default extension packages use this narrow, local-first permission boundary:
 | `alarms` | Refresh the snapshot and recover notification deadlines after service-worker sleep | Alarm names and times are local browser scheduling metadata. |
 | `notifications` | Show the alert rules that you enable | Notification text is derived from local snapshot state. |
 | `tabs` | Open provider analytics pages and, only when explicitly enabled, a hidden fallback tab | The extension does not read arbitrary tabs or cookies. |
+| `sidePanel` | Provide the optional persistent Chrome dashboard | The panel reads the same local snapshot as the popup; it adds no provider or network access. |
 | `claude.ai` and `chatgpt.com` host access | Fetch or scrape usage from signed-in first-party pages | Requests stay between the extension and provider origins; no relay server is used. |
 | `nativeMessaging` | Optional QuotaGlass desktop mirror only | Missing from default packages; the bridge profile sends a minimal redacted quota envelope to the locally installed companion. |
 

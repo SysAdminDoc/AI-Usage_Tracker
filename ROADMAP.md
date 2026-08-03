@@ -201,13 +201,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 
 ### P2
-- [ ] P2 — Chrome side-panel dashboard
-  Why: The popup is a glance surface; long-lived diagnostics, history, and provider comparison fit better in an optional persistent panel.
-  Evidence: Chrome Side Panel API docs; CodexBar/OpenUsage persistent dashboard patterns.
-  Touches: `manifests/chrome.json`, new side-panel entry, shared UI rendering, CSS
-  Acceptance: Chrome users can open a side panel with current usage, history, diagnostics, and settings links while the popup remains compact.
-  Complexity: L
-
 ### P3
 - [ ] P3 — Claude cache-hit ratio metric
   Why: Cache timer visibility is useful, but users also need to know whether they are actually reusing cache before it expires.
