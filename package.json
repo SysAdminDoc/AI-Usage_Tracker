@@ -13,7 +13,8 @@
     "test": "node build/test-release-provenance.mjs && node build/test-scrapers.mjs && node build/test-context-counter.mjs && node build/test-cache-timer.mjs && node build/test-history.mjs && node build/test-notify.mjs && node build/test-appearance.mjs && node build/test-storage.mjs && node build/test-countdown.mjs && node build/test-inline-settings.mjs && node build/test-accessibility.mjs && node build/test-manifest-profile.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "linkedom": "^0.18.13"
   },
   "engines": {
     "node": ">=20"
