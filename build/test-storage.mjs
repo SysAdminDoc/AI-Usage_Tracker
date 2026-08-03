@@ -6,6 +6,7 @@ const fresh = defaultState();
 assert.equal(fresh.stateVersion, 2, 'defaultState() should have stateVersion 2');
 assert.ok(fresh.snapshot, 'defaultState() should have snapshot');
 assert.ok(fresh.settings, 'defaultState() should have settings');
+assert.equal(fresh.settings.historyRetentionDays, 30, 'history retention should default to 30 days');
 
 // --- Test: migrate v1 (unversioned) state to v2 ---
 const v1State = {

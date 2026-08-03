@@ -5,13 +5,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Existing Open Items
 
 ### P1
-- [ ] P1 — Clear and export history
-  Why: Local-only history needs explicit user control before retention, migration, or pruning work lands.
-  Evidence: `src/lib/history.js` stores rolling samples; OpenUsage, CodexBar, and Tokens 4 Breakfast all expose export surfaces.
-  Touches: `src/lib/history.js`, `src/lib/storage.js`, `src/ui/options.js`, `userscript/entry.js`
-  Acceptance: Users can export CSV and clear history behind a clear confirmation with no accidental data loss.
-  Complexity: M
-
 - [ ] P1 — WCAG 2.2 AA conformance pass
   Why: A tracker users keep open during work must be keyboard-accessible, readable, and calm under reduced-motion settings.
   Evidence: WCAG 2.2; current widget/popup/options rely on compact controls and dynamic states.
@@ -232,13 +225,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Evidence: `src/lib/notify.js`, `src/background.js`, Chrome service worker lifecycle docs.
   Touches: `src/lib/notify.js`, `src/background.js`, `build/test-notify.mjs`, options copy
   Acceptance: R1/R2/D1 rules have tested catch-up grace, duplicate-fire prevention, and next-alarm derivation after browser sleep or late refresh.
-  Complexity: M
-
-- [ ] P1 — Storage quota diagnostics and retention controls
-  Why: History should stay local and useful without silently approaching browser storage limits.
-  Evidence: `src/lib/history.js`, Chrome storage `getBytesInUse()` docs, OpenUsage/CodexBar/Tokens 4 Breakfast export and history surfaces.
-  Touches: `src/lib/history.js`, `src/lib/storage.js`, `src/ui/options.js`, `userscript/entry.js`, tests
-  Acceptance: Options show storage bytes used, retention length, compact/prune controls, export-before-prune copy, and tests for retention/downsampling behavior.
   Complexity: M
 
 - [ ] P1 — Split optional native bridge permission surface

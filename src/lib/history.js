@@ -1,20 +1,91 @@
-// 30-day rolling history of bucket samples + simple burn-rate forecast.
+// Rolling history of bucket samples + simple burn-rate forecast.
 // Storage is a flat array (timestamp + bucketId + percentUsed). Forecast
 // is linear regression over the last `windowMs` of samples for one bucket.
 
-const RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
+export const DEFAULT_RETENTION_DAYS = 30;
+export const HISTORY_RETENTION_OPTIONS = [7, 14, 30, 60, 90];
 
-export function recordSnapshot(history, snapshot, { now = new Date() } = {}) {
+export function recordSnapshot(history, snapshot, {
+  now = new Date(),
+  retentionDays = DEFAULT_RETENTION_DAYS,
+} = {}) {
   const ts = now.getTime();
-  const next = history.filter((h) => ts - h.ts <= RETAIN_MS);
+  const next = pruneHistory(history, { now, retentionDays });
   for (const provider of Object.keys(snapshot.providers || {})) {
     const ps = snapshot.providers[provider];
     if (!ps || !ps.ok) continue;
     for (const bucket of ps.buckets) {
-      next.push({ ts, bucketId: bucket.id, percentUsed: bucket.percentUsed });
+      if (!bucket?.id) continue;
+      next.push({ ts, bucketId: bucket.id, percentUsed: clampPercent(bucket.percentUsed) });
     }
   }
   return next;
+}
+
+export function pruneHistory(history = [], { now = new Date(), retentionDays = DEFAULT_RETENTION_DAYS } = {}) {
+  const ts = now.getTime();
+  const cutoff = ts - retentionMs(retentionDays);
+  return history
+    .filter((sample) => Number.isFinite(sample?.ts)
+      && sample.ts >= cutoff
+      && sample.ts <= ts
+      && sample.bucketId)
+    .map((sample) => ({
+      ts: sample.ts,
+      bucketId: String(sample.bucketId),
+      percentUsed: clampPercent(sample.percentUsed),
+    }));
+}
+
+export function compactHistory(history = [], {
+  now = new Date(),
+  retentionDays = DEFAULT_RETENTION_DAYS,
+  maxSamplesPerBucket = 200,
+} = {}) {
+  const retained = pruneHistory(history, { now, retentionDays });
+  const limit = Math.max(2, Math.floor(Number(maxSamplesPerBucket) || 200));
+  const byBucket = new Map();
+  for (const sample of retained) {
+    if (!byBucket.has(sample.bucketId)) byBucket.set(sample.bucketId, []);
+    byBucket.get(sample.bucketId).push(sample);
+  }
+
+  const compacted = [];
+  for (const samples of byBucket.values()) {
+    if (samples.length <= limit) {
+      compacted.push(...samples);
+      continue;
+    }
+    const step = (samples.length - 1) / (limit - 1);
+    for (let i = 0; i < limit; i++) compacted.push(samples[Math.round(i * step)]);
+  }
+  return compacted.sort((a, b) => a.ts - b.ts || a.bucketId.localeCompare(b.bucketId));
+}
+
+export function historyStats(history = []) {
+  const samples = history.filter((sample) => Number.isFinite(sample?.ts));
+  const timestamps = samples.map((sample) => sample.ts);
+  return {
+    sampleCount: samples.length,
+    bucketCount: new Set(samples.map((sample) => sample.bucketId)).size,
+    oldestTs: timestamps.length ? Math.min(...timestamps) : null,
+    newestTs: timestamps.length ? Math.max(...timestamps) : null,
+  };
+}
+
+export function historyToCSV(history = []) {
+  const rows = ['timestampISO,bucketId,percentUsed'];
+  const sorted = [...history]
+    .filter((sample) => Number.isFinite(sample?.ts) && sample.bucketId)
+    .sort((a, b) => a.ts - b.ts || String(a.bucketId).localeCompare(String(b.bucketId)));
+  for (const sample of sorted) {
+    rows.push([
+      new Date(sample.ts).toISOString(),
+      csvCell(sample.bucketId),
+      clampPercent(sample.percentUsed).toFixed(2),
+    ].join(','));
+  }
+  return `${rows.join('\r\n')}\r\n`;
 }
 
 // Linear regression to predict when percentUsed hits 100 for a bucket.
@@ -74,6 +145,20 @@ function normalizeSample(sample) {
   return {
     ts: sample.ts,
     bucketId: sample.bucketId,
-    percentUsed: Math.max(0, Math.min(100, Number(sample.percentUsed) || 0)),
+    percentUsed: clampPercent(sample.percentUsed),
   };
+}
+
+function retentionMs(retentionDays) {
+  const days = Math.max(1, Math.min(365, Number(retentionDays) || DEFAULT_RETENTION_DAYS));
+  return days * 24 * 60 * 60 * 1000;
+}
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

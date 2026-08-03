@@ -8,8 +8,7 @@ const adapter = pickAdapter();
 
 function pickAdapter() {
   // 1) WebExtensions (Chrome + Firefox MV3 expose browser/chrome.storage).
-  const ext = (typeof browser !== 'undefined' && browser.storage)
-    || (typeof chrome !== 'undefined' && chrome.storage);
+  const ext = getWebExtensionStorage();
   if (ext && ext.local) {
     return {
       type: 'webext',
@@ -94,6 +93,62 @@ function pickAdapter() {
 }
 
 export const storageType = adapter.type;
+
+export async function getStorageUsage(state = null) {
+  const ext = getWebExtensionStorage();
+  if (ext?.local?.getBytesInUse) {
+    try {
+      const bytes = await invokeStorageMethod(ext.local, 'getBytesInUse', 'aut.state.v1');
+      return {
+        bytes: Number(bytes) || 0,
+        quotaBytes: Number(ext.local.QUOTA_BYTES) || null,
+        source: 'webext',
+      };
+    } catch (error) {
+      console.warn('[AUT] Storage byte query failed:', error);
+    }
+  }
+
+  try {
+    const value = state || await loadState();
+    const encoded = new TextEncoder().encode(JSON.stringify(value));
+    return {
+      bytes: encoded.byteLength,
+      quotaBytes: null,
+      source: `${adapter.type}-estimate`,
+    };
+  } catch {
+    return { bytes: null, quotaBytes: null, source: 'unavailable' };
+  }
+}
+
+function getWebExtensionStorage() {
+  return (typeof browser !== 'undefined' && browser.storage)
+    || (typeof chrome !== 'undefined' && chrome.storage)
+    || null;
+}
+
+function invokeStorageMethod(target, method, argument) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    };
+    const callback = (value) => finish(resolve, value);
+    try {
+      const result = target[method](argument, callback);
+      if (result && typeof result.then === 'function') result.then(
+        (value) => finish(resolve, value),
+        (error) => finish(reject, error),
+      );
+      else if (result !== undefined) finish(resolve, result);
+    } catch (error) {
+      finish(reject, error);
+    }
+  });
+}
 
 // --- Schema versioning and migration ---
 
@@ -259,5 +314,6 @@ export function defaultSettings() {
       warnAt: 50,
       dangerAt: 80,
     },
+    historyRetentionDays: 30,
   };
 }

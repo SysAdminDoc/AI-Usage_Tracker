@@ -64,7 +64,10 @@ async function refreshNow() {
     },
   };
   state.snapshot = snapshot;
-  state.history  = recordSnapshot(state.history || [], snapshot, { now });
+  state.history  = recordSnapshot(state.history || [], snapshot, {
+    now,
+    retentionDays: state.settings?.historyRetentionDays,
+  });
 
   const toFire = evaluateRules({
     snapshot,
@@ -124,7 +127,10 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream' } = {}
     },
   };
   state.snapshot = snapshot;
-  state.history = recordSnapshot(state.history || [], snapshot, { now });
+  state.history = recordSnapshot(state.history || [], snapshot, {
+    now,
+    retentionDays: state.settings?.historyRetentionDays,
+  });
 
   const toFire = evaluateRules({
     snapshot,

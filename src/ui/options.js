@@ -1,16 +1,17 @@
-import { loadState, saveState, defaultSettings } from '../lib/storage.js';
-import { normalizeThresholds } from '../lib/countdown.js';
+import { getStorageUsage, loadState, saveState, defaultSettings } from '../lib/storage.js';
+import {
+  compactHistory,
+  historyStats,
+  historyToCSV,
+} from '../lib/history.js';
+import {
+  defaultRowEnabled,
+  listRowOptions,
+  normalizeSettings,
+  normalizeThemeValue,
+} from '../lib/settings.js';
 
 const VERSION = '0.2.2';
-
-const KNOWN_ROWS = [
-  { id: 'claude-session',        label: 'Claude - Current session' },
-  { id: 'claude-weekly-all',     label: 'Claude - Weekly (All models)' },
-  { id: 'claude-weekly-sonnet',  label: 'Claude - Weekly (Sonnet only)' },
-  { id: 'claude-weekly-design',  label: 'Claude - Weekly (Claude Design)' },
-  { id: 'codex-5h-all',          label: 'Codex - 5-hour limit' },
-  { id: 'codex-weekly-all',      label: 'Codex - Weekly limit' },
-];
 
 const saveStatus = document.getElementById('saveStatus');
 
@@ -32,6 +33,7 @@ async function init() {
   await renderProviders();
   await renderRows();
   await loadCurrent();
+  await renderHistoryStatus();
   await renderDiagnostics();
   bindHandlers();
 }
@@ -42,7 +44,10 @@ async function renderProviders() {
   for (const id of ['claude', 'codex']) {
     const label = document.createElement('label');
     label.className = 'opt-toggle';
-    label.innerHTML = `<input type="checkbox" data-provider="${id}"> ${id === 'claude' ? 'Claude' : 'Codex'}`;
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.dataset.provider = id;
+    label.append(input, document.createTextNode(id === 'claude' ? 'Claude' : 'Codex'));
     wrap.appendChild(label);
   }
 }
@@ -51,34 +56,20 @@ async function renderRows() {
   const state = await loadState();
   const wrap = document.getElementById('row-toggles');
   wrap.innerHTML = '';
-
-  // Surface any row IDs the scraper has seen but aren't in our base list.
-  const seen = new Set(KNOWN_ROWS.map((r) => r.id));
-  const dyn = [];
-  const providers = state.snapshot?.providers || {};
-  for (const p of Object.keys(providers)) {
-    const ps = providers[p];
-    if (!ps || !ps.ok) continue;
-    for (const b of ps.buckets) {
-      if (!seen.has(b.id)) {
-        dyn.push({ id: b.id, label: `${p === 'claude' ? 'Claude' : 'Codex'} - ${b.label}` });
-        seen.add(b.id);
-      }
-    }
-  }
-  const all = [...KNOWN_ROWS, ...dyn];
-
-  for (const row of all) {
+  for (const row of listRowOptions(state)) {
     const label = document.createElement('label');
     label.className = 'opt-toggle';
-    label.innerHTML = `<input type="checkbox" data-row="${row.id}"> ${row.label}`;
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.dataset.row = row.id;
+    label.append(input, document.createTextNode(row.label));
     wrap.appendChild(label);
   }
 }
 
 async function loadCurrent() {
   const state = await loadState();
-  const s = state.settings;
+  const s = normalizeSettings(state.settings);
   const notifications = s.notifications || {};
   applyTheme(s);
 
@@ -86,8 +77,7 @@ async function loadCurrent() {
     cb.checked = !!s.showProviders[cb.dataset.provider];
   }
   for (const cb of document.querySelectorAll('[data-row]')) {
-    const fallback = ['claude-session', 'claude-weekly-all', 'codex-5h-all', 'codex-weekly-all'].includes(cb.dataset.row);
-    cb.checked = s.showRows[cb.dataset.row] ?? fallback;
+    cb.checked = s.showRows[cb.dataset.row] ?? defaultRowEnabled(cb.dataset.row);
   }
   for (const cb of document.querySelectorAll('[data-notif]')) {
     cb.checked = !!notifications[cb.dataset.notif];
@@ -99,6 +89,7 @@ async function loadCurrent() {
   const thresholds = normalizeThresholds(s.thresholds);
   document.getElementById('warnAt').value = String(thresholds.warnAt);
   document.getElementById('dangerAt').value = String(thresholds.dangerAt);
+  document.getElementById('historyRetentionDays').value = String(s.historyRetentionDays);
   setThresholdLabels(thresholds);
   renderSnoozeStatus(s);
 }
@@ -139,12 +130,6 @@ function renderSnoozeStatus(settings = {}) {
   if (clearBtn) clearBtn.disabled = !active;
 }
 
-function normalizeThemeValue(theme) {
-  if (theme === 'latte' || theme === 'mocha-light') return 'latte';
-  if (theme === 'system') return 'system';
-  return 'mocha';
-}
-
 function applyTheme(settings = {}) {
   const requested = normalizeThemeValue(settings.theme);
   const systemLight = typeof matchMedia === 'function'
@@ -158,7 +143,7 @@ function bindHandlers() {
   document.body.addEventListener('change', async (e) => {
     const t = e.target;
     const state = await loadState();
-    const s = state.settings || defaultSettings();
+    const s = normalizeSettings(state.settings || defaultSettings());
     if (t.dataset.provider) {
       s.showProviders = { ...s.showProviders, [t.dataset.provider]: t.checked };
     } else if (t.dataset.row) {
@@ -172,6 +157,8 @@ function bindHandlers() {
     } else if (t.id === 'dailyBriefingHour') {
       s.notifications = s.notifications || {};
       s.notifications.dailyBriefingHour = parseInt(t.value, 10) || 8;
+    } else if (t.id === 'historyRetentionDays') {
+      s.historyRetentionDays = parseInt(t.value, 10) || 30;
     } else if (t.id === 'theme') {
       s.theme = t.value;
       applyTheme(s);
@@ -182,6 +169,7 @@ function bindHandlers() {
     }
     state.settings = s;
     await saveState(state);
+    await renderHistoryStatus();
     await renderDiagnostics();
     renderSnoozeStatus(s);
     flash('Saved just now');
@@ -229,6 +217,33 @@ function bindHandlers() {
     flash('Notifications resumed');
   });
 
+  document.getElementById('exportHistory').addEventListener('click', async () => {
+    const state = await loadState();
+    downloadHistory(state.history || []);
+    flash('History CSV download started');
+  });
+
+  document.getElementById('compactHistory').addEventListener('click', async () => {
+    if (!confirmAction('Export a CSV before compacting? Compaction keeps representative samples and cannot be undone.')) return;
+    const state = await loadState();
+    const retentionDays = normalizeSettings(state.settings).historyRetentionDays;
+    state.history = compactHistory(state.history || [], { retentionDays });
+    await saveState(state);
+    await renderHistoryStatus();
+    await renderDiagnostics();
+    flash('History compacted');
+  });
+
+  document.getElementById('clearHistory').addEventListener('click', async () => {
+    if (!confirmAction('Clear all local history? Export a CSV first if you may need these samples later.')) return;
+    const state = await loadState();
+    state.history = [];
+    await saveState(state);
+    await renderHistoryStatus();
+    await renderDiagnostics();
+    flash('History cleared');
+  });
+
   document.getElementById('resetClaudeOrg').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
@@ -267,7 +282,8 @@ function bindHandlers() {
 
   document.getElementById('copyDiagnostics').addEventListener('click', async () => {
     const state = await loadState();
-    const text = JSON.stringify(buildDiagnostics(state), null, 2);
+    const usage = await getStorageUsage(state);
+    const text = JSON.stringify(buildDiagnostics(state, usage), null, 2);
     try {
       await navigator.clipboard.writeText(text);
       flash('Diagnostics copied');
@@ -282,13 +298,16 @@ async function renderDiagnostics() {
   const wrap = document.getElementById('diagnostics');
   if (!wrap) return;
 
-  const diag = buildDiagnostics(state);
+  const usage = await getStorageUsage(state);
+  const diag = buildDiagnostics(state, usage);
   wrap.innerHTML = '';
   addDiagnostic(wrap, 'Snapshot', diag.snapshot);
   addDiagnostic(wrap, 'Claude', diag.providers.claude.summary, diag.providers.claude.ok ? 'good' : 'bad');
   addDiagnostic(wrap, 'Codex', diag.providers.codex.summary, diag.providers.codex.ok ? 'good' : 'bad');
   addDiagnostic(wrap, 'Rows', diag.rows);
   addDiagnostic(wrap, 'Appearance', `${diag.settings.theme}; warn ${diag.settings.thresholds.warnAt}% / danger ${diag.settings.thresholds.dangerAt}%`);
+  addDiagnostic(wrap, 'History', diag.history);
+  addDiagnostic(wrap, 'Storage', diag.storage);
   addDiagnostic(wrap, 'Alerts', diag.notifications.summary, diag.notifications.snoozed ? 'warn' : 'good');
 }
 
@@ -305,9 +324,58 @@ function addDiagnostic(wrap, key, value, tone = '') {
   wrap.appendChild(row);
 }
 
-function buildDiagnostics(state) {
+async function renderHistoryStatus() {
+  const wrap = document.getElementById('historyStatus');
+  if (!wrap) return;
+  const state = await loadState();
+  const settings = normalizeSettings(state.settings);
+  const stats = historyStats(state.history || []);
+  const usage = await getStorageUsage(state);
+  wrap.textContent = `${stats.sampleCount} samples across ${stats.bucketCount} buckets. Retaining ${settings.historyRetentionDays} days. ${formatStorageUsage(usage)}.`;
+  wrap.className = 'opt-callout opt-callout--good';
+}
+
+function downloadHistory(history) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([historyToCSV(history)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function confirmAction(message) {
+  return typeof window !== 'undefined' && typeof window.confirm === 'function'
+    ? window.confirm(message)
+    : true;
+}
+
+function formatStorageUsage(usage = {}) {
+  const bytes = formatBytes(usage.bytes);
+  if (usage.quotaBytes) return `${bytes} of ${formatBytes(usage.quotaBytes)} (${usage.source})`;
+  return `${bytes} (${usage.source})`;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return 'unknown size';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function buildDiagnostics(state, usage = {}) {
   const providers = state.snapshot?.providers || {};
+  const settings = normalizeSettings(state.settings);
   const thresholds = normalizeThresholds(state.settings?.thresholds);
+  const history = historyStats(state.history || []);
   const rows = Object.values(providers)
     .filter((ps) => ps?.ok)
     .reduce((sum, ps) => sum + (ps.buckets?.length || 0), 0);
@@ -320,13 +388,15 @@ function buildDiagnostics(state) {
     },
     rows: `${rows} discovered rows; ${visibleRowCount(state)} visible by current settings`,
     settings: {
-      refreshMinutes: state.settings?.refreshMinutes,
-      silentTabRefresh: state.settings?.silentTabRefresh === true,
-      theme: normalizeThemeValue(state.settings?.theme),
+      refreshMinutes: settings.refreshMinutes,
+      silentTabRefresh: settings.silentTabRefresh === true,
+      theme: normalizeThemeValue(settings.theme),
       thresholds,
-      providers: state.settings?.showProviders,
+      providers: settings.showProviders,
     },
-    notifications: notificationDiagnostic(state.settings),
+    history: `${history.sampleCount} samples across ${history.bucketCount} buckets; ${settings.historyRetentionDays} day retention`,
+    storage: formatStorageUsage(usage),
+    notifications: notificationDiagnostic(settings),
   };
 }
 

@@ -1,4 +1,10 @@
-import { loadState, saveState } from '../lib/storage.js';
+import { getStorageUsage, loadState, saveState } from '../lib/storage.js';
+import {
+  compactHistory,
+  historyStats,
+  historyToCSV,
+  HISTORY_RETENTION_OPTIONS,
+} from '../lib/history.js';
 import {
   defaultRowEnabled,
   listRowOptions,
@@ -182,6 +188,7 @@ const MODAL_CSS = `
 }
 .aut-inline-settings__button:hover { background: var(--aut-row-bg-hover); }
 .aut-inline-settings__button--primary:hover { background: linear-gradient(135deg, var(--aut-blue), var(--aut-lavender)); }
+.aut-inline-settings__history-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 @media (max-width: 520px) {
   .aut-inline-settings__row { align-items: stretch; flex-direction: column; }
   .aut-inline-settings__row > label:first-child { min-width: 0; }
@@ -197,7 +204,7 @@ export async function openInlineSettings({ onSaved } = {}) {
     return;
   }
 
-  const state = await loadState();
+  let state = await loadState();
   let draft = normalizeSettings(state.settings);
   const host = document.createElement('div');
   host.id = 'aut-inline-settings-host';
@@ -231,6 +238,8 @@ export async function openInlineSettings({ onSaved } = {}) {
   dialog.appendChild(foot);
   applyDraft(controls, draft);
   applyTheme(root, draft);
+  await updateHistorySummary(controls.history, state);
+  bindHistoryActions(controls.history, foot, () => state, (next) => { state = next; });
 
   const focusables = () => [...dialog.querySelectorAll('button, input, select')]
     .filter((element) => !element.disabled && element.getAttribute('tabindex') !== '-1');
@@ -264,9 +273,10 @@ export async function openInlineSettings({ onSaved } = {}) {
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
+    const active = shadow.activeElement;
+    if (event.shiftKey && active === first) {
       event.preventDefault(); last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
+    } else if (!event.shiftKey && active === last) {
       event.preventDefault(); first.focus();
     }
   });
@@ -309,11 +319,11 @@ function buildControls(body, state) {
     controls.rows = addToggleGrid(section, listRowOptions(state).map((row) => [row.id, row.label]), 'row');
   }));
   body.appendChild(buildSection('Refresh', 'Refresh cadence and the optional page fallback.', (section) => {
-    controls.refreshMinutes = addSelectRow(section, 'Refresh interval', REFRESH_OPTIONS.map((n) => [n, `Every ${n} minute${n === 1 ? '' : 's'}`]));
+    controls.refreshMinutes = addSelectRow(section, 'Refresh interval', REFRESH_OPTIONS.map((n) => [n, `Every ${n} minute${n === 1 ? '' : 's'}`]), 'refreshMinutes');
     controls.silentTabRefresh = addCheckboxRow(section, 'Use hidden fallback tabs when API refresh fails', 'silentTabRefresh');
   }));
   body.appendChild(buildSection('Appearance', 'Choose the surface theme and visual warning thresholds.', (section) => {
-    controls.theme = addSelectRow(section, 'Theme', [['mocha', 'Mocha dark'], ['latte', 'Latte light'], ['system', 'Follow system']]);
+    controls.theme = addSelectRow(section, 'Theme', [['mocha', 'Mocha dark'], ['latte', 'Latte light'], ['system', 'Follow system']], 'theme');
     const thresholdWrap = document.createElement('div');
     thresholdWrap.className = 'aut-inline-settings__thresholds';
     controls.warnAt = addRange(thresholdWrap, 'Warn at', 'warnAt', 25, 85, 5);
@@ -322,9 +332,104 @@ function buildControls(body, state) {
   }));
   body.appendChild(buildSection('Notifications', 'Choose which alerts can fire while this tab is open.', (section) => {
     controls.notifications = addToggleGrid(section, NOTIFICATION_OPTIONS, 'notification');
-    controls.dailyBriefingHour = addSelectRow(section, 'Daily briefing time', Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, '0')}:00`]));
+    controls.dailyBriefingHour = addSelectRow(section, 'Daily briefing time', Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, '0')}:00`]), 'dailyBriefingHour');
+  }));
+  body.appendChild(buildSection('History', 'Export a CSV before compacting or clearing local samples. History never leaves your browser unless you download it.', (section) => {
+    controls.history = buildHistoryControls(section);
   }));
   return controls;
+}
+
+function buildHistoryControls(parent) {
+  const retentionDays = addSelectRow(
+    parent,
+    'Keep samples for',
+    HISTORY_RETENTION_OPTIONS.map((days) => [days, `${days} days`]),
+    'historyRetentionDays',
+  );
+  const summary = document.createElement('p');
+  summary.className = 'aut-inline-settings__hint';
+  summary.setAttribute('role', 'status');
+  summary.textContent = 'Loading local history details…';
+  parent.appendChild(summary);
+  const actions = document.createElement('div');
+  actions.className = 'aut-inline-settings__history-actions';
+  const exportButton = historyActionButton('Export CSV');
+  const compactButton = historyActionButton('Compact history');
+  const clearButton = historyActionButton('Clear history');
+  actions.append(exportButton, compactButton, clearButton);
+  parent.appendChild(actions);
+  return { retentionDays, summary, exportButton, compactButton, clearButton };
+}
+
+function historyActionButton(label) {
+  const button = document.createElement('button');
+  button.className = 'aut-inline-settings__button';
+  button.type = 'button';
+  button.textContent = label;
+  return button;
+}
+
+async function updateHistorySummary(controls, state) {
+  if (!controls) return;
+  const stats = historyStats(state.history || []);
+  const usage = await getStorageUsage(state);
+  controls.retentionDays.value = String(normalizeSettings(state.settings).historyRetentionDays);
+  controls.summary.textContent = `${stats.sampleCount} samples across ${stats.bucketCount} buckets; ${formatBytes(usage.bytes)} stored (${usage.source}).`;
+}
+
+function bindHistoryActions(controls, foot, getState, setState) {
+  controls.exportButton.addEventListener('click', () => {
+    downloadHistory(getState().history || []);
+    foot.status.textContent = 'CSV download started';
+  });
+  controls.compactButton.addEventListener('click', async () => {
+    if (!confirmAction('Export a CSV before compacting? Compaction keeps representative samples and cannot be undone.')) return;
+    const state = await loadState();
+    const retentionDays = Number(controls.retentionDays.value);
+    state.history = compactHistory(state.history || [], { retentionDays });
+    await saveState(state);
+    setState(state);
+    await updateHistorySummary(controls, state);
+    foot.status.textContent = 'History compacted';
+  });
+  controls.clearButton.addEventListener('click', async () => {
+    if (!confirmAction('Clear all local history? Export a CSV first if you may need these samples later.')) return;
+    const state = await loadState();
+    state.history = [];
+    await saveState(state);
+    setState(state);
+    await updateHistorySummary(controls, state);
+    foot.status.textContent = 'History cleared';
+  });
+}
+
+function confirmAction(message) {
+  return typeof window !== 'undefined' && typeof window.confirm === 'function'
+    ? window.confirm(message)
+    : true;
+}
+
+function downloadHistory(history) {
+  if (typeof document === 'undefined' || typeof Blob === 'undefined'
+      || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+  const blob = new Blob([historyToCSV(history)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.style.display = 'none';
+  document.documentElement.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return 'unknown size';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function buildSection(titleText, hintText, fill) {
@@ -373,7 +478,7 @@ function addCheckboxRow(parent, labelText, id) {
   return input;
 }
 
-function addSelectRow(parent, labelText, entries) {
+function addSelectRow(parent, labelText, entries, explicitId = '') {
   const row = document.createElement('div');
   row.className = 'aut-inline-settings__row';
   const label = document.createElement('label');
@@ -386,8 +491,8 @@ function addSelectRow(parent, labelText, entries) {
     option.textContent = textValue;
     select.appendChild(option);
   }
-  const id = labelText === 'Refresh interval' ? 'refreshMinutes'
-    : labelText === 'Theme' ? 'theme' : 'dailyBriefingHour';
+  const id = explicitId || (labelText === 'Refresh interval' ? 'refreshMinutes'
+    : labelText === 'Theme' ? 'theme' : 'dailyBriefingHour');
   select.id = id;
   label.htmlFor = id;
   row.append(label, select);
@@ -444,6 +549,7 @@ function applyDraft(controls, settings) {
   controls.silentTabRefresh.checked = settings.silentTabRefresh === true;
   controls.theme.value = normalizeThemeValue(settings.theme);
   controls.dailyBriefingHour.value = String(settings.notifications.dailyBriefingHour);
+  controls.history.retentionDays.value = String(settings.historyRetentionDays);
   controls.warnAt.value = String(settings.thresholds.warnAt);
   controls.dangerAt.value = String(settings.thresholds.dangerAt);
   updateThresholdLabels(controls);
@@ -458,6 +564,7 @@ function readDraft(controls, prior) {
   next.silentTabRefresh = controls.silentTabRefresh.checked;
   next.theme = controls.theme.value;
   next.notifications.dailyBriefingHour = Number(controls.dailyBriefingHour.value);
+  next.historyRetentionDays = Number(controls.history.retentionDays.value);
   next.thresholds = {
     warnAt: Number(controls.warnAt.value),
     dangerAt: Number(controls.dangerAt.value),

@@ -226,7 +226,10 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   }
 
   next.snapshot.fetchedAtISO = nowISO;
-  next.history = recordSnapshot(next.history || [], next.snapshot, { now });
+  next.history = recordSnapshot(next.history || [], next.snapshot, {
+    now,
+    retentionDays: next.settings?.historyRetentionDays,
+  });
   await saveState(next);
   await updateToolbarBadge(next);
   // Forward to QuotaGlass desktop widget (no-op if NMH not installed).

@@ -30,6 +30,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **Premium settings controls** — compact section navigation, theme selection, configurable warn/danger visual thresholds, notification snooze, and local diagnostics.
 - **30-day rolling history** with sparklines, persists across browser restart.
+- **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.
 
 ## Install
@@ -61,7 +62,7 @@ Release Firefox does not allow unsigned extensions; a signed AMO submission is p
 
 Userscript caveats vs. extension:
 - No silent background refresh — data only updates while you have a Claude or ChatGPT tab open.
-- No toolbar popup dashboard (open the in-page settings modal via the widget gear icon).
+- No toolbar popup dashboard (open the in-page settings modal and history controls via the widget gear icon).
 - OS notifications use the web `Notification` API (requires page open in a tab).
 - History persists across restart via `GM.setValue`.
 

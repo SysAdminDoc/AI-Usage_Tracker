@@ -11,6 +11,7 @@ export const KNOWN_ROWS = [
 ];
 
 const REFRESH_MINUTES = [1, 5, 15, 30];
+const RETENTION_DAYS = [7, 14, 30, 60, 90];
 
 export function normalizeThemeValue(theme) {
   if (theme === 'latte' || theme === 'mocha-light') return 'latte';
@@ -33,6 +34,9 @@ export function normalizeSettings(input = {}) {
   next.notifications.dailyBriefingHour = clampInteger(next.notifications.dailyBriefingHour, 0, 23, 8);
   next.theme = normalizeThemeValue(next.theme);
   next.thresholds = normalizeThresholds(next.thresholds);
+  next.historyRetentionDays = RETENTION_DAYS.includes(Number(next.historyRetentionDays))
+    ? Number(next.historyRetentionDays)
+    : 30;
   return next;
 }
 

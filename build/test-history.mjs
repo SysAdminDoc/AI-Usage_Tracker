@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
-import { recordSnapshot, forecastExhaustion, sparklineFor, sparklineSamplesFor } from '../src/lib/history.js';
+import {
+  compactHistory,
+  forecastExhaustion,
+  historyStats,
+  historyToCSV,
+  pruneHistory,
+  recordSnapshot,
+  sparklineFor,
+  sparklineSamplesFor,
+} from '../src/lib/history.js';
 
 // --- sparkline tests (existing) ---
 const history = [
@@ -133,3 +142,34 @@ assert.equal(sparklineSamplesFor(history, 'missing').length, 0);
 }
 
 console.log('history sparkline smoke: OK');
+
+// --- retention, compaction, stats, and CSV export ---
+{
+  const now = new Date('2026-06-16T12:00:00Z');
+  const t = now.getTime();
+  const h = 60 * 60 * 1000;
+  const samples = Array.from({ length: 10 }, (_, i) => ({
+    ts: t - (9 - i) * h,
+    bucketId: 'compact-me',
+    percentUsed: i * 10,
+  }));
+  samples.push({ ts: t - 8 * 24 * 60 * 60 * 1000, bucketId: 'old', percentUsed: 20 });
+  const retained = pruneHistory(samples, { now, retentionDays: 7 });
+  assert.equal(retained.some((sample) => sample.bucketId === 'old'), false, 'retention should remove old samples');
+  const compacted = compactHistory(samples, { now, retentionDays: 30, maxSamplesPerBucket: 4 });
+  const compactBucket = compacted.filter((sample) => sample.bucketId === 'compact-me');
+  assert.equal(compactBucket.length, 4, 'compaction should cap each bucket');
+  assert.equal(compactBucket[0].percentUsed, 0, 'compaction should keep the first sample');
+  assert.equal(compactBucket.at(-1).percentUsed, 90, 'compaction should keep the last sample');
+  assert.deepEqual(historyStats(compacted), {
+    sampleCount: 5,
+    bucketCount: 2,
+    oldestTs: t - 8 * 24 * 60 * 60 * 1000,
+    newestTs: t,
+  });
+  const csv = historyToCSV([{ ts: t, bucketId: 'bucket,one', percentUsed: 12.5 }]);
+  assert.match(csv, /timestampISO,bucketId,percentUsed/);
+  assert.match(csv, /"bucket,one",12\.50/);
+}
+
+console.log('history controls smoke: OK');
