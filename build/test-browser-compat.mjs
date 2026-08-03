@@ -71,6 +71,8 @@ const callbackChrome = {
 globalThis.chrome = callbackChrome;
 const callbackApi = await import('../src/lib/browser.js?callback-contract');
 assert.equal(callbackApi.isPromiseStyle, false, 'Chrome namespace should use callback style');
+assert.equal(callbackApi.getNotificationPermission().state, 'granted');
+assert.equal((await callbackApi.requestNotificationPermission()).source, 'extension');
 
 assert.equal(
   await callbackApi.notify({ title: 'Callback notice', body: 'body', id: 'notice-1' }),
@@ -174,6 +176,8 @@ globalThis.browser = {
 
 const promiseApi = await import('../src/lib/browser.js?promise-contract');
 assert.equal(promiseApi.isPromiseStyle, true, 'Firefox namespace should use promise style');
+assert.equal(promiseApi.getNotificationPermission().state, 'granted');
+assert.equal((await promiseApi.requestNotificationPermission()).source, 'extension');
 assert.equal(
   await promiseApi.notify({ title: 'Promise notice', body: 'body', id: 'notice-2' }),
   true,
@@ -198,6 +202,27 @@ assert.deepEqual(
   { echo: 'incoming' },
   'Firefox listeners should return a promise response',
 );
+
+delete globalThis.browser;
+const managerNotifications = [];
+globalThis.GM = {
+  notification(details) {
+    managerNotifications.push(details);
+    return Promise.resolve();
+  },
+};
+const userscriptApi = await import('../src/lib/browser.js?userscript-contract');
+assert.deepEqual(userscriptApi.getNotificationPermission(), {
+  state: 'granted',
+  source: 'userscript-manager',
+  detail: 'The userscript manager notification API is available while this provider tab is open.',
+});
+assert.equal(
+  await userscriptApi.notify({ title: 'Manager notice', body: 'body', id: 'manager-1' }),
+  true,
+);
+assert.equal(managerNotifications[0].text, 'body');
+delete globalThis.GM;
 
 // Exercise the injectable seam directly with isolated fake APIs too. This
 // keeps the contract explicit if a future runtime exposes a hybrid namespace.

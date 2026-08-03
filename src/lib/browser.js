@@ -73,6 +73,66 @@ export function invokeWebExtension(target, method, args = [], { promiseStyle = i
   });
 }
 
+export function getNotificationPermission() {
+  if (ns?.notifications?.create) {
+    return {
+      state: 'granted',
+      source: 'extension',
+      detail: 'Extension notifications are available from the declared browser permission.',
+    };
+  }
+  if ((typeof GM !== 'undefined' && typeof GM.notification === 'function')
+      || typeof GM_notification === 'function') {
+    return {
+      state: 'granted',
+      source: 'userscript-manager',
+      detail: 'The userscript manager notification API is available while this provider tab is open.',
+    };
+  }
+  if (typeof Notification !== 'undefined') {
+    return {
+      state: Notification.permission || 'default',
+      source: 'web',
+      detail: 'The browser page Notification permission controls delivery for this userscript tab.',
+    };
+  }
+  return {
+    state: 'unsupported',
+    source: 'unavailable',
+    detail: 'This browser context does not expose a notification API.',
+  };
+}
+
+export async function requestNotificationPermission() {
+  const current = getNotificationPermission();
+  if (current.source !== 'web' || current.state !== 'default') return current;
+  if (typeof Notification.requestPermission !== 'function') return current;
+  try {
+    const state = await Notification.requestPermission();
+    return { ...getNotificationPermission(), state: state || 'default' };
+  } catch {
+    return getNotificationPermission();
+  }
+}
+
+async function notifyViaUserscriptManager({ title, body, id }) {
+  const details = { title, text: body, tag: id || undefined };
+  try {
+    if (typeof GM !== 'undefined' && typeof GM.notification === 'function') {
+      const result = GM.notification(details);
+      if (result && typeof result.then === 'function') await result;
+      return true;
+    }
+    if (typeof GM_notification === 'function') {
+      GM_notification(details);
+      return true;
+    }
+  } catch {
+    // Fall through to the page Notification API when the manager rejects it.
+  }
+  return false;
+}
+
 // chrome.notifications uses callbacks on Chrome, promises on Firefox.
 export async function notify({ title, body, tone = 'info', id }) {
   // Extension path.
@@ -89,6 +149,8 @@ export async function notify({ title, body, tone = 'info', id }) {
       return true;
     } catch { /* fall through to web API */ }
   }
+
+  if (await notifyViaUserscriptManager({ title, body, id })) return true;
 
   // Web Notification API (userscript path, or extension fallback).
   if (typeof Notification !== 'undefined') {

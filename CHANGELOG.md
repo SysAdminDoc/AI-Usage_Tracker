@@ -15,6 +15,7 @@
 - UI rendering now uses shared text/attribute/DOM builders; the CI safety audit rejects direct HTML sinks and guards the single reviewed static icon template.
 - A shared WebExtension adapter now normalizes Chrome callback APIs and Firefox promise APIs for notifications, tabs, alarms, storage, and messaging, with runtime contract fixtures for both styles.
 - README now includes a manifest-matched permission/data matrix, local-data revoke path, comparison table, and FAQ covering privacy and degraded states.
+- Settings now preflight notification capability and offer a permission request plus test alert in both the extension page and userscript modal.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

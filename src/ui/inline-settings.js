@@ -11,6 +11,7 @@ import {
   normalizeSettings,
   normalizeThemeValue,
 } from '../lib/settings.js';
+import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
 const NOTIFICATION_OPTIONS = [
@@ -189,6 +190,7 @@ const MODAL_CSS = `
 .aut-inline-settings__button:hover { background: var(--aut-row-bg-hover); }
 .aut-inline-settings__button--primary:hover { background: linear-gradient(135deg, var(--aut-blue), var(--aut-lavender)); }
 .aut-inline-settings__history-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.aut-inline-settings__notification { display: grid; gap: 7px; margin-top: 10px; }
 @media (max-width: 520px) {
   .aut-inline-settings__row { align-items: stretch; flex-direction: column; }
   .aut-inline-settings__row > label:first-child { min-width: 0; }
@@ -240,6 +242,7 @@ export async function openInlineSettings({ onSaved } = {}) {
   applyTheme(root, draft);
   await updateHistorySummary(controls.history, state);
   bindHistoryActions(controls.history, foot, () => state, (next) => { state = next; });
+  await renderNotificationPermission(controls.notificationPermission);
 
   const focusables = () => [...dialog.querySelectorAll('button, input, select')]
     .filter((element) => !element.disabled && element.getAttribute('tabindex') !== '-1');
@@ -265,6 +268,27 @@ export async function openInlineSettings({ onSaved } = {}) {
   controls.dangerAt.addEventListener('input', () => updateThresholdLabels(controls));
   foot.save.addEventListener('click', () => save().catch(() => { foot.status.textContent = 'Save failed'; }));
   foot.close.addEventListener('click', close);
+  controls.notificationPermission.button.addEventListener('click', async () => {
+    controls.notificationPermission.button.disabled = true;
+    try {
+      const permission = await requestNotificationPermission();
+      const ok = permission.state === 'granted'
+        && await notify({
+          id: 'aut-test-notification',
+          title: 'AI Usage Tracker test alert',
+          body: 'Notification delivery is ready while this provider tab is open.',
+          tone: 'info',
+        });
+      controls.notificationPermission.status.textContent = ok
+        ? 'Test notification sent.'
+        : 'Permission was not granted; check the browser site settings.';
+      await renderNotificationPermission(controls.notificationPermission);
+    } catch {
+      controls.notificationPermission.status.textContent = 'Test notification failed.';
+    } finally {
+      controls.notificationPermission.button.disabled = false;
+    }
+  });
   backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
   shadow.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') { event.preventDefault(); close(); return; }
@@ -333,6 +357,7 @@ function buildControls(body, state) {
   }));
   body.appendChild(buildSection('Notifications', 'Choose which alerts can fire while this tab is open.', (section) => {
     controls.notifications = addToggleGrid(section, NOTIFICATION_OPTIONS, 'notification');
+    controls.notificationPermission = buildNotificationPermissionControls(section);
     controls.dailyBriefingHour = addSelectRow(section, 'Daily briefing time', Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, '0')}:00`]), 'dailyBriefingHour');
   }));
   body.appendChild(buildSection('History', 'Export a CSV before compacting or clearing local samples. History never leaves your browser unless you download it.', (section) => {
@@ -361,6 +386,32 @@ function buildHistoryControls(parent) {
   actions.append(exportButton, compactButton, clearButton);
   parent.appendChild(actions);
   return { retentionDays, summary, exportButton, compactButton, clearButton };
+}
+
+function buildNotificationPermissionControls(parent) {
+  const wrap = document.createElement('div');
+  wrap.className = 'aut-inline-settings__notification';
+  const status = document.createElement('p');
+  status.className = 'aut-inline-settings__hint';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const button = historyActionButton('Request permission and send test');
+  wrap.append(status, button);
+  parent.appendChild(wrap);
+  return { wrap, status, button };
+}
+
+async function renderNotificationPermission(controls) {
+  if (!controls) return;
+  const capability = getNotificationPermission();
+  controls.status.textContent = capability.state === 'granted'
+    ? capability.detail
+    : capability.state === 'denied'
+      ? 'Notifications are blocked for this provider site; allow them in browser site settings.'
+      : capability.state === 'default'
+        ? 'Permission has not been requested yet. A test alert will ask once.'
+        : capability.detail;
+  controls.button.disabled = capability.state === 'unsupported';
 }
 
 function historyActionButton(label) {

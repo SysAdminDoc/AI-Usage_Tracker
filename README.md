@@ -22,6 +22,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
   - **R2 Renewal-arrived** — "Fresh quota — go!" the moment a bucket resets.
   - **U1 Usage-threshold** — 75% / 90% / 95% used.
   - **U2 Burn-rate forecast** — "At this pace you'll hit weekly Tuesday — 18 hrs early."
+- **Notification preflight** — Settings shows the active notification capability and can request permission plus send a test alert before a real quota rule fires.
 - **D1 Daily briefing** — one calm summary at 08:00.
 - Missed renewal/reset and daily-briefing alerts recover during a bounded late-refresh grace period, and the extension schedules the next exact notification deadline when one is known.
 - **Per-row visibility toggles** — by default shows headline buckets only; turn on per-model rows (GPT-5.3-Codex-Spark, Sonnet only, Claude Design, etc.) in Settings.
@@ -68,7 +69,8 @@ Release Firefox does not allow unsigned extensions; a signed AMO submission is p
 Userscript caveats vs. extension:
 - No silent background refresh — data only updates while you have a Claude or ChatGPT tab open.
 - No toolbar popup dashboard (open the in-page settings modal and history controls via the widget gear icon).
-- OS notifications use the web `Notification` API (requires page open in a tab).
+- OS notifications use the userscript manager API when available, otherwise the web `Notification` API; either path requires a provider tab to be open.
+- Settings can request notification permission and send a test alert before you rely on a quota rule.
 - Late-refresh catch-up is bounded by the open tab's next refresh; the extension's service-worker alarm path can schedule the next exact deadline.
 - History persists across restart via `GM.setValue`.
 

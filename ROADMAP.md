@@ -215,13 +215,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Copy/export diagnostics includes version, manifest channel, permissions, provider freshness/source/error codes, storage usage, and redacted identifiers.
   Complexity: M
 
-- [ ] P2 — Notification permission preflight and test alert
-  Why: Userscript users can lose the first important alert to a browser permission prompt because permission is requested only when a rule fires.
-  Evidence: `src/lib/browser.js`, `userscript/entry.js`, README userscript notification caveat, MDN/Chrome notification APIs.
-  Touches: `src/lib/browser.js`, `src/ui/options.js`, `userscript/entry.js`, README FAQ
-  Acceptance: Settings show notification permission state, provide a test notification, and explain userscript tab-open requirements before alerts are needed.
-  Complexity: S
-
 - [ ] P2 — Runtime floor and browser compatibility matrix
   Why: README, build targets, manifests, and platform API choices do not share one checked compatibility floor.
   Evidence: README says Chromium 109+, build targets Chrome 111/Firefox 115, Firefox manifest has `strict_min_version`, Chrome manifest lacks `minimum_chrome_version`.

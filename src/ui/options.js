@@ -12,6 +12,7 @@ import {
 } from '../lib/settings.js';
 import { normalizeThresholds } from '../lib/countdown.js';
 import { clearChildren } from '../lib/dom.js';
+import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
 
 const VERSION = '0.2.2';
 
@@ -35,6 +36,7 @@ export async function init() {
   await renderProviders();
   await renderRows();
   await loadCurrent();
+  await renderNotificationPermission();
   await renderHistoryStatus();
   await renderDiagnostics();
   bindHandlers();
@@ -133,6 +135,24 @@ export function renderSnoozeStatus(settings = {}) {
   if (clearBtn) clearBtn.disabled = !active;
 }
 
+export async function renderNotificationPermission(capability = getNotificationPermission()) {
+  const wrap = document.getElementById('notificationPermissionStatus');
+  if (!wrap) return capability;
+  const labels = {
+    extension: 'Ready: extension notifications are enabled by the installed package.',
+    'userscript-manager': 'Ready: the userscript manager can deliver notifications while this tab is open.',
+    web: capability.state === 'granted'
+      ? 'Ready: this browser has granted page notifications for the current tab.'
+      : capability.state === 'denied'
+        ? 'Blocked: allow notifications for this provider site in the browser site settings.'
+        : 'Not requested: send a test notification to ask the browser for permission.',
+    unavailable: 'Unavailable: this browser context does not expose notifications.',
+  };
+  wrap.textContent = labels[capability.source] || capability.detail || 'Notification status unavailable.';
+  wrap.className = `opt-callout ${capability.state === 'granted' ? 'opt-callout--good' : capability.state === 'denied' ? 'opt-callout--warn' : ''}`;
+  return capability;
+}
+
 function applyTheme(settings = {}) {
   const requested = normalizeThemeValue(settings.theme);
   const systemLight = typeof matchMedia === 'function'
@@ -221,6 +241,27 @@ function bindHandlers() {
     await renderDiagnostics();
     sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
     flash('Notifications resumed');
+  });
+
+  document.getElementById('testNotification').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const permission = await requestNotificationPermission();
+      const ok = permission.state === 'granted'
+        && await notify({
+          id: 'aut-test-notification',
+          title: 'AI Usage Tracker test alert',
+          body: 'Notification delivery is ready for the current browser context.',
+          tone: 'info',
+        });
+      flash(ok ? 'Test notification sent' : 'Notification permission was not granted', ok ? 'good' : 'bad');
+      await renderNotificationPermission();
+    } catch {
+      flash('Test notification failed', 'bad');
+    } finally {
+      button.disabled = false;
+    }
   });
 
   document.getElementById('exportHistory').addEventListener('click', async () => {

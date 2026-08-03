@@ -85,6 +85,10 @@
     <section id="notifications" class="opt-card">
       <h2>Notifications</h2>
       <p class="opt-hint">Quota alerts are deduped per reset window so notifications stay useful.</p>
+      <div id="notificationPermissionStatus" class="opt-callout" role="status" aria-live="polite">Checking notification permission...</div>
+      <div class="opt-row opt-row--wrap">
+        <button id="testNotification" class="opt-btn">Request permission and send test</button>
+      </div>
       <div id="snoozeStatus" class="opt-callout"></div>
       <div class="opt-row opt-row--wrap">
         <button id="snoozeNotifications" class="opt-btn">Snooze for 1 hour</button>
