@@ -127,7 +127,7 @@ try {
   const optionsWindow = installDocument(optionsMarkup, { patchForms: true });
   const options = await import('../src/ui/options.js?ui-regression');
   await options.ready;
-  assert.equal(document.querySelectorAll('[data-provider]').length, 2, 'options should render both provider toggles');
+  assert.equal(document.querySelectorAll('[data-provider]').length, 4, 'options should render web and official API provider toggles');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');

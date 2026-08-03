@@ -7,6 +7,8 @@ import { invokeWebExtension } from './browser.js';
 import { isTrackerState } from './type-guards.js';
 
 const STORE_KEY = 'aut.state.v1';
+const API_CREDENTIALS_KEY = 'aut.api-credentials.v1';
+export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api']);
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
 
@@ -170,6 +172,8 @@ const MIGRATIONS = [
     // Ensure all expected top-level keys exist.
     if (!next.snapshot) next.snapshot = { fetchedAtISO: null, providers: { claude: null, codex: null } };
     if (!next.snapshot.providers) next.snapshot.providers = { claude: null, codex: null };
+    if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'anthropic-api')) next.snapshot.providers['anthropic-api'] = null;
+    if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'openai-api')) next.snapshot.providers['openai-api'] = null;
     if (!Array.isArray(next.history)) next.history = [];
     if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
     if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
@@ -274,6 +278,71 @@ export async function patchState(patch) {
 }
 
 /**
+ * API credentials live in a separate local-only record. They are deliberately
+ * not part of TrackerState, so settings/history exports and support bundles
+ * cannot include them by accident.
+ */
+export async function loadApiCredential(provider) {
+  if (!API_CREDENTIAL_PROVIDERS.includes(provider)) return null;
+  try {
+    const credentials = await adapter.get(API_CREDENTIALS_KEY);
+    const value = credentials?.[provider];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  } catch (error) {
+    console.warn('[AUT] API credential read failed:', error);
+    return null;
+  }
+}
+
+export async function saveApiCredential(provider, credential) {
+  assertApiCredentialProvider(provider);
+  const value = String(credential ?? '').trim();
+  if (!value) return removeApiCredential(provider);
+  if (value.length > 4096) throw new Error('API credential is too long');
+
+  const credentials = await readApiCredentials();
+  credentials[provider] = value;
+  await adapter.set(API_CREDENTIALS_KEY, credentials);
+  return { configured: true };
+}
+
+export async function removeApiCredential(provider) {
+  assertApiCredentialProvider(provider);
+  const credentials = await readApiCredentials();
+  delete credentials[provider];
+  await adapter.set(API_CREDENTIALS_KEY, credentials);
+  return { configured: false };
+}
+
+export async function getApiCredentialStatus() {
+  const credentials = await readApiCredentials();
+  return Object.fromEntries(API_CREDENTIAL_PROVIDERS.map((provider) => [provider, {
+    configured: typeof credentials[provider] === 'string' && credentials[provider].trim().length > 0,
+    storage: 'local-only',
+    export: 'omitted',
+  }]));
+}
+
+async function readApiCredentials() {
+  try {
+    const value = await adapter.get(API_CREDENTIALS_KEY);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(API_CREDENTIAL_PROVIDERS
+      .filter((provider) => typeof value[provider] === 'string' && value[provider].trim())
+      .map((provider) => [provider, value[provider].trim()]));
+  } catch (error) {
+    console.warn('[AUT] API credential map read failed:', error);
+    return {};
+  }
+}
+
+function assertApiCredentialProvider(provider) {
+  if (!API_CREDENTIAL_PROVIDERS.includes(provider)) {
+    throw new Error(`Unsupported API credential provider: ${String(provider)}`);
+  }
+}
+
+/**
  * Build a portable settings payload. History is deliberately opt-in because
  * it is the largest and most identifying part of local tracker state.
  */
@@ -347,8 +416,11 @@ function sanitizeImportedSettings(input) {
   settings.highContrast = settings.highContrast === true;
   settings.theme = ['mocha', 'latte', 'system'].includes(settings.theme) ? settings.theme : 'mocha';
   settings.showProviders = {
+    ...settings.showProviders,
     claude: settings.showProviders?.claude !== false,
     codex: settings.showProviders?.codex !== false,
+    'anthropic-api': settings.showProviders?.['anthropic-api'] !== false,
+    'openai-api': settings.showProviders?.['openai-api'] !== false,
   };
   settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
   settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
@@ -399,7 +471,10 @@ function cloneJSON(value) {
 export function defaultState() {
   return {
     stateVersion: CURRENT_STATE_VERSION,
-    snapshot: { fetchedAtISO: null, providers: { claude: null, codex: null } },
+    snapshot: {
+      fetchedAtISO: null,
+      providers: { claude: null, codex: null, 'anthropic-api': null, 'openai-api': null },
+    },
     history: [],          // [{ ts, bucketId, percentUsed }]
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
     settings: defaultSettings(),
@@ -413,7 +488,7 @@ export function defaultSettings() {
     silentTabRefresh: false,
     highContrast: false,
     locale: 'en',
-    showProviders: { claude: true, codex: true },
+    showProviders: { claude: true, codex: true, 'anthropic-api': true, 'openai-api': true },
     showRows: {     // headline buckets default ON; per-model rows default OFF
       'claude-session': true,
       'claude-weekly-all': true,

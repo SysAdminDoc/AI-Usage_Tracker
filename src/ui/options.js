@@ -5,6 +5,9 @@ import {
   loadState,
   saveState,
   defaultSettings,
+  getApiCredentialStatus,
+  removeApiCredential,
+  saveApiCredential,
 } from '../lib/storage.js';
 import {
   compactHistory,
@@ -21,6 +24,7 @@ import { normalizeThresholds } from '../lib/countdown.js';
 import { clearChildren } from '../lib/dom.js';
 import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
+import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 
 const VERSION = '0.2.2';
 
@@ -42,6 +46,7 @@ export async function init() {
   }
 
   await renderProviders();
+  await renderApiCredentials();
   await renderRows();
   await loadCurrent();
   await renderNotificationPermission();
@@ -53,15 +58,84 @@ export async function init() {
 async function renderProviders() {
   const wrap = document.getElementById('provider-toggles');
   clearChildren(wrap);
-  for (const id of ['claude', 'codex']) {
+  for (const id of ['claude', 'codex', ...API_PROVIDER_IDS]) {
     const label = document.createElement('label');
     label.className = 'opt-toggle';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.dataset.provider = id;
-    label.append(input, document.createTextNode(id === 'claude' ? 'Claude' : 'Codex'));
+    const labelText = id === 'claude' ? 'Claude'
+      : id === 'codex' ? 'Codex'
+        : API_PROVIDER_META[id]?.label || id;
+    label.append(input, document.createTextNode(labelText));
     wrap.appendChild(label);
   }
+}
+
+async function renderApiCredentials() {
+  const wrap = document.getElementById('api-credentials');
+  const statusWrap = document.getElementById('apiCredentialsStatus');
+  if (!wrap) return;
+  const statuses = await getApiCredentialStatus();
+  clearChildren(wrap);
+  const configured = API_PROVIDER_IDS.filter((id) => statuses[id]?.configured).length;
+  if (statusWrap) {
+    statusWrap.textContent = configured
+      ? `${configured} official API credential${configured === 1 ? '' : 's'} configured locally.`
+      : 'No official API credentials configured. Web usage tracking remains available without them.';
+    statusWrap.className = `opt-callout ${configured ? 'opt-callout--good' : ''}`;
+  }
+
+  for (const id of API_PROVIDER_IDS) {
+    const meta = API_PROVIDER_META[id];
+    const card = document.createElement('article');
+    card.className = 'api-credential';
+    const head = document.createElement('div');
+    head.className = 'api-credential__head';
+    const title = document.createElement('strong');
+    title.textContent = meta.label;
+    const docs = document.createElement('a');
+    docs.href = meta.docsUrl;
+    docs.target = '_blank';
+    docs.rel = 'noreferrer';
+    docs.textContent = 'Official docs';
+    head.append(title, docs);
+    const hint = document.createElement('p');
+    hint.className = 'api-credential__hint';
+    hint.textContent = meta.hint;
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.placeholder = meta.placeholder;
+    input.dataset.apiProvider = id;
+    input.setAttribute('aria-label', `${meta.credentialLabel} value`);
+    const actions = document.createElement('div');
+    actions.className = 'api-credential__actions';
+    actions.append(
+      apiButton('save', id, 'Save key'),
+      apiButton('refresh', id, 'Save and refresh'),
+      apiButton('revoke', id, 'Revoke locally', 'opt-btn--quiet'),
+    );
+    const credentialStatus = document.createElement('p');
+    credentialStatus.className = 'api-credential__status';
+    credentialStatus.textContent = statuses[id]?.configured
+      ? 'Configured locally. The key value is never shown again.'
+      : 'Not configured.';
+    credentialStatus.dataset.apiStatus = id;
+    card.append(head, hint, input, actions, credentialStatus);
+    wrap.appendChild(card);
+  }
+}
+
+function apiButton(action, provider, text, extraClass = '') {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `opt-btn ${extraClass}`.trim();
+  button.dataset.apiAction = action;
+  button.dataset.apiProvider = provider;
+  button.textContent = text;
+  return button;
 }
 
 async function renderRows() {
@@ -217,6 +291,42 @@ function bindHandlers() {
     }
     if (runtime?.sendMessage) {
       sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
+    }
+  });
+
+  document.getElementById('api-credentials').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-api-action]');
+    if (!button) return;
+    const provider = button.dataset.apiProvider;
+    const action = button.dataset.apiAction;
+    const input = document.querySelector(`[data-api-provider="${provider}"][type="password"]`);
+    button.disabled = true;
+    try {
+      if (action === 'save' || action === 'refresh') {
+        const value = input?.value?.trim() || '';
+        if (!value) {
+          flash('Enter an API key first', 'bad');
+          return;
+        }
+        await saveApiCredential(provider, value);
+        if (input) input.value = '';
+        await renderApiCredentials();
+        if (action === 'refresh') await refreshApiProviderData();
+        else flash(`${API_PROVIDER_META[provider]?.label || provider} key saved`);
+      } else if (action === 'revoke') {
+        await removeApiCredential(provider);
+        const state = await loadState();
+        state.snapshot.providers[provider] = null;
+        await saveState(state);
+        await renderApiCredentials();
+        await renderRows();
+        await renderDiagnostics();
+        flash(`${API_PROVIDER_META[provider]?.label || provider} key revoked`);
+      }
+    } catch (error) {
+      flash(`API credential update failed: ${error?.message || 'unknown error'}`, 'bad');
+    } finally {
+      button.disabled = false;
     }
   });
 
@@ -400,8 +510,9 @@ export async function renderDiagnostics() {
   const diag = buildDiagnostics(state, usage);
   clearChildren(wrap);
   addDiagnostic(wrap, 'Snapshot', diag.snapshot);
-  addDiagnostic(wrap, 'Claude', diag.providers.claude.summary, diag.providers.claude.ok ? 'good' : 'bad');
-  addDiagnostic(wrap, 'Codex', diag.providers.codex.summary, diag.providers.codex.ok ? 'good' : 'bad');
+  for (const [provider, providerDiag] of Object.entries(diag.providers)) {
+    addDiagnostic(wrap, providerLabel(provider), providerDiag.summary, providerDiag.ok ? 'good' : 'bad');
+  }
   addDiagnostic(wrap, 'Rows', diag.rows);
   addDiagnostic(wrap, 'Appearance', `${diag.settings.theme}; warn ${diag.settings.thresholds.warnAt}% / danger ${diag.settings.thresholds.dangerAt}%`);
   addDiagnostic(wrap, 'History', diag.history);
@@ -514,10 +625,10 @@ export function buildDiagnostics(state, usage = {}) {
   return {
     version: VERSION,
     snapshot: state.snapshot?.fetchedAtISO ? `Updated ${formatAgo(state.snapshot.fetchedAtISO)}` : 'No successful snapshot yet',
-    providers: {
-      claude: providerDiagnostic('claude', providers.claude),
-      codex: providerDiagnostic('codex', providers.codex),
-    },
+    providers: Object.fromEntries(Object.entries(providers).map(([provider, snapshot]) => [
+      provider,
+      providerDiagnostic(provider, snapshot),
+    ])),
     rows: `${rows} discovered rows; ${visibleRowCount(state)} visible by current settings`,
     settings: {
       refreshMinutes: settings.refreshMinutes,
@@ -599,7 +710,26 @@ function sourceLabel(source) {
   if (source === 'fetch') return 'fetch source';
   if (source === 'stream') return 'streamed message-limit source';
   if (source === 'headers') return 'rate-limit headers source';
+  if (source === 'api-key') return 'official API key source';
   return `${source} source`;
+}
+
+function providerLabel(provider) {
+  if (provider === 'claude') return 'Claude';
+  if (provider === 'codex') return 'Codex';
+  return API_PROVIDER_META[provider]?.label || provider;
+}
+
+async function refreshApiProviderData() {
+  try {
+    await sendRuntimeMessage({ type: 'aut/refresh' });
+    await renderRows();
+    await renderDiagnostics();
+    await loadCurrent();
+    flash('Official API data refreshed');
+  } catch (error) {
+    flash(`API refresh failed: ${error?.message || 'unknown error'}`, 'bad');
+  }
 }
 
 function shortId(id) {

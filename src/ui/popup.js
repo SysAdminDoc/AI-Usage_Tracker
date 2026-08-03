@@ -9,6 +9,7 @@ import {
   setSafeAttribute,
 } from '../lib/dom.js';
 import { createI18n } from '../lib/i18n.js';
+import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
@@ -65,8 +66,8 @@ export async function render() {
   if (overview) dashboard.appendChild(renderOverview(overview, i18n));
 
   let drew = false;
-  for (const provider of ['claude', 'codex']) {
-    if (!settings.showProviders[provider]) continue;
+  for (const provider of providerKeys(snapshot)) {
+    if (settings.showProviders?.[provider] === false) continue;
     const ps = snapshot && snapshot.providers ? snapshot.providers[provider] : null;
     if (!ps) continue;
     if (!ps.ok) {
@@ -184,34 +185,38 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
   const offset = RING_C * (1 - remaining / 100);
-  const ring = createElement('div', { className: 'popup-bucket__ring' });
-  const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 52 52', style: 'transform:rotate(-90deg);' } });
-  appendChildren(svg, [
-    createSvgElement('circle', {
-      attrs: { cx: 26, cy: 26, r: RING_R, fill: 'none', stroke: 'var(--aut-surface0)', 'stroke-width': 4 },
-    }),
-    createSvgElement('circle', {
-      attrs: {
-        cx: 26,
-        cy: 26,
-        r: RING_R,
-        fill: 'none',
-        stroke: ringColor(percent, thresholds),
-        'stroke-width': 4,
-        'stroke-dasharray': RING_C,
-        'stroke-dashoffset': offset,
-        'stroke-linecap': 'round',
-      },
-    }),
-  ]);
-  appendChildren(ring, [
-    svg,
-    createElement('div', {
-      className: 'popup-bucket__remaining',
-      text: i18n.formatPercent(remaining),
-    }),
-  ]);
-  row.appendChild(ring);
+  if (b.metric) {
+    row.appendChild(renderMetric(b.metric, i18n));
+  } else {
+    const ring = createElement('div', { className: 'popup-bucket__ring' });
+    const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 52 52', style: 'transform:rotate(-90deg);' } });
+    appendChildren(svg, [
+      createSvgElement('circle', {
+        attrs: { cx: 26, cy: 26, r: RING_R, fill: 'none', stroke: 'var(--aut-surface0)', 'stroke-width': 4 },
+      }),
+      createSvgElement('circle', {
+        attrs: {
+          cx: 26,
+          cy: 26,
+          r: RING_R,
+          fill: 'none',
+          stroke: ringColor(percent, thresholds),
+          'stroke-width': 4,
+          'stroke-dasharray': RING_C,
+          'stroke-dashoffset': offset,
+          'stroke-linecap': 'round',
+        },
+      }),
+    ]);
+    appendChildren(ring, [
+      svg,
+      createElement('div', {
+        className: 'popup-bucket__remaining',
+        text: i18n.formatPercent(remaining),
+      }),
+    ]);
+    row.appendChild(ring);
+  }
 
   const main = createElement('div', { className: 'popup-bucket__main' });
   const subClass = b.resetISO ? 'popup-bucket__sub' : 'popup-bucket__sub popup-bucket__sub--missing';
@@ -251,11 +256,12 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
 function buildOverview(snapshot, settings, thresholds, i18n = createI18n('en')) {
   const buckets = [];
   const providers = snapshot?.providers || {};
-  for (const provider of ['claude', 'codex']) {
+  for (const provider of providerKeys(snapshot)) {
     if (settings?.showProviders?.[provider] === false) continue;
     const ps = providers[provider];
     if (!ps?.ok) continue;
     for (const bucket of ps.buckets || []) {
+      if (bucket.metric) continue;
       if (settings?.showRows?.[bucket.id] === false) continue;
       const percent = Math.max(0, Math.min(100, Number(bucket.percentUsed) || 0));
       buckets.push({ provider, bucket, percent });
@@ -366,11 +372,13 @@ function renderError(provider, error, i18n = createI18n('en')) {
   ]);
   const errorBox = createElement('div', { className: 'popup-error' });
   const waiting = error === 'shell-response';
-  const openButton = createElement('button', {
-    className: 'aut-link-btn',
-    text: i18n.t(provider === 'claude' ? 'empty.openClaude' : 'empty.openCodex'),
-    attrs: { type: 'button', 'data-provider': provider },
-  });
+  const openButton = ['claude', 'codex'].includes(provider)
+    ? createElement('button', {
+      className: 'aut-link-btn',
+      text: i18n.t(provider === 'claude' ? 'empty.openClaude' : 'empty.openCodex'),
+      attrs: { type: 'button', 'data-provider': provider },
+    })
+    : null;
   appendChildren(errorBox, [
     createElement('div', {
       className: 'popup-error__title',
@@ -381,14 +389,15 @@ function renderError(provider, error, i18n = createI18n('en')) {
         ? i18n.t('empty.body')
         : (error || 'Unknown error'),
     }),
-    createElement('div', { className: 'popup-error__actions', children: [openButton] }),
+    openButton ? createElement('div', { className: 'popup-error__actions', children: [openButton] }) : null,
   ]);
   appendChildren(wrap, [heading, errorBox]);
-  openButton.addEventListener('click', () => openAnalytics(provider));
+  if (openButton) openButton.addEventListener('click', () => openAnalytics(provider));
   return wrap;
 }
 
 function humanBucketLabel(b) {
+  if (b.kind === 'api') return b.label || 'API usage';
   if (b.kind === 'session') return 'Current session (5 hr)';
   if (b.kind === '5h')      return b.model === 'all' ? '5-hour limit' : `${titleModel(b.model)} (5 hr)`;
   if (b.kind === 'weekly')  return b.model === 'all' ? 'Weekly limit' : `${titleModel(b.model)} (weekly)`;
@@ -421,7 +430,49 @@ function sourceLabel(source) {
   if (source === 'fetch') return 'Fetch';
   if (source === 'stream') return 'Stream';
   if (source === 'headers') return 'Headers';
+  if (source === 'api-key') return 'API key';
   return String(source).slice(0, 12);
+}
+
+function providerKeys(snapshot) {
+  const present = Object.keys(snapshot?.providers || {});
+  return [...new Set(['claude', 'codex', ...API_PROVIDER_IDS, ...present])];
+}
+
+function renderMetric(metric, i18n) {
+  const wrap = createElement('div', { className: `popup-bucket__metric popup-bucket__metric--${metric.kind || 'unknown'}` });
+  appendChildren(wrap, [
+    createElement('strong', { text: formatMetricValue(metric, i18n) }),
+    createElement('span', { text: formatMetricDetail(metric, i18n) }),
+  ]);
+  return wrap;
+}
+
+function formatMetricValue(metric, i18n) {
+  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
+  if (metric.kind === 'currency') {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
+      .format(Number(metric.costUSD) || 0);
+  }
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(metric.totalTokens) || 0)} tokens`;
+}
+
+function formatMetricDetail(metric, i18n) {
+  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
+  const number = (value) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(value) || 0);
+  const parts = [];
+  if (metric.inputTokens != null) parts.push(`${number(metric.inputTokens)} in`);
+  if (metric.outputTokens != null) parts.push(`${number(metric.outputTokens)} out`);
+  if (metric.cachedInputTokens != null) parts.push(`${number(metric.cachedInputTokens)} cached`);
+  if (metric.requests != null) parts.push(`${number(metric.requests)} requests`);
+  if (metric.costUSD != null && metric.kind !== 'currency') {
+    parts.push(new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
+      .format(Number(metric.costUSD) || 0));
+  }
+  if (metric.webSearchRequests != null && Number(metric.webSearchRequests) > 0) {
+    parts.push(`${number(metric.webSearchRequests)} web searches`);
+  }
+  return parts.join(' · ') || 'Month to date';
 }
 
 function applyTheme(settings = {}) {

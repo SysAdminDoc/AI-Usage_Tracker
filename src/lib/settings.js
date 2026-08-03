@@ -31,6 +31,8 @@ export function normalizeSettings(input = {}) {
   next.showProviders = {
     claude: next.showProviders?.claude !== false,
     codex: next.showProviders?.codex !== false,
+    'anthropic-api': next.showProviders?.['anthropic-api'] !== false,
+    'openai-api': next.showProviders?.['openai-api'] !== false,
   };
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
@@ -65,7 +67,11 @@ export function defaultRowEnabled(rowId) {
 }
 
 function providerLabel(provider) {
-  return provider === 'claude' ? 'Claude' : provider === 'codex' ? 'Codex' : String(provider);
+  if (provider === 'claude') return 'Claude';
+  if (provider === 'codex') return 'Codex';
+  if (provider === 'anthropic-api') return 'Anthropic API';
+  if (provider === 'openai-api') return 'OpenAI API';
+  return String(provider);
 }
 
 function clampInteger(value, min, max, fallback) {

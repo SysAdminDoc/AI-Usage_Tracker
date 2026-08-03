@@ -92,7 +92,9 @@
 
   "host_permissions": [
     "https://claude.ai/*",
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*"
   ],
 
   "web_accessible_resources": [

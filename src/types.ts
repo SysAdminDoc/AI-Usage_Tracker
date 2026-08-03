@@ -1,4 +1,4 @@
-export type ProviderId = 'claude' | 'codex';
+export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api';
 
 export type UsageSource = 'api' | 'dom' | 'html' | 'live' | 'fetch' | 'stream' | 'headers' | string;
 
@@ -10,6 +10,19 @@ export interface QuotaBucket {
   percentUsed: number;
   resetISO: string | null;
   rawResetText?: string | null;
+  metric?: {
+    kind: 'tokens' | 'currency' | string;
+    totalTokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedInputTokens?: number;
+    cacheReadTokens?: number;
+    cacheCreationTokens?: number;
+    requests?: number;
+    costUSD?: number;
+    [key: string]: number | string | undefined;
+  };
+  dimensions?: Record<string, string | null>;
 }
 
 export interface ProviderSnapshot {
@@ -61,7 +74,7 @@ export interface TrackerSettings {
   refreshMinutes: 1 | 5 | 15 | 30;
   silentTabRefresh: boolean;
   highContrast: boolean;
-  showProviders: Record<ProviderId, boolean>;
+  showProviders: Record<string, boolean>;
   showRows: Record<string, boolean>;
   notifications: NotificationSettings;
   theme: 'mocha' | 'latte' | 'system';

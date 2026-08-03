@@ -20,6 +20,9 @@ import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMes
 import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
+import { loadApiCredential } from './lib/storage.js';
+import { fetchAnthropicUsage } from './providers/anthropic.js';
+import { fetchOpenAIUsage } from './providers/openai.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -98,14 +101,28 @@ async function reschedule() {
 async function refreshNow({ allowSilentTab = false } = {}) {
   const now = new Date();
   let state = (await loadState()) || defaultState();
+  const [anthropicKey, openAIKey] = await Promise.all([
+    loadApiCredential('anthropic-api'),
+    loadApiCredential('openai-api'),
+  ]);
 
   // 1) Best-effort direct fetch. If either side is SSR'd we get a free win.
-  const [claude, codex] = await Promise.all([
+  const [claude, codex, anthropic, openAI] = await Promise.all([
     fetchClaude({ now }).catch((e) => ({ ok: false, provider: 'claude', error: String(e) })),
     fetchCodex({ now }).catch((e) =>  ({ ok: false, provider: 'codex',  error: String(e) })),
+    anthropicKey ? fetchAnthropicUsage({ apiKey: anthropicKey, now }).catch((e) => ({
+      ok: false, provider: 'anthropic-api', error: 'api-refresh-failed', errorCode: 'anthropic-api.refresh.failed',
+    })) : null,
+    openAIKey ? fetchOpenAIUsage({ apiKey: openAIKey, now }).catch((e) => ({
+      ok: false, provider: 'openai-api', error: 'api-refresh-failed', errorCode: 'openai-api.refresh.failed',
+    })) : null,
   ]);
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
+  if (!anthropicKey) state.snapshot.providers['anthropic-api'] = null;
+  else state = await mergeSnapshot(state, anthropic, { source: 'api-key', now });
+  if (!openAIKey) state.snapshot.providers['openai-api'] = null;
+  else state = await mergeSnapshot(state, openAI, { source: 'api-key', now });
 
   // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
   if (allowSilentTab && state.settings?.silentTabRefresh === true) {

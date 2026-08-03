@@ -1,6 +1,7 @@
 import { render as renderDashboard } from './popup.js';
 import { loadState } from '../lib/storage.js';
 import { clearChildren, createElement } from '../lib/dom.js';
+import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 
 const diagnostics = document.getElementById('sidepanelDiagnostics');
 
@@ -13,12 +14,15 @@ async function renderSidepanelDiagnostics() {
   clearChildren(diagnostics);
   const snapshot = state.snapshot || {};
   addDiagnostic('Snapshot', snapshot.fetchedAtISO ? formatAge(snapshot.fetchedAtISO) : 'No successful snapshot yet');
-  for (const provider of ['claude', 'codex']) {
+  for (const provider of ['claude', 'codex', ...API_PROVIDER_IDS]) {
     const ps = snapshot.providers?.[provider];
     const source = ps?.lastSuccessSource || ps?.source || 'no source';
     const freshness = ps?.lastSuccessISO ? formatAge(ps.lastSuccessISO) : 'never successful';
     const code = ps?.lastErrorCode ? ` · ${ps.lastErrorCode}` : '';
-    addDiagnostic(provider === 'claude' ? 'Claude' : 'Codex', `${source} · ${freshness}${ps?.stale ? ' · stale' : ''}${code}`);
+    const label = provider === 'claude' ? 'Claude'
+      : provider === 'codex' ? 'Codex'
+        : API_PROVIDER_META[provider]?.label || provider;
+    addDiagnostic(label, `${source} · ${freshness}${ps?.stale ? ' · stale' : ''}${code}`);
   }
   addDiagnostic('History', `${state.history?.length || 0} local samples`);
   addDiagnostic('Storage', 'Local only');

@@ -27,6 +27,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - Missed renewal/reset and daily-briefing alerts recover during a bounded late-refresh grace period, and the extension schedules the next exact notification deadline when one is known.
 - **Per-row visibility toggles** — by default shows headline buckets only; turn on per-model rows (GPT-5.3-Codex-Spark, Sonnet only, Claude Design, etc.) in Settings.
 - **API-first usage collection** — reads Claude `api/organizations/{orgId}/usage` and Codex `backend-api/wham/usage` for actual usage windows, with Claude stream/header updates and opt-in page-scraper fallback tabs.
+- **Official API analytics (optional)** — the extension can store an Anthropic admin key or OpenAI organization admin key locally, then show month-to-date token usage and OpenAI Costs data separately from Claude Web and Codex Web quota windows.
 - **Claude context counter** — estimates the visible conversation plus draft prompt against the 200k context window and shows a compact progress bar in the widget.
 - **Claude cache timer** — starts a five-minute follow-up countdown from streamed `message_limit` events, with explicit cache expiry support if Claude publishes it.
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
@@ -104,9 +105,10 @@ The default extension packages use this narrow, local-first permission boundary:
 | `tabs` | Open provider analytics pages and, only when explicitly enabled, a hidden fallback tab | The extension does not read arbitrary tabs or cookies. |
 | `sidePanel` | Provide the optional persistent Chrome dashboard | The panel reads the same local snapshot as the popup; it adds no provider or network access. |
 | `claude.ai` and `chatgpt.com` host access | Fetch or scrape usage from signed-in first-party pages | Requests stay between the extension and provider origins; no relay server is used. |
+| `api.anthropic.com` and `api.openai.com` host access | Optional direct requests after you configure an official admin key | Keys are stored in a separate local-only record; they are never included in settings or diagnostics exports. |
 | `nativeMessaging` | Optional QuotaGlass desktop mirror only | Missing from default packages; the bridge profile sends a minimal redacted quota envelope to the locally installed companion. |
 
-The userscript has the equivalent two-provider `@match`/`@connect` scope and stores state through the userscript manager. It cannot refresh while no provider tab is open. No tracker path stores provider passwords, cookies, or raw prompt text. Provider snapshots may retain first-party identifiers needed for diagnostics; the optional bridge explicitly excludes account/org identifiers. The Claude context counter reads visible page text locally to estimate context usage; it does not transmit that text.
+The userscript has the equivalent two-provider `@match` scope and first-party/API `@connect` declarations, but the API-key settings surface is currently extension-only. It cannot refresh while no provider tab is open. No tracker path stores provider passwords, cookies, or raw prompt text. Provider snapshots may retain first-party identifiers needed for diagnostics; the optional bridge explicitly excludes account/org identifiers. The Claude context counter reads visible page text locally to estimate context usage; it does not transmit that text.
 
 To revoke access, remove the extension or userscript from the browser. Before removal, use Settings → History → Export CSV if you want a portable history copy, then use the clear-history control. The optional QuotaGlass bridge can be excluded simply by using the default build; uninstalling the companion stops its local pipe.
 
@@ -129,7 +131,7 @@ The host matrix is checked at test and build time: wildcard content scripts cove
 
 | Product | Strong fit | Honest tradeoff |
 | --- | --- | --- |
-| AI Usage Tracker | Browser-first Claude + Codex quota windows, local history, reset/threshold alerts, and an optional userscript | It intentionally covers fewer providers and does not provide cloud sync, team reporting, or API-spend accounting yet. |
+| AI Usage Tracker | Browser-first Claude + Codex quota windows, optional official Anthropic/OpenAI API analytics, local history, reset/threshold alerts, and an optional userscript | It intentionally keeps API analytics local and does not provide cloud sync or team reporting. |
 | [Claude Counter](https://github.com/she-llac/claude-counter) | Lightweight Claude bars, reset countdowns, cache timing, and streamed usage | Primarily Claude-focused; page/API schema drift still needs maintenance in any tracker. |
 | [Claude Usage Extension](https://github.com/lugia19/Claude-Usage-Extension) | Broad Claude accounting, tokenizer/API estimates, and wider distribution materials | Its broader accounting surface is a different privacy and complexity tradeoff from this tracker’s quota-window focus. |
 | [CodexBar](https://github.com/steipete/CodexBar) | Multi-provider status and desktop/menu-bar diagnostics | A desktop-first workflow is better for system-wide status; this project stays in the browser where provider sessions already exist. |
@@ -140,7 +142,9 @@ The host matrix is checked at test and build time: wildcard content scripts cove
 
 **Does the tracker upload prompts or usage data?** No. The default build has no telemetry or remote relay. It makes first-party requests to Claude/ChatGPT using the browser session, then stores normalized state locally. The optional bridge is a separate local native-messaging build and receives only its documented redacted display envelope.
 
-**Does it save API keys?** No API-key provider path is included in this release. Do not paste provider secrets into settings or diagnostics.
+**Does it save API keys?** The extension can save optional Anthropic and OpenAI organization admin keys in a separate local-only storage record. The values are never displayed again and are omitted from settings/diagnostics exports. Treat browser extension storage as convenient local storage, not a password vault; revoke the key at the provider when you no longer need it.
+
+**What does the API analytics section show?** Anthropic shows month-to-date token totals grouped by model/workspace. OpenAI shows completion token totals grouped by model/project/API-key ID plus the official Costs response grouped by project/API-key ID. These are API-account metrics, not the flat subscription quota rings for Claude Web or Codex Web.
 
 **Why is Firefox installation different?** The downloadable XPI is unsigned for self-hosted development. Firefox Release requires a signed store channel; Developer Edition/Nightly can use the documented development setting.
 

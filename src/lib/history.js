@@ -15,7 +15,10 @@ export function recordSnapshot(history, snapshot, {
     const ps = snapshot.providers[provider];
     if (!ps || !ps.ok) continue;
     for (const bucket of ps.buckets) {
-      if (!bucket?.id) continue;
+      // API providers expose token/cost metrics, not a bounded quota
+      // percentage. Keep those metrics in the snapshot without creating
+      // misleading burn-rate history samples.
+      if (!bucket?.id || bucket.kind === 'api' || bucket.metric) continue;
       next.push({ ts, bucketId: bucket.id, percentUsed: clampPercent(bucket.percentUsed) });
     }
   }

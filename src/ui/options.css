@@ -104,6 +104,61 @@ html, body {
   gap: 8px;
 }
 
+.api-credential-grid {
+  display: grid;
+  gap: 10px;
+}
+.api-credential {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--aut-row-bg);
+  border: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-md);
+}
+.api-credential__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.api-credential__head strong {
+  color: var(--aut-text);
+  font-size: 12px;
+}
+.api-credential__head a {
+  color: var(--aut-sapphire);
+  font-size: 11px;
+}
+.api-credential__hint,
+.api-credential__status {
+  margin: 0;
+  color: var(--aut-subtext0);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.api-credential__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.api-credential input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: var(--aut-text);
+  background: var(--aut-surface0);
+  border: 1px solid var(--aut-border);
+  border-radius: var(--aut-r-sm);
+  font: inherit;
+  font-size: 12px;
+}
+.api-credential input:focus-visible {
+  outline: 2px solid var(--aut-focus);
+  outline-offset: 2px;
+}
+
 .opt-toggle {
   display: flex;
   align-items: center;

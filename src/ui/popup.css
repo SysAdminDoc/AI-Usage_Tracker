@@ -126,6 +126,29 @@ html, body {
 .popup-bucket__ring {
   width: 52px; height: 52px;
 }
+.popup-bucket__metric {
+  width: 52px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  color: var(--aut-text);
+  font-variant-numeric: tabular-nums;
+}
+.popup-bucket__metric strong {
+  font-size: 10px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.popup-bucket__metric span {
+  color: var(--aut-overlay1);
+  font-size: 8px;
+  line-height: 1.1;
+}
+.popup-bucket__metric--currency strong {
+  color: var(--aut-green);
+}
 .popup-bucket__remaining {
   margin-top: -36px;
   text-align: center;

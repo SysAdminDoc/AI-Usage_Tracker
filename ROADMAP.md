@@ -13,20 +13,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: README shows current widget, popup dashboard, options, first-run, and degraded/error states from this product.
   Complexity: S
 
-- [ ] P2 — Anthropic API-key provider path
-  Why: Official Anthropic analytics endpoints are more store-safe and less schema-fragile than private web endpoints for eligible users.
-  Evidence: Anthropic Enterprise Analytics API and Claude Code usage report docs.
-  Touches: `src/providers`, `src/ui/options.js`, `src/ui/popup.js`, `src/lib/storage.js`
-  Acceptance: Users can add an Anthropic admin/API key locally and view API usage separately from Claude Web usage.
-  Complexity: L
-
-- [ ] P2 — OpenAI API-key provider path
-  Why: OpenAI's Usage and Costs APIs can provide official per-model/project/API-key data for developer spend monitoring.
-  Evidence: OpenAI Usage API docs; CostGoat and OpenUsage emphasize OpenAI cost visibility.
-  Touches: `src/providers`, `src/ui/options.js`, `src/ui/popup.js`, `src/lib/storage.js`
-  Acceptance: Users can add an OpenAI API key locally and see usage/cost grouped by model/project/API key.
-  Complexity: L
-
 - [ ] P2 — Multi-profile manager
   Why: Users with personal/work Claude or ChatGPT accounts need explicit profile separation without account-switch automation.
   Evidence: Existing roadmap research; multi-account tools demonstrate demand, while auto-switching remains rejected.
@@ -188,9 +174,3 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: The app records cache-window reuse events locally and shows a 24-hour/7-day cache reuse ratio with clear limitations.
   Complexity: M
 
-- [ ] P3 — Official API provider auth boundary
-  Why: Public API-key providers need a consistent secret storage, redaction, and revocation model before provider expansion scales.
-  Evidence: OpenAI Usage API, Anthropic Enterprise Analytics API, README local-only claim.
-  Touches: `src/lib/storage.js`, provider modules, options auth UI, diagnostics redaction
-  Acceptance: API keys are stored locally, never included in diagnostics/exports, can be revoked per provider, and use a shared auth-status contract.
-  Complexity: M

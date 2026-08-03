@@ -21,6 +21,7 @@
 - Chrome 114+ packages now include an optional persistent side-panel dashboard with the current quota view, local diagnostics, and a full-settings link; Firefox and userscript packages remain unchanged.
 - A strict TypeScript model boundary now checks provider snapshots, settings, history samples, and storage state guards before tests and builds without changing the existing esbuild runtime shape.
 - Dashboard status strings now use a centralized locale table with English fallback, Spanish/French/German entries, a persisted language setting, and `Intl` formatting for percentages and dates.
+- Optional official Anthropic and OpenAI API provider paths now keep admin keys in a separate local-only store, normalize token/cost reports into metric rows, and redact credentials from settings/diagnostics exports.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

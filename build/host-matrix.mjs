@@ -28,9 +28,13 @@ export async function validateHostMatrix() {
     `https://${claude.apex}/*`,
     `https://${codex.apex}/*`,
   ];
+  const apiPermissions = [
+    'https://api.anthropic.com/*',
+    'https://api.openai.com/*',
+  ];
 
   for (const [target, manifest] of [['chrome', chrome], ['firefox', firefox]]) {
-    assert.deepEqual(manifest.host_permissions, apexPermissions, `${target} host permissions drifted`);
+    assert.deepEqual(manifest.host_permissions, [...apexPermissions, ...apiPermissions], `${target} host permissions drifted`);
     assert.deepEqual(
       manifest.web_accessible_resources?.[0]?.matches,
       apexPermissions,
@@ -44,11 +48,16 @@ export async function validateHostMatrix() {
   }
 
   assert.deepEqual(metadataValues(header, 'match'), generalMatches, 'userscript @match entries drifted');
-  assert.deepEqual(metadataValues(header, 'connect'), [claude.connect, codex.connect], 'userscript @connect entries drifted');
+  assert.deepEqual(metadataValues(header, 'connect'), [
+    claude.connect,
+    codex.connect,
+    'api.anthropic.com',
+    'api.openai.com',
+  ], 'userscript @connect entries drifted');
   for (const host of [claude.apex, codex.apex]) {
     assert.match(readme, new RegExp(host.replace('.', '\\.'), 'i'), `README must name ${host}`);
   }
-  assert.doesNotMatch(readme, /openai\.com/i, 'README must not advertise an unsupported openai.com host');
+  assert.doesNotMatch(readme, /https?:\/\/(?:www\.)?openai\.com/i, 'README must not advertise an unsupported openai.com host');
 
   assert.match(content, /isSupportedHost\(location\.hostname\)/, 'content runtime must use the canonical supported-host predicate');
   assert.match(userscript, /isSupportedHost\(location\.hostname\)/, 'userscript runtime must use the canonical supported-host predicate');

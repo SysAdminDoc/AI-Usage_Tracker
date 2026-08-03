@@ -67,8 +67,29 @@ function providerSupportSummary(snapshot) {
       id: typeof bucket?.id === 'string' ? bucket.id : null,
       percentUsed: Number.isFinite(Number(bucket?.percentUsed)) ? Number(bucket.percentUsed) : null,
       resetISO: bucket?.resetISO || null,
+      metric: sanitizeMetric(bucket?.metric),
+      dimensions: sanitizeDimensions(bucket?.dimensions),
     })),
   };
+}
+
+function sanitizeMetric(metric) {
+  if (!metric || typeof metric !== 'object' || Array.isArray(metric)) return null;
+  const safe = { kind: typeof metric.kind === 'string' ? metric.kind : 'unknown' };
+  for (const key of [
+    'totalTokens', 'inputTokens', 'outputTokens', 'cachedInputTokens',
+    'cacheReadTokens', 'cacheCreationTokens', 'requests', 'webSearchRequests', 'costUSD',
+  ]) {
+    if (Number.isFinite(Number(metric[key]))) safe[key] = Number(metric[key]);
+  }
+  return safe;
+}
+
+function sanitizeDimensions(dimensions) {
+  if (!dimensions || typeof dimensions !== 'object' || Array.isArray(dimensions)) return {};
+  return Object.fromEntries(Object.entries(dimensions)
+    .filter(([, value]) => value != null && value !== '')
+    .map(([key, value]) => [key, redactIdentifier(value)]));
 }
 
 function redactIdentifier(value) {
