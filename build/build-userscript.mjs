@@ -23,6 +23,7 @@ async function main() {
 
   const themeCSS  = await fs.readFile(path.join(SRC, 'ui', 'theme.css'),  'utf8');
   const widgetCSS = await fs.readFile(path.join(SRC, 'ui', 'widget.css'), 'utf8');
+  const optionsCSS = await fs.readFile(path.join(SRC, 'ui', 'options.css'), 'utf8');
   const header    = await fs.readFile(HEADER, 'utf8');
 
   const inlineCss = `
@@ -30,9 +31,11 @@ async function main() {
     var g = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : (typeof window !== 'undefined' ? window : globalThis));
     g.__AUT_THEME_CSS__  = ${JSON.stringify(themeCSS)};
     g.__AUT_WIDGET_CSS__ = ${JSON.stringify(widgetCSS)};
+    g.__AUT_OPTIONS_CSS__ = ${JSON.stringify(optionsCSS)};
     if (typeof globalThis !== 'undefined') {
       globalThis.__AUT_THEME_CSS__  = ${JSON.stringify(themeCSS)};
       globalThis.__AUT_WIDGET_CSS__ = ${JSON.stringify(widgetCSS)};
+      globalThis.__AUT_OPTIONS_CSS__ = ${JSON.stringify(optionsCSS)};
     }
   })();
   `;

@@ -23,9 +23,11 @@ let dragState = null;
 let refreshBusy = false;
 let contextMenuEl = null;
 let hiddenForSession = false;
+let widgetCallbacks = {};
 
 export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
   if (rootEl) return rootEl;
+  widgetCallbacks = { onRefresh, onOpenSettings };
 
   // Detached shadow DOM container so host page CSS can't reach us.
   const host = document.createElement('div');
@@ -53,7 +55,11 @@ export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
 
 export async function refreshWidget({ onRefresh, onOpenSettings } = {}) {
   if (!rootEl) return;
-  await render({ onRefresh, onOpenSettings });
+  widgetCallbacks = {
+    onRefresh: onRefresh || widgetCallbacks.onRefresh,
+    onOpenSettings: onOpenSettings || widgetCallbacks.onOpenSettings,
+  };
+  await render(widgetCallbacks);
 }
 
 async function fetchInlineCSS(relPath) {

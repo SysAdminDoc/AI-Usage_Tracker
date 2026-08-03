@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- A userscript in-page settings modal for provider and quota-row visibility, refresh fallback, theme, thresholds, notifications, and daily briefing time.
+- Pure settings normalization and dynamic quota-row catalog coverage for userscript controls.
+
+### Fixed
+- Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.
+
 ## v0.2.2 - 2026-06-27 - Release hardening
 
 ### Added

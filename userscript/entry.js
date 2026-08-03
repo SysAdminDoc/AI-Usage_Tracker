@@ -12,6 +12,7 @@ import { notify } from '../src/lib/browser.js';
 import { installClaudeMessageLimitInterceptor } from '../src/lib/claude-stream.js';
 import { startClaudeContextCounter } from '../src/lib/context-counter.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from '../src/lib/cache-timer.js';
+import { openInlineSettings as showInlineSettings } from '../src/ui/inline-settings.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 
@@ -198,7 +199,5 @@ async function scheduleNext() {
 
 // Userscript has no options page — open a minimal in-page modal.
 async function openInlineSettings() {
-  const url = 'https://github.com/SysAdminDoc/AI-Usage_Tracker#settings';
-  window.open(url, '_blank');
-  // Future: build a proper in-page modal mirroring options.html.
+  await showInlineSettings({ onSaved: () => refreshWidget() });
 }

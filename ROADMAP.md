@@ -5,13 +5,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Existing Open Items
 
 ### P1
-- [ ] P1 — Userscript in-page settings modal
-  Why: The userscript currently cannot configure the product without leaving the page.
-  Evidence: `userscript/entry.js` has a stubbed `openInlineSettings()` path; Tampermonkey and Violentmonkey expose GM storage/menu APIs.
-  Touches: `userscript/entry.js`, `src/ui/options.js`, `src/styles/theme.css`
-  Acceptance: Userscript users can change rows, theme, thresholds, notifications, and fallback behavior in an in-page modal persisted through GM storage.
-  Complexity: M
-
 - [ ] P1 — Clear and export history
   Why: Local-only history needs explicit user control before retention, migration, or pruning work lands.
   Evidence: `src/lib/history.js` stores rolling samples; OpenUsage, CodexBar, and Tokens 4 Breakfast all expose export surfaces.
