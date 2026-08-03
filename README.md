@@ -41,7 +41,7 @@ The widget, popup, options page, and userscript settings support keyboard focus,
 
 ## Install
 
-### Chrome / Edge / Brave / any Chromium 109+
+### Chrome / Edge / Brave / any Chromium 111+
 
 1. Download `AI-Usage-Tracker-chrome-v0.2.2.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Unzip it anywhere.
@@ -77,6 +77,16 @@ Userscript caveats vs. extension:
 Release downloads include `SHA256SUMS.txt` for verifying the Chrome ZIP, Firefox XPI, and userscript assets.
 
 Default extension packages do not request the optional `nativeMessaging` permission. QuotaGlass users who want the local desktop mirror can build the explicitly separated bridge channel with `npm run build:bridge`; it produces `AI-Usage-Tracker-chrome-bridge-v0.2.2.zip` and `ai-usage-tracker-firefox-bridge-v0.2.2.xpi` with the companion permission and no other tracking behavior changes.
+
+## Browser compatibility
+
+| Target | Supported floor | Notes |
+| --- | --- | --- |
+| Chrome, Edge, Brave, and other Chromium browsers | 111+ | MV3 extension; uses local storage, alarms, notifications, tabs, and runtime messaging. |
+| Firefox | 115+ | MV3 extension; the manifest declares `strict_min_version` 115. |
+| Userscript managers | Chrome/Chromium 111+ or Firefox 115+ | Requires a modern manager with `GM.getValue`/`GM.setValue` or legacy equivalents; notification delivery also requires the manager API or page notifications. |
+
+The release build checks this matrix against both extension manifests, userscript metadata, README copy, and the browser adapter’s API surface before packaging.
 
 ## Permissions and data
 

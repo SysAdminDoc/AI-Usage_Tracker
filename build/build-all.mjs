@@ -3,6 +3,7 @@ import { buildExtension } from './build-extension.mjs';
 import { clean, DIST } from './common.mjs';
 import { validateReleaseProvenance, writeReleaseChecksums } from './release-provenance.mjs';
 import { validateHostMatrix } from './host-matrix.mjs';
+import { validateRuntimeMatrix } from './runtime-matrix.mjs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   await validateHostMatrix();
+  await validateRuntimeMatrix();
   await validateReleaseProvenance();
   await clean(DIST);
 

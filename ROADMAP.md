@@ -215,13 +215,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Copy/export diagnostics includes version, manifest channel, permissions, provider freshness/source/error codes, storage usage, and redacted identifiers.
   Complexity: M
 
-- [ ] P2 — Runtime floor and browser compatibility matrix
-  Why: README, build targets, manifests, and platform API choices do not share one checked compatibility floor.
-  Evidence: README says Chromium 109+, build targets Chrome 111/Firefox 115, Firefox manifest has `strict_min_version`, Chrome manifest lacks `minimum_chrome_version`.
-  Touches: `README.md`, `manifests/chrome.json`, `manifests/firefox.json`, build validation
-  Acceptance: Supported Chrome/Firefox/userscript versions are declared in one matrix and build validation fails when a used API exceeds the documented floor.
-  Complexity: S
-
 ### P3
 - [ ] P3 — Claude cache-hit ratio metric
   Why: Cache timer visibility is useful, but users also need to know whether they are actually reusing cache before it expires.
