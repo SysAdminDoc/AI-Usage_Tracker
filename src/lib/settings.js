@@ -1,5 +1,6 @@
 import { normalizeThresholds } from './countdown.js';
 import { defaultSettings } from './storage.js';
+import { resolveLocale } from './i18n.js';
 
 export const KNOWN_ROWS = [
   { id: 'claude-session', label: 'Claude - Current session' },
@@ -26,6 +27,7 @@ export function normalizeSettings(input = {}) {
     : 5;
   next.silentTabRefresh = next.silentTabRefresh === true;
   next.highContrast = next.highContrast === true;
+  next.locale = resolveLocale(next.locale);
   next.showProviders = {
     claude: next.showProviders?.claude !== false,
     codex: next.showProviders?.codex !== false,

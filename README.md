@@ -32,6 +32,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **Redacted support bundle** — export version, channel, permission, freshness, source, error-code, and storage evidence without history, raw errors, cookies, prompts, or full identifiers.
 - **Premium settings controls** — compact section navigation, theme selection, configurable warn/danger visual thresholds, notification snooze, and local diagnostics.
+- **Locale-aware dashboard** — English, Spanish, French, and German labels plus `Intl` percent, date, and relative-time formatting; add another locale in the string table without changing render logic.
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
 - **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.

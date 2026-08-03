@@ -412,6 +412,7 @@ export function defaultSettings() {
     refreshMinutes: 5,
     silentTabRefresh: false,
     highContrast: false,
+    locale: 'en',
     showProviders: { claude: true, codex: true },
     showRows: {     // headline buckets default ON; per-model rows default OFF
       'claude-session': true,

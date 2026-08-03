@@ -18,6 +18,7 @@ import {
   normalizeThemeValue,
 } from '../lib/settings.js';
 import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
+import { SUPPORTED_LOCALES, localeLabel } from '../lib/i18n.js';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
 const NOTIFICATION_OPTIONS = [
@@ -354,6 +355,7 @@ function buildControls(body, state) {
   }));
   body.appendChild(buildSection('Appearance', 'Choose the surface theme and visual warning thresholds.', (section) => {
     controls.theme = addSelectRow(section, 'Theme', [['mocha', 'Mocha dark'], ['latte', 'Latte light'], ['system', 'Follow system']], 'theme');
+    controls.locale = addSelectRow(section, 'Language', SUPPORTED_LOCALES.map((locale) => [locale, localeLabel(locale)]), 'locale');
     controls.highContrast = addCheckboxRow(section, 'Use high-contrast colors and non-color status cues', 'highContrast');
     const thresholdWrap = document.createElement('div');
     thresholdWrap.className = 'aut-inline-settings__thresholds';
@@ -683,6 +685,7 @@ function applyDraft(controls, settings) {
   controls.silentTabRefresh.checked = settings.silentTabRefresh === true;
   controls.highContrast.checked = settings.highContrast === true;
   controls.theme.value = normalizeThemeValue(settings.theme);
+  controls.locale.value = settings.locale || 'en';
   controls.dailyBriefingHour.value = String(settings.notifications.dailyBriefingHour);
   controls.history.retentionDays.value = String(settings.historyRetentionDays);
   controls.warnAt.value = String(settings.thresholds.warnAt);
@@ -699,6 +702,7 @@ function readDraft(controls, prior) {
   next.silentTabRefresh = controls.silentTabRefresh.checked;
   next.highContrast = controls.highContrast.checked;
   next.theme = controls.theme.value;
+  next.locale = controls.locale.value;
   next.notifications.dailyBriefingHour = Number(controls.dailyBriefingHour.value);
   next.historyRetentionDays = Number(controls.history.retentionDays.value);
   next.thresholds = {

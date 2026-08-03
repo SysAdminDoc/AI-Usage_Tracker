@@ -99,6 +99,7 @@ async function loadCurrent() {
   document.getElementById('highContrast').checked = s.highContrast === true;
   document.getElementById('dailyBriefingHour').value = String(notifications.dailyBriefingHour ?? 8);
   document.getElementById('theme').value = normalizeThemeValue(s.theme);
+  document.getElementById('locale').value = s.locale || 'en';
   const thresholds = normalizeThresholds(s.thresholds);
   document.getElementById('warnAt').value = String(thresholds.warnAt);
   document.getElementById('dangerAt').value = String(thresholds.dangerAt);
@@ -196,6 +197,8 @@ function bindHandlers() {
     } else if (t.id === 'theme') {
       s.theme = t.value;
       applyTheme(s);
+    } else if (t.id === 'locale') {
+      s.locale = t.value;
     } else if (t.id === 'warnAt' || t.id === 'dangerAt') {
       s.thresholds = readThresholdControls(t.id);
     } else {

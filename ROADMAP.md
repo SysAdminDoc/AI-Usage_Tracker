@@ -27,13 +27,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Users can add an OpenAI API key locally and see usage/cost grouped by model/project/API key.
   Complexity: L
 
-- [ ] P2 — i18n string table
-  Why: Locale-specific date/time/percent formatting and extractable strings are needed before adding more user-facing settings and providers.
-  Evidence: CodexBar and hamed-elfayome tracker expose multi-language UX; current strings are inline across UI files.
-  Touches: `src/ui/*.js`, `userscript/entry.js`, `src/lib/i18n.js`
-  Acceptance: English strings are centralized and UI dates/percentages use `Intl`; at least three additional locales can be added without touching render logic.
-  Complexity: M
-
 - [ ] P2 — Multi-profile manager
   Why: Users with personal/work Claude or ChatGPT accounts need explicit profile separation without account-switch automation.
   Evidence: Existing roadmap research; multi-account tools demonstrate demand, while auto-switching remains rejected.

@@ -95,11 +95,11 @@ export function formatCountdown(targetISO, { now = new Date() } = {}) {
 }
 
 // Long-form "Resets Tuesday at 1:00 PM (in 4d 17h)".
-export function formatResetAbsolute(targetISO) {
+export function formatResetAbsolute(targetISO, locale) {
   if (!targetISO) return '—';
   const d = new Date(targetISO);
   const opts = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
-  return d.toLocaleString(undefined, opts);
+  return d.toLocaleString(locale, opts);
 }
 
 // Color ramp for the radial ring based on remaining headroom (percent FREE).
