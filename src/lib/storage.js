@@ -3,6 +3,7 @@
 // (e.g. in unit tests).
 
 import { SUPPORTED_HOSTS } from './hosts.js';
+import { invokeWebExtension } from './browser.js';
 
 const STORE_KEY = 'aut.state.v1';
 
@@ -15,11 +16,11 @@ function pickAdapter() {
     return {
       type: 'webext',
       async get(key) {
-        const r = await ext.local.get(key);
-        return r[key];
+        const r = await invokeWebExtension(ext.local, 'get', [key]);
+        return r?.[key];
       },
       async set(key, value) {
-        await ext.local.set({ [key]: value });
+        await invokeWebExtension(ext.local, 'set', [{ [key]: value }]);
       },
     };
   }

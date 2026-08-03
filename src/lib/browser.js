@@ -7,6 +7,12 @@ export const isUserscript = !isExtension && (typeof GM !== 'undefined' || typeof
 
 const ns = (typeof browser !== 'undefined' && browser.runtime) ? browser : (typeof chrome !== 'undefined' ? chrome : null);
 
+// Firefox exposes promise-returning WebExtension methods through `browser`,
+// while Chrome's callback surface remains the lowest common denominator.
+// Keep this decision at module load so every adapter uses the same namespace
+// and calling convention.
+export const isPromiseStyle = typeof browser !== 'undefined' && !!browser.runtime;
+
 export const runtime = ns ? ns.runtime : null;
 export const tabs = ns ? ns.tabs : null;
 export const alarms = ns ? ns.alarms : null;
@@ -15,23 +21,71 @@ const alarmHandlers = new Map();
 const fallbackTimers = new Map();
 let alarmListenerBound = false;
 
+/**
+ * Invoke a WebExtension method in either its callback or promise form.
+ *
+ * `promiseStyle` is injectable for contract tests and embedded runtimes that
+ * expose a non-standard namespace. Production callers use the module-level
+ * browser-vs-chrome decision by default.
+ */
+export function invokeWebExtension(target, method, args = [], { promiseStyle = isPromiseStyle } = {}) {
+  const fn = target?.[method];
+  if (typeof fn !== 'function') return Promise.reject(new Error(`WebExtension method unavailable: ${method}`));
+
+  if (promiseStyle) {
+    try {
+      return Promise.resolve(fn.apply(target, args));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      callback(value);
+    };
+    const callback = (...values) => {
+      // Chrome requires runtime.lastError to be read inside the callback.
+      const error = target?.runtime?.lastError
+        || (typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null);
+      if (error) finish(reject, error);
+      else finish(resolve, values.length > 1 ? values : values[0]);
+    };
+
+    try {
+      const result = fn.apply(target, [...args, callback]);
+      // A few Chromium implementations return a promise even when a
+      // callback is supplied. Supporting both makes the seam future-proof.
+      if (result && typeof result.then === 'function') {
+        result.then(
+          (value) => finish(resolve, value),
+          (error) => finish(reject, error),
+        );
+      } else if (result !== undefined) {
+        finish(resolve, result);
+      }
+    } catch (error) {
+      finish(reject, error);
+    }
+  });
+}
+
 // chrome.notifications uses callbacks on Chrome, promises on Firefox.
 export async function notify({ title, body, tone = 'info', id }) {
   // Extension path.
   if (ns && ns.notifications && ns.notifications.create) {
-    const iconUrl = ns.runtime.getURL ? ns.runtime.getURL('icons/icon-128.png') : 'icons/icon-128.png';
+    const iconUrl = ns.runtime?.getURL ? ns.runtime.getURL('icons/icon-128.png') : 'icons/icon-128.png';
     try {
-      await new Promise((resolve) => {
-        const args = [id || undefined, {
-          type: 'basic',
-          iconUrl,
-          title,
-          message: body,
-          priority: tone === 'bad' ? 2 : tone === 'warn' ? 1 : 0,
-        }, resolve];
-        // chrome.notifications.create signature handles undefined id gracefully.
-        ns.notifications.create(...args);
-      });
+      await invokeWebExtension(ns.notifications, 'create', [id || undefined, {
+        type: 'basic',
+        iconUrl,
+        title,
+        message: body,
+        priority: tone === 'bad' ? 2 : tone === 'warn' ? 1 : 0,
+      }]);
       return true;
     } catch { /* fall through to web API */ }
   }
@@ -59,7 +113,8 @@ export async function notify({ title, body, tone = 'info', id }) {
 // service-worker death), setInterval in userscripts.
 export function schedule({ name, minutes, onFire }) {
   if (alarms && alarms.create) {
-    alarms.create(name, { periodInMinutes: minutes });
+    invokeWebExtension(alarms, 'create', [name, { periodInMinutes: minutes }])
+      .catch((error) => console.warn('[AUT] alarm schedule failed', error));
     registerAlarmHandler(name, onFire);
     return { type: 'alarm', cancel: () => cancelSchedule(name) };
   }
@@ -75,9 +130,10 @@ export function scheduleAt({ name, when, onFire }) {
   const timestamp = when instanceof Date ? when.getTime() : Number(when);
   if (!Number.isFinite(timestamp)) return { type: 'none', cancel: () => {} };
 
-  cancelSchedule(name);
+  void cancelSchedule(name);
   if (alarms && alarms.create) {
-    alarms.create(name, { when: Math.max(Date.now() + 1_000, timestamp) });
+    invokeWebExtension(alarms, 'create', [name, { when: Math.max(Date.now() + 1_000, timestamp) }])
+      .catch((error) => console.warn('[AUT] one-shot alarm schedule failed', error));
     registerAlarmHandler(name, onFire);
     return { type: 'alarm', cancel: () => cancelSchedule(name) };
   }
@@ -104,25 +160,26 @@ export function cancelSchedule(name) {
     clearTimeout(timer);
     fallbackTimers.delete(name);
   }
-  try {
-    const result = alarms?.clear?.(name);
-    if (result && typeof result.catch === 'function') result.catch(() => {});
-  } catch { /* best effort */ }
+  if (!alarms?.clear) return Promise.resolve(false);
+  return invokeWebExtension(alarms, 'clear', [name]).catch(() => false);
 }
 
 // Send a message between background <-> content <-> popup.
 export function send(message) {
-  if (runtime && runtime.sendMessage) {
-    return runtime.sendMessage(message);
-  }
-  return Promise.resolve(null);
+  if (!runtime?.sendMessage) return Promise.resolve(null);
+  return invokeWebExtension(runtime, 'sendMessage', [message]);
 }
 
 export function onMessage(handler) {
   if (runtime && runtime.onMessage) {
     runtime.onMessage.addListener((msg, sender, sendResponse) => {
-      Promise.resolve(handler(msg, sender)).then(sendResponse);
-      return true; // keep channel open for async response
+      const response = Promise.resolve().then(() => handler(msg, sender));
+      if (isPromiseStyle || typeof sendResponse !== 'function') return response;
+      response.then(sendResponse, (error) => {
+        console.warn('[AUT] message handler failed', error);
+        sendResponse(undefined);
+      });
+      return true; // keep the callback channel open in Chrome
     });
   }
 }

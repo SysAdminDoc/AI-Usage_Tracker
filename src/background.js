@@ -16,7 +16,7 @@ import { fetchCodex }  from './scrapers/codex.js';
 import { loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
 import { deriveNextNotificationAlarm, evaluateRules } from './lib/notify.js';
-import { cancelSchedule, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
+import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
@@ -91,11 +91,7 @@ async function bindAlarm() {
 }
 
 async function reschedule() {
-  if (typeof chrome !== 'undefined' && chrome.alarms) {
-    await new Promise((r) => chrome.alarms.clear(ALARM_NAME, r));
-  } else if (typeof browser !== 'undefined' && browser.alarms) {
-    await browser.alarms.clear(ALARM_NAME);
-  }
+  await cancelSchedule(ALARM_NAME);
   await bindAlarm();
 }
 
@@ -146,13 +142,7 @@ async function silentTabRefresh(provider) {
 
   let tab;
   try {
-    tab = await new Promise((resolve, reject) => {
-      try {
-        const cb = (t) => (chrome.runtime?.lastError ? reject(chrome.runtime.lastError) : resolve(t));
-        const result = ns.create({ url, active: false }, cb);
-        if (result && typeof result.then === 'function') result.then(resolve, reject);
-      } catch (e) { reject(e); }
-    });
+    tab = await invokeWebExtension(ns, 'create', [{ url, active: false }]);
   } catch (e) {
     console.warn('[AUT] silent tab open failed', provider, e);
     return;
@@ -161,9 +151,9 @@ async function silentTabRefresh(provider) {
   // Auto-close after 20s — the content script's stable-snapshot push should
   // have fired well before then.
   setTimeout(() => {
-    try {
-      if (ns.remove && tab && tab.id != null) ns.remove(tab.id);
-    } catch { /* tab may already be closed by the user */ }
+    if (ns.remove && tab && tab.id != null) {
+      invokeWebExtension(ns, 'remove', [tab.id]).catch(() => {});
+    }
   }, 20_000);
 }
 
@@ -312,7 +302,7 @@ async function openAnalyticsTabs(which = 'both') {
   if (which === 'both' || which === 'claude') urls.push('https://claude.ai/settings/usage');
   if (which === 'both' || which === 'codex')  urls.push('https://chatgpt.com/codex/cloud/settings/analytics#usage');
   for (const url of urls) {
-    try { ns.create({ url, active: true }); } catch (e) { console.warn(e); }
+    invokeWebExtension(ns, 'create', [{ url, active: true }]).catch((error) => console.warn(error));
   }
 }
 
