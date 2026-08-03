@@ -38,6 +38,22 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.
 
+## Product captures
+
+The current packaged experience is shown here across the persistent widget, popup dashboard, settings/API access, first-run state, and a recoverable degraded-provider state.
+
+![AI Usage Tracker widget on Claude](assets/screenshots/widget-dashboard.png)
+
+![AI Usage Tracker popup dashboard](assets/screenshots/popup-dashboard.png)
+
+![AI Usage Tracker settings and API access](assets/screenshots/options-api-access.png)
+
+![AI Usage Tracker first-run popup](assets/screenshots/popup-first-run.png)
+
+![AI Usage Tracker degraded-provider popup](assets/screenshots/popup-degraded.png)
+
+![AI Usage Tracker dashboard state flow](assets/screenshots/ai-usage-tracker-flow.gif)
+
 ## Accessibility
 
 The widget, popup, options page, and userscript settings support keyboard focus, live reset timers, reduced-motion preferences, 44 px touch targets, and an opt-in high-contrast palette with text/pattern status cues. `npm test` runs the accessibility contract smoke checks, including high-contrast AA/AAA color ratios and the required live-region/focus hooks.

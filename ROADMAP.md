@@ -6,13 +6,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 
 ### P1
 ### P2
-- [ ] P2 — README screenshots and animated product captures
-  Why: The README explains features but does not prove the actual widget, popup, and options experience visually.
-  Evidence: Direct competitors show screenshots/GIFs; current README relies mostly on text.
-  Touches: `README.md`, release assets, screenshot workflow
-  Acceptance: README shows current widget, popup dashboard, options, first-run, and degraded/error states from this product.
-  Complexity: S
-
 - [ ] P2 — Multi-profile manager
   Why: Users with personal/work Claude or ChatGPT accounts need explicit profile separation without account-switch automation.
   Evidence: Existing roadmap research; multi-account tools demonstrate demand, while auto-switching remains rejected.
