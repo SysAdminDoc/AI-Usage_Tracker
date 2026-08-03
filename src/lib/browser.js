@@ -11,6 +11,10 @@ export const runtime = ns ? ns.runtime : null;
 export const tabs = ns ? ns.tabs : null;
 export const alarms = ns ? ns.alarms : null;
 
+const alarmHandlers = new Map();
+const fallbackTimers = new Map();
+let alarmListenerBound = false;
+
 // chrome.notifications uses callbacks on Chrome, promises on Firefox.
 export async function notify({ title, body, tone = 'info', id }) {
   // Extension path.
@@ -56,17 +60,54 @@ export async function notify({ title, body, tone = 'info', id }) {
 export function schedule({ name, minutes, onFire }) {
   if (alarms && alarms.create) {
     alarms.create(name, { periodInMinutes: minutes });
-    if (alarms.onAlarm && alarms.onAlarm.addListener) {
-      alarms.onAlarm.addListener((alarm) => {
-        if (alarm.name === name) onFire();
-      });
-    }
-    return { type: 'alarm', cancel: () => alarms.clear && alarms.clear(name) };
+    registerAlarmHandler(name, onFire);
+    return { type: 'alarm', cancel: () => cancelSchedule(name) };
   }
   const handle = setInterval(onFire, minutes * 60 * 1000);
   // Fire once immediately so the user sees data fast.
   setTimeout(onFire, 1000);
   return { type: 'interval', cancel: () => clearInterval(handle) };
+}
+
+// Schedule one exact deadline. Extension alarms survive service-worker sleep;
+// userscript timers provide the best available tab-open fallback.
+export function scheduleAt({ name, when, onFire }) {
+  const timestamp = when instanceof Date ? when.getTime() : Number(when);
+  if (!Number.isFinite(timestamp)) return { type: 'none', cancel: () => {} };
+
+  cancelSchedule(name);
+  if (alarms && alarms.create) {
+    alarms.create(name, { when: Math.max(Date.now() + 1_000, timestamp) });
+    registerAlarmHandler(name, onFire);
+    return { type: 'alarm', cancel: () => cancelSchedule(name) };
+  }
+
+  const handle = setTimeout(onFire, Math.max(1_000, timestamp - Date.now()));
+  fallbackTimers.set(name, handle);
+  return { type: 'timeout', cancel: () => cancelSchedule(name) };
+}
+
+function registerAlarmHandler(name, onFire) {
+  alarmHandlers.set(name, onFire);
+  if (alarmListenerBound || !alarms?.onAlarm?.addListener) return;
+  alarms.onAlarm.addListener((alarm) => {
+    const handler = alarmHandlers.get(alarm?.name);
+    if (handler) Promise.resolve(handler()).catch((error) => console.error('[AUT] alarm callback failed', error));
+  });
+  alarmListenerBound = true;
+}
+
+export function cancelSchedule(name) {
+  alarmHandlers.delete(name);
+  const timer = fallbackTimers.get(name);
+  if (timer != null) {
+    clearTimeout(timer);
+    fallbackTimers.delete(name);
+  }
+  try {
+    const result = alarms?.clear?.(name);
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch { /* best effort */ }
 }
 
 // Send a message between background <-> content <-> popup.

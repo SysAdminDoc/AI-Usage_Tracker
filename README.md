@@ -22,7 +22,8 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
   - **R2 Renewal-arrived** — "Fresh quota — go!" the moment a bucket resets.
   - **U1 Usage-threshold** — 75% / 90% / 95% used.
   - **U2 Burn-rate forecast** — "At this pace you'll hit weekly Tuesday — 18 hrs early."
-  - **D1 Daily briefing** — one calm summary at 08:00.
+- **D1 Daily briefing** — one calm summary at 08:00.
+- Missed renewal/reset and daily-briefing alerts recover during a bounded late-refresh grace period, and the extension schedules the next exact notification deadline when one is known.
 - **Per-row visibility toggles** — by default shows headline buckets only; turn on per-model rows (GPT-5.3-Codex-Spark, Sonnet only, Claude Design, etc.) in Settings.
 - **API-first usage collection** — reads Claude `api/organizations/{orgId}/usage` and Codex `backend-api/wham/usage` for actual usage windows, with Claude stream/header updates and opt-in page-scraper fallback tabs.
 - **Claude context counter** — estimates the visible conversation plus draft prompt against the 200k context window and shows a compact progress bar in the widget.
@@ -68,6 +69,7 @@ Userscript caveats vs. extension:
 - No silent background refresh — data only updates while you have a Claude or ChatGPT tab open.
 - No toolbar popup dashboard (open the in-page settings modal and history controls via the widget gear icon).
 - OS notifications use the web `Notification` API (requires page open in a tab).
+- Late-refresh catch-up is bounded by the open tab's next refresh; the extension's service-worker alarm path can schedule the next exact deadline.
 - History persists across restart via `GM.setValue`.
 
 Release downloads include `SHA256SUMS.txt` for verifying the Chrome ZIP, Firefox XPI, and userscript assets.

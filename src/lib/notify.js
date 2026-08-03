@@ -10,6 +10,15 @@ const LEAD_MS = {
   'R1-0':  0,
 };
 
+// A sleeping browser can miss the narrow notification windows. Keep the
+// grace periods explicit so the evaluator and the next-alarm derivation share
+// one contract, while firedRules still provides durable de-duplication.
+export const NOTIFICATION_GRACE_MS = Object.freeze({
+  renewal: 2 * 60 * 60 * 1000,
+  reset: 30 * 60 * 1000,
+  briefing: 2 * 60 * 60 * 1000,
+});
+
 export function evaluateRules({ snapshot, history, settings, firedRules, now = new Date() }) {
   const out = [];
   if (!snapshot || !snapshot.providers) return out;
@@ -29,16 +38,26 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
         if (!settings.notifications[ruleId]) continue;
         if (!bucket.resetISO) continue;
         const lead = LEAD_MS[ruleId];
-        const fireAt = new Date(bucket.resetISO).getTime() - lead;
-        if (fireAt <= now.getTime() && now.getTime() < new Date(bucket.resetISO).getTime() + 60_000) {
+        const resetTs = new Date(bucket.resetISO).getTime();
+        if (!Number.isFinite(resetTs)) continue;
+        const nowTs = now.getTime();
+        const fireAt = resetTs - lead;
+        const inNormalWindow = fireAt <= nowTs && nowTs < resetTs + 60_000;
+        // After a late wake, only the reset-moment rule is useful. This avoids
+        // firing three stale renewal notices for the same missed reset.
+        const inCatchUpWindow = ruleId === 'R1-0'
+          && nowTs >= resetTs + 60_000
+          && nowTs < resetTs + NOTIFICATION_GRACE_MS.renewal;
+        if (inNormalWindow || inCatchUpWindow) {
           const key = `${provider}-${bucket.id}-${ruleId}-${bucket.resetISO}`;
           if (!firedRules[key]) {
             out.push({
               fireKey: key,
               ruleId,
-              title: ruleTitle(ruleId, provider, bucket),
-              body:  ruleBody(ruleId, provider, bucket),
+              title: ruleTitle(ruleId, provider, bucket, { catchUp: inCatchUpWindow }),
+              body:  ruleBody(ruleId, provider, bucket, { catchUp: inCatchUpWindow }),
               tone:  ruleId === 'R1-0' ? 'good' : 'info',
+              catchUp: inCatchUpWindow,
             });
           }
         }
@@ -47,7 +66,9 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
       // R2 on-reset positive.
       if (settings.notifications['R2'] && bucket.resetISO) {
         const resetTs = new Date(bucket.resetISO).getTime();
-        if (resetTs <= now.getTime() && now.getTime() - resetTs < 5 * 60_000) {
+        if (Number.isFinite(resetTs)
+            && resetTs <= now.getTime()
+            && now.getTime() - resetTs < NOTIFICATION_GRACE_MS.reset) {
           const key = `${provider}-${bucket.id}-R2-${bucket.resetISO}`;
           if (!firedRules[key]) {
             out.push({
@@ -104,8 +125,10 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
   // D1 daily briefing — single fire per local day at the configured hour.
   if (settings.notifications['D1']) {
     const hour = settings.notifications.dailyBriefingHour ?? 8;
-    if (now.getHours() === hour && now.getMinutes() < 10) {
-      const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+    const scheduled = localBriefingTime(now, hour);
+    if (now.getTime() >= scheduled.getTime()
+        && now.getTime() - scheduled.getTime() < NOTIFICATION_GRACE_MS.briefing) {
+      const day = localDayKey(now);
       const key = `D1-${day}`;
       if (!firedRules[key]) {
         out.push({
@@ -122,6 +145,61 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
   return out;
 }
 
+/**
+ * Return the next durable notification deadline after `now`.
+ *
+ * The service worker uses this to create a one-shot alarms entry in addition
+ * to its recurring refresh alarm. The result is intentionally descriptive so
+ * it can be asserted without a browser runtime.
+ */
+export function deriveNextNotificationAlarm({ snapshot, settings, firedRules = {}, now = new Date() }) {
+  if (!snapshot?.providers || isSnoozed(settings, now)) return null;
+
+  const candidates = [];
+  const nowTs = now.getTime();
+  for (const provider of Object.keys(snapshot.providers)) {
+    const ps = snapshot.providers[provider];
+    if (!ps?.ok || settings.showProviders?.[provider] === false) continue;
+    for (const bucket of ps.buckets || []) {
+      if (settings.showRows?.[bucket.id] === false || !bucket.resetISO) continue;
+      const resetTs = new Date(bucket.resetISO).getTime();
+      if (!Number.isFinite(resetTs)) continue;
+      for (const ruleId of ['R1-60', 'R1-15', 'R1-0']) {
+        if (!settings.notifications?.[ruleId]) continue;
+        const at = resetTs - LEAD_MS[ruleId];
+        const fireKey = `${provider}-${bucket.id}-${ruleId}-${bucket.resetISO}`;
+        if (at > nowTs && !firedRules[fireKey]) {
+          candidates.push({ at, ruleId, fireKey, provider, bucketId: bucket.id });
+        }
+      }
+      if (settings.notifications?.R2 && resetTs > nowTs) {
+        const fireKey = `${provider}-${bucket.id}-R2-${bucket.resetISO}`;
+        if (!firedRules[fireKey]) {
+          candidates.push({ at: resetTs, ruleId: 'R2', fireKey, provider, bucketId: bucket.id });
+        }
+      }
+    }
+  }
+
+  if (settings.notifications?.D1) {
+    const hour = settings.notifications.dailyBriefingHour ?? 8;
+    const today = localBriefingTime(now, hour);
+    const briefing = today.getTime() > nowTs ? today : addLocalDays(today, 1);
+    const fireKey = `D1-${localDayKey(briefing)}`;
+    if (!firedRules[fireKey]) candidates.push({
+      at: briefing.getTime(),
+      ruleId: 'D1',
+      fireKey,
+      provider: null,
+      bucketId: null,
+    });
+  }
+
+  candidates.sort((a, b) => a.at - b.at || a.ruleId.localeCompare(b.ruleId));
+  const next = candidates[0];
+  return next ? { ...next, atISO: new Date(next.at).toISOString() } : null;
+}
+
 function isSnoozed(settings, now) {
   const until = settings?.notifications?.snoozedUntilISO;
   if (!until) return false;
@@ -129,15 +207,33 @@ function isSnoozed(settings, now) {
   return Number.isFinite(ts) && ts > now.getTime();
 }
 
-function ruleTitle(ruleId, provider, bucket) {
+function ruleTitle(ruleId, provider, bucket, { catchUp = false } = {}) {
+  if (catchUp) return `${humanProvider(provider)} ${humanBucket(bucket)} reset while tracker was asleep`;
   if (ruleId === 'R1-0') return `${humanProvider(provider)} ${humanBucket(bucket)} resetting now`;
   const mins = ruleId === 'R1-60' ? 60 : 15;
   return `${humanProvider(provider)} ${humanBucket(bucket)} resets in ${mins} min`;
 }
 
-function ruleBody(ruleId, provider, bucket) {
+function ruleBody(ruleId, provider, bucket, { catchUp = false } = {}) {
+  if (catchUp) return `The reset window passed during a late refresh. Fresh quota should be available now.`;
   if (ruleId === 'R1-0') return `Fresh quota available — go!`;
   return `Currently ${bucket.percentUsed.toFixed(0)}% used. Resets ${humanReset(bucket)}.`;
+}
+
+function localBriefingTime(reference, hour) {
+  const scheduled = new Date(reference.getTime());
+  scheduled.setHours(Number(hour) || 0, 0, 0, 0);
+  return scheduled;
+}
+
+function addLocalDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function localDayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
 function humanProvider(p) {

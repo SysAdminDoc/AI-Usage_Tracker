@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { evaluateRules } from '../src/lib/notify.js';
+import {
+  deriveNextNotificationAlarm,
+  evaluateRules,
+  NOTIFICATION_GRACE_MS,
+} from '../src/lib/notify.js';
 
 const now = new Date('2026-06-16T12:00:00.000Z');
 const snapshot = {
@@ -140,9 +144,9 @@ assert.ok(evaluateRules({ snapshot, history: [], settings: expired, firedRules: 
   assert.ok(rules.some((r) => r.ruleId === 'R2'), 'R2 should fire when reset just happened');
 }
 
-// --- R2 does not fire if reset was more than 5 minutes ago ---
+// --- R2 catch-up grace ends after the configured late-refresh window ---
 {
-  const oldReset = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+  const oldReset = new Date(now.getTime() - NOTIFICATION_GRACE_MS.reset - 1).toISOString();
   const snapOldReset = {
     providers: {
       claude: {
@@ -164,7 +168,60 @@ assert.ok(evaluateRules({ snapshot, history: [], settings: expired, firedRules: 
     notifications: { 'R2': true },
   };
   const rules = evaluateRules({ snapshot: snapOldReset, history: [], settings: settingsR2, firedRules: {}, now });
-  assert.ok(!rules.some((r) => r.ruleId === 'R2'), 'R2 should not fire for old resets');
+  assert.ok(!rules.some((r) => r.ruleId === 'R2'), 'R2 should not fire after its catch-up grace');
+}
+
+// --- Late refresh catch-up and durable duplicate prevention ---
+{
+  const lateReset = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+  const lateSnapshot = {
+    providers: {
+      claude: {
+        ok: true,
+        buckets: [{
+          id: 'claude-session',
+          label: 'Current session',
+          kind: 'session',
+          model: 'all',
+          percentUsed: 80,
+          resetISO: lateReset,
+        }],
+      },
+    },
+  };
+  const catchUpSettings = {
+    showProviders: { claude: true },
+    showRows: { 'claude-session': true },
+    notifications: { 'R1-0': true },
+  };
+  const caughtUp = evaluateRules({
+    snapshot: lateSnapshot,
+    history: [],
+    settings: catchUpSettings,
+    firedRules: {},
+    now,
+  });
+  assert.ok(caughtUp.some((r) => r.ruleId === 'R1-0' && r.catchUp), 'R1-0 should catch up after a late refresh');
+  const fired = { [caughtUp[0].fireKey]: now.getTime() };
+  assert.equal(evaluateRules({
+    snapshot: lateSnapshot,
+    history: [],
+    settings: catchUpSettings,
+    firedRules: fired,
+    now,
+  }).length, 0, 'caught-up rule should remain de-duplicated after persistence');
+
+  const r2CaughtUp = evaluateRules({
+    snapshot: lateSnapshot,
+    history: [],
+    settings: {
+      ...catchUpSettings,
+      notifications: { R2: true },
+    },
+    firedRules: {},
+    now,
+  });
+  assert.ok(r2CaughtUp.some((r) => r.ruleId === 'R2'), 'R2 should catch up inside its late-refresh grace');
 }
 
 // --- U1-75 fires at 75% used ---
@@ -226,9 +283,9 @@ assert.ok(evaluateRules({ snapshot, history: [], settings: expired, firedRules: 
   assert.ok(Array.isArray(rules), 'D1 evaluation should not throw');
 }
 
-// --- D1 does not fire outside the window ---
+// --- D1 does not fire after the catch-up window ---
 {
-  const d1OutsideNow = new Date('2026-06-16T09:15:00.000Z');
+  const d1OutsideNow = new Date(2026, 5, 16, 11, 15, 0);
   const d1Settings = {
     showProviders: { claude: true },
     showRows: { 'claude-session': true },
@@ -249,7 +306,73 @@ assert.ok(evaluateRules({ snapshot, history: [], settings: expired, firedRules: 
     },
   };
   const rules = evaluateRules({ snapshot: d1Snapshot, history: [], settings: d1Settings, firedRules: {}, now: d1OutsideNow });
-  assert.ok(!rules.some((r) => r.ruleId === 'D1'), 'D1 should not fire outside the 10-minute window');
+  assert.ok(!rules.some((r) => r.ruleId === 'D1'), 'D1 should not fire after its catch-up window');
+}
+
+// --- D1 catches up after a late browser wake ---
+{
+  const d1LateNow = new Date(2026, 5, 16, 9, 30, 0);
+  const d1Settings = {
+    showProviders: { claude: true },
+    showRows: { 'claude-session': true },
+    notifications: { D1: true, dailyBriefingHour: 8 },
+  };
+  const d1Snapshot = {
+    providers: {
+      claude: {
+        ok: true,
+        buckets: [{
+          id: 'claude-session',
+          kind: 'session',
+          model: 'all',
+          percentUsed: 30,
+          resetISO: '2026-06-16T17:00:00.000Z',
+        }],
+      },
+    },
+  };
+  const rules = evaluateRules({
+    snapshot: d1Snapshot,
+    history: [],
+    settings: d1Settings,
+    firedRules: {},
+    now: d1LateNow,
+  });
+  assert.ok(rules.some((r) => r.ruleId === 'D1'), 'D1 should catch up after a late browser wake');
+}
+
+// --- Next-alarm derivation schedules the earliest unfired deadline ---
+{
+  const resetISO = new Date(now.getTime() + 30 * 60 * 1000).toISOString();
+  const alarmSnapshot = {
+    providers: {
+      claude: {
+        ok: true,
+        buckets: [{
+          id: 'claude-session',
+          kind: 'session',
+          model: 'all',
+          percentUsed: 30,
+          resetISO,
+        }],
+      },
+    },
+  };
+  const alarmSettings = {
+    showProviders: { claude: true },
+    showRows: { 'claude-session': true },
+    notifications: { 'R1-15': true, 'R1-0': true, R2: true, D1: false },
+  };
+  const first = deriveNextNotificationAlarm({ snapshot: alarmSnapshot, settings: alarmSettings, now });
+  assert.equal(first?.ruleId, 'R1-15', 'next alarm should choose the earliest renewal deadline');
+  assert.equal(first?.atISO, new Date(now.getTime() + 15 * 60 * 1000).toISOString(), 'next alarm timestamp should be exact');
+  const second = deriveNextNotificationAlarm({
+    snapshot: alarmSnapshot,
+    settings: alarmSettings,
+    firedRules: { [first.fireKey]: now.getTime() },
+    now,
+  });
+  assert.equal(second?.ruleId, 'R1-0', 'next alarm should skip persisted fired rules');
 }
 
 // --- Empty snapshot produces no rules ---

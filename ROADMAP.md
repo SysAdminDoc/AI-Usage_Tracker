@@ -206,13 +206,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Research-Driven Additions
 
 ### P1
-- [ ] P1 — Missed-notification catch-up scheduler
-  Why: Reset and daily briefing alerts can be missed when the browser or MV3 service worker wakes outside the current narrow windows.
-  Evidence: `src/lib/notify.js`, `src/background.js`, Chrome service worker lifecycle docs.
-  Touches: `src/lib/notify.js`, `src/background.js`, `build/test-notify.mjs`, options copy
-  Acceptance: R1/R2/D1 rules have tested catch-up grace, duplicate-fire prevention, and next-alarm derivation after browser sleep or late refresh.
-  Complexity: M
-
 - [ ] P1 — Provider contract fixture matrix
   Why: Private Claude/ChatGPT schemas and DOM selectors drift, and parser breakage should fail with actionable diagnostics before users report bad numbers.
   Evidence: `src/scrapers/claude.js`, `src/scrapers/codex.js`, `build/test-scrapers.mjs`, Claude Counter issues #26/#27/#30, Codex WHAM issue #10869.

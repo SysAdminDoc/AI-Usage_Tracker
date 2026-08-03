@@ -8,6 +8,7 @@
 - CSV export, retention selection, storage-size diagnostics, representative-sample compaction, and confirmation-gated history clearing in extension and userscript settings.
 - Keyboard/live-region improvements, reduced-motion and touch-target coverage, plus an opt-in high-contrast palette with non-color warning cues.
 - Default extension packages no longer request `nativeMessaging`; an explicit `npm run build:bridge` channel retains optional QuotaGlass support.
+- Renewal, reset, and daily briefing notifications now recover within tested grace periods after browser or service-worker sleep, with a derived one-shot alarm for the next deadline.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

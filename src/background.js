@@ -15,13 +15,14 @@ import { fetchClaude, parseClaudeUsageApi, clearClaudeOrgCache } from './scraper
 import { fetchCodex }  from './scrapers/codex.js';
 import { loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
-import { evaluateRules } from './lib/notify.js';
-import { notify, schedule, onMessage } from './lib/browser.js';
+import { deriveNextNotificationAlarm, evaluateRules } from './lib/notify.js';
+import { cancelSchedule, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
 
 const ALARM_NAME = 'aut-refresh';
+const NOTIFICATION_ALARM_NAME = 'aut-notification';
 
 const STALE_MS = 10 * 60 * 1000;   // only force a silent-tab refresh if cached data is older than this
 
@@ -86,6 +87,7 @@ async function bindAlarm() {
     minutes,
     onFire: () => refreshNow({ allowSilentTab: true }).catch(console.error),
   });
+  await scheduleNotificationAlarm(state, new Date());
 }
 
 async function reschedule() {
@@ -275,6 +277,28 @@ async function fireNotifications(state, now) {
   }
   state.firedRules = pruneFired(state.firedRules, now);
   await saveState(state);
+  await scheduleNotificationAlarm(state, now);
+}
+
+async function scheduleNotificationAlarm(state, now) {
+  const next = deriveNextNotificationAlarm({
+    snapshot: state?.snapshot,
+    settings: state?.settings || {},
+    firedRules: state?.firedRules || {},
+    now,
+  });
+  if (!next) {
+    cancelSchedule(NOTIFICATION_ALARM_NAME);
+    return;
+  }
+  scheduleAt({
+    name: NOTIFICATION_ALARM_NAME,
+    when: next.at,
+    onFire: async () => {
+      const current = await loadState();
+      await fireNotifications(current || defaultState(), new Date());
+    },
+  });
 }
 
 async function openAnalyticsTabs(which = 'both') {
