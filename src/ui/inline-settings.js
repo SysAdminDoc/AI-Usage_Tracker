@@ -1,4 +1,10 @@
-import { getStorageUsage, loadState, saveState } from '../lib/storage.js';
+import {
+  exportSettings,
+  getStorageUsage,
+  importSettings,
+  loadState,
+  saveState,
+} from '../lib/storage.js';
 import {
   compactHistory,
   historyStats,
@@ -385,7 +391,43 @@ function buildHistoryControls(parent) {
   const clearButton = historyActionButton('Clear history');
   actions.append(exportButton, compactButton, clearButton);
   parent.appendChild(actions);
-  return { retentionDays, summary, exportButton, compactButton, clearButton };
+  const backupToggle = document.createElement('label');
+  backupToggle.className = 'aut-inline-settings__toggle';
+  const includeHistory = document.createElement('input');
+  includeHistory.type = 'checkbox';
+  const backupLabel = document.createElement('span');
+  backupLabel.textContent = 'Include history in the JSON settings backup';
+  backupToggle.append(includeHistory, backupLabel);
+  parent.appendChild(backupToggle);
+  const backupActions = document.createElement('div');
+  backupActions.className = 'aut-inline-settings__history-actions';
+  const exportSettingsButton = historyActionButton('Export settings JSON');
+  const importSettingsButton = historyActionButton('Import settings JSON');
+  const importFile = document.createElement('input');
+  importFile.type = 'file';
+  importFile.accept = 'application/json,.json';
+  importFile.setAttribute('aria-label', 'Select settings JSON file');
+  importFile.hidden = true;
+  backupActions.append(exportSettingsButton, importSettingsButton, importFile);
+  parent.appendChild(backupActions);
+  const backupStatus = document.createElement('p');
+  backupStatus.className = 'aut-inline-settings__hint';
+  backupStatus.setAttribute('role', 'status');
+  backupStatus.setAttribute('aria-live', 'polite');
+  backupStatus.textContent = 'Settings backups omit history unless selected.';
+  parent.appendChild(backupStatus);
+  return {
+    retentionDays,
+    summary,
+    exportButton,
+    compactButton,
+    clearButton,
+    includeHistory,
+    exportSettingsButton,
+    importSettingsButton,
+    importFile,
+    backupStatus,
+  };
 }
 
 function buildNotificationPermissionControls(parent) {
@@ -435,6 +477,31 @@ function bindHistoryActions(controls, foot, getState, setState) {
     downloadHistory(getState().history || []);
     foot.status.textContent = 'CSV download started';
   });
+  controls.exportSettingsButton.addEventListener('click', () => {
+    downloadSettings(exportSettings(getState(), { includeHistory: controls.includeHistory.checked }));
+    controls.backupStatus.textContent = controls.includeHistory.checked
+      ? 'Settings and history JSON download started.'
+      : 'Settings JSON download started; history was omitted.';
+  });
+  controls.importSettingsButton.addEventListener('click', () => controls.importFile.click());
+  controls.importFile.addEventListener('change', async () => {
+    const file = controls.importFile.files?.[0];
+    if (!file) return;
+    try {
+      const next = await importSettings(await file.text(), { includeHistory: controls.includeHistory.checked });
+      setState(next);
+      await updateHistorySummary(controls, next);
+      controls.backupStatus.textContent = controls.includeHistory.checked
+        ? 'Settings import applied, including history when present.'
+        : 'Settings import applied; existing history was preserved.';
+      foot.status.textContent = 'Settings imported';
+    } catch (error) {
+      controls.backupStatus.textContent = `Import rejected: ${error?.message || 'invalid file'}`;
+      foot.status.textContent = 'Settings import rejected';
+    } finally {
+      controls.importFile.value = '';
+    }
+  });
   controls.compactButton.addEventListener('click', async () => {
     if (!confirmAction('Export a CSV before compacting? Compaction keeps representative samples and cannot be undone.')) return;
     const state = await loadState();
@@ -470,6 +537,21 @@ function downloadHistory(history) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.style.display = 'none';
+  document.documentElement.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadSettings(payload) {
+  if (typeof document === 'undefined' || typeof Blob === 'undefined'
+      || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-settings-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.style.display = 'none';
   document.documentElement.appendChild(anchor);
   anchor.click();

@@ -6,6 +6,8 @@ import { SUPPORTED_HOSTS } from './hosts.js';
 import { invokeWebExtension } from './browser.js';
 
 const STORE_KEY = 'aut.state.v1';
+export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
+export const SETTINGS_EXPORT_VERSION = 1;
 
 const adapter = pickAdapter();
 
@@ -272,6 +274,129 @@ export async function patchState(patch) {
   const next = { ...state, ...patch };
   await saveState(next);
   return next;
+}
+
+/**
+ * Build a portable settings payload. History is deliberately opt-in because
+ * it is the largest and most identifying part of local tracker state.
+ */
+export function exportSettings(state = defaultState(), { includeHistory = false } = {}) {
+  const payload = {
+    schema: SETTINGS_EXPORT_SCHEMA,
+    schemaVersion: SETTINGS_EXPORT_VERSION,
+    exportedAtISO: new Date().toISOString(),
+    stateVersion: CURRENT_STATE_VERSION,
+    settings: sanitizeImportedSettings(state.settings),
+    widget: normalizeWidget(state.widget),
+  };
+  if (includeHistory) payload.history = cloneJSON(Array.isArray(state.history) ? state.history : []);
+  return payload;
+}
+
+/**
+ * Validate and normalize an exported payload without mutating storage.
+ * Throws a descriptive error so callers can leave the current state intact.
+ */
+export function parseSettingsImport(input, { includeHistory = false } = {}) {
+  let payload = input;
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload); } catch { throw new Error('Settings file is not valid JSON'); }
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Settings import must be a JSON object');
+  }
+  if (payload.schema !== SETTINGS_EXPORT_SCHEMA || payload.schemaVersion !== SETTINGS_EXPORT_VERSION) {
+    throw new Error(`Unsupported settings export schema: ${String(payload.schema || 'missing')}`);
+  }
+  if (!payload.settings || typeof payload.settings !== 'object' || Array.isArray(payload.settings)) {
+    throw new Error('Settings export is missing its settings object');
+  }
+
+  const parsed = {
+    settings: sanitizeImportedSettings(payload.settings),
+    widget: normalizeWidget(payload.widget),
+  };
+  if (includeHistory && Object.prototype.hasOwnProperty.call(payload, 'history')) {
+    parsed.history = validateImportedHistory(payload.history);
+  }
+  return parsed;
+}
+
+/**
+ * Apply a validated settings payload atomically. Invalid input throws before
+ * loadState/saveState can write anything, which provides rollback-by-default.
+ */
+export async function importSettings(input, options = {}) {
+  const parsed = parseSettingsImport(input, options);
+  const state = await loadState();
+  const next = {
+    ...state,
+    settings: parsed.settings,
+    widget: parsed.widget,
+  };
+  if (Object.prototype.hasOwnProperty.call(parsed, 'history')) next.history = parsed.history;
+  await saveState(next);
+  return next;
+}
+
+function sanitizeImportedSettings(input) {
+  const settings = mergeDefaults(input, defaultSettings());
+  const refreshValues = [1, 5, 15, 30];
+  const retentionValues = [7, 14, 30, 60, 90];
+  settings.refreshMinutes = refreshValues.includes(Number(settings.refreshMinutes)) ? Number(settings.refreshMinutes) : 5;
+  settings.historyRetentionDays = retentionValues.includes(Number(settings.historyRetentionDays))
+    ? Number(settings.historyRetentionDays) : 30;
+  settings.silentTabRefresh = settings.silentTabRefresh === true;
+  settings.highContrast = settings.highContrast === true;
+  settings.theme = ['mocha', 'latte', 'system'].includes(settings.theme) ? settings.theme : 'mocha';
+  settings.showProviders = {
+    claude: settings.showProviders?.claude !== false,
+    codex: settings.showProviders?.codex !== false,
+  };
+  settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
+  settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
+  const warnAt = clampNumber(settings.thresholds?.warnAt, 25, 85, 50);
+  let dangerAt = clampNumber(settings.thresholds?.dangerAt, 55, 95, 80);
+  if (warnAt >= dangerAt) dangerAt = Math.min(95, warnAt + 5);
+  settings.thresholds = { warnAt, dangerAt };
+  return settings;
+}
+
+function normalizeWidget(widget) {
+  const source = widget && typeof widget === 'object' && !Array.isArray(widget) ? widget : {};
+  return {
+    x: source.x == null ? null : Number.isFinite(Number(source.x)) ? Number(source.x) : null,
+    y: source.y == null ? null : Number.isFinite(Number(source.y)) ? Number(source.y) : null,
+    minimized: source.minimized === true,
+  };
+}
+
+function validateImportedHistory(history) {
+  if (!Array.isArray(history)) throw new Error('History import must be an array');
+  return history.map((sample, index) => {
+    if (!sample || typeof sample !== 'object' || Array.isArray(sample)
+        || !Number.isFinite(Number(sample.ts))
+        || typeof sample.bucketId !== 'string'
+        || !Number.isFinite(Number(sample.percentUsed))) {
+      throw new Error(`History sample ${index + 1} is invalid`);
+    }
+    return {
+      ...sample,
+      ts: Number(sample.ts),
+      percentUsed: Math.max(0, Math.min(100, Number(sample.percentUsed))),
+    };
+  });
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function cloneJSON(value) {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
 }
 
 export function defaultState() {

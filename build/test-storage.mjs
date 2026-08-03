@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { migrateState, defaultState, defaultSettings } from '../src/lib/storage.js';
+import {
+  exportSettings,
+  migrateState,
+  parseSettingsImport,
+  defaultState,
+  defaultSettings,
+} from '../src/lib/storage.js';
 
 // --- Test: fresh defaultState has current version ---
 const fresh = defaultState();
@@ -73,5 +79,28 @@ const nullFired = {
 const { state: fixedFired } = migrateState(nullFired);
 assert.deepEqual(fixedFired.firedRules, {}, 'null firedRules replaced with empty object');
 assert.equal(fixedFired.settings.refreshMinutes, 10, 'user setting preserved');
+
+// --- Test: versioned settings backup omits history unless selected ---
+const backupState = defaultState();
+backupState.settings.theme = 'latte';
+backupState.widget = { x: 42, y: 84, minimized: true };
+backupState.history = [{ ts: 1234, bucketId: 'codex-5h-all', percentUsed: 67 }];
+const settingsOnly = exportSettings(backupState);
+assert.equal(settingsOnly.schema, 'ai-usage-tracker.settings');
+assert.equal(Object.prototype.hasOwnProperty.call(settingsOnly, 'history'), false, 'history should be opt-in');
+const withHistory = exportSettings(backupState, { includeHistory: true });
+assert.equal(withHistory.history.length, 1, 'explicit history export should include samples');
+assert.equal(parseSettingsImport(JSON.stringify(settingsOnly)).settings.theme, 'latte');
+assert.equal(parseSettingsImport(withHistory, { includeHistory: true }).history[0].percentUsed, 67);
+assert.throws(
+  () => parseSettingsImport({ schema: 'wrong', schemaVersion: 1, settings: {} }),
+  /Unsupported settings export schema/,
+  'unknown export schemas must be rejected',
+);
+assert.throws(
+  () => parseSettingsImport({ schema: 'ai-usage-tracker.settings', schemaVersion: 1, settings: {}, history: [{ ts: 'bad' }] }, { includeHistory: true }),
+  /History sample 1 is invalid/,
+  'invalid history must be rejected before import',
+);
 
 console.log('storage migration smoke: OK');

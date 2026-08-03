@@ -130,6 +130,13 @@
         <button id="compactHistory" class="opt-btn">Compact history</button>
         <button id="clearHistory" class="opt-btn opt-btn--quiet">Clear history</button>
       </div>
+      <label class="opt-toggle"><input id="includeHistoryInSettings" type="checkbox"> Include history in the JSON settings backup</label>
+      <div class="opt-row opt-row--wrap">
+        <button id="exportSettings" class="opt-btn">Export settings JSON</button>
+        <button id="importSettings" class="opt-btn">Import settings JSON</button>
+        <input id="settingsImportFile" type="file" accept="application/json,.json" aria-label="Select settings JSON file" hidden>
+      </div>
+      <div id="settingsTransferStatus" class="opt-callout" role="status" aria-live="polite">Settings backups omit history unless selected.</div>
     </section>
 
     <section id="widget" class="opt-card">

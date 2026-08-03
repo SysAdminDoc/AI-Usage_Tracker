@@ -1,4 +1,11 @@
-import { getStorageUsage, loadState, saveState, defaultSettings } from '../lib/storage.js';
+import {
+  exportSettings,
+  getStorageUsage,
+  importSettings,
+  loadState,
+  saveState,
+  defaultSettings,
+} from '../lib/storage.js';
 import {
   compactHistory,
   historyStats,
@@ -291,6 +298,39 @@ function bindHandlers() {
     flash('History cleared');
   });
 
+  const settingsImportFile = document.getElementById('settingsImportFile');
+  document.getElementById('exportSettings').addEventListener('click', async () => {
+    const state = await loadState();
+    const includeHistory = document.getElementById('includeHistoryInSettings').checked;
+    downloadSettings(exportSettings(state, { includeHistory }));
+    document.getElementById('settingsTransferStatus').textContent = includeHistory
+      ? 'Settings and history JSON download started.'
+      : 'Settings JSON download started; history was omitted.';
+  });
+  document.getElementById('importSettings').addEventListener('click', () => settingsImportFile.click());
+  settingsImportFile.addEventListener('change', async () => {
+    const file = settingsImportFile.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const includeHistory = document.getElementById('includeHistoryInSettings').checked;
+      await importSettings(text, { includeHistory });
+      await renderRows();
+      await loadCurrent();
+      await renderHistoryStatus();
+      await renderDiagnostics();
+      document.getElementById('settingsTransferStatus').textContent = includeHistory
+        ? 'Settings import applied, including history when present.'
+        : 'Settings import applied; existing history was preserved.';
+      flash('Settings imported');
+    } catch (error) {
+      document.getElementById('settingsTransferStatus').textContent = `Import rejected: ${error?.message || 'invalid file'}`;
+      flash('Settings import rejected', 'bad');
+    } finally {
+      settingsImportFile.value = '';
+    }
+  });
+
   document.getElementById('resetClaudeOrg').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
@@ -392,6 +432,23 @@ function downloadHistory(history) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadSettings(payload) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-settings-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.hidden = true;
   document.body.appendChild(anchor);
   anchor.click();
