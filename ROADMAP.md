@@ -206,13 +206,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Research-Driven Additions
 
 ### P1
-- [ ] P1 — Safe DOM rendering policy
-  Why: The UI uses scattered `innerHTML` writes with local escape helpers, making future dynamic copy changes easy to get wrong.
-  Evidence: `src/ui/widget.js`, `src/ui/popup.js`, `src/ui/options.js`, Chrome extension CSP docs, Trusted Types docs.
-  Touches: UI render helpers, CSS, CSP/report-only test harness
-  Acceptance: Dynamic user/provider data is rendered through shared safe text/attribute helpers or DOM builders; any retained HTML templates are static-reviewed; a Trusted Types or equivalent unsafe-sink audit runs in CI.
-  Complexity: M
-
 - [ ] P1 — WebExtension API compatibility contract tests
   Why: The shared browser wrapper assumes both Chrome callback APIs and Firefox promise APIs behave the same for notifications, tabs, alarms, storage, and messaging.
   Evidence: `src/lib/browser.js`, `src/background.js`, MDN notification promise docs, Chrome notification/tabs callback docs.

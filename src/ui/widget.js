@@ -4,6 +4,14 @@
 import { loadState, saveState } from '../lib/storage.js';
 import { formatCountdown, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { send } from '../lib/browser.js';
+import {
+  appendChildren,
+  clearChildren,
+  createElement,
+  createSvgElement,
+  setSafeAttribute,
+  setStaticMarkup,
+} from '../lib/dom.js';
 
 function openAnalytics(which) {
   if (hasExtensionRuntime()) {
@@ -151,28 +159,36 @@ async function render({ onRefresh, onOpenSettings }) {
   }
 
   if (!drewSomething) {
-    const empty = document.createElement('div');
-    empty.className = 'aut-widget__empty';
-    empty.innerHTML = `
-      <div class="aut-widget__empty-title">No usage data yet</div>
-      <div>Open a signed-in usage page once to seed the local tracker.</div>
-      <div class="aut-widget__empty-actions">
-        <button class="aut-link-btn" data-act="open-claude">Open Claude</button>
-        <button class="aut-link-btn" data-act="open-codex">Open Codex</button>
-      </div>
-    `;
-    empty.querySelector('[data-act="open-claude"]').addEventListener('click', () => openAnalytics('claude'));
-    empty.querySelector('[data-act="open-codex"]').addEventListener('click', () => openAnalytics('codex'));
+    const empty = createElement('div', { className: 'aut-widget__empty' });
+    const claudeButton = createElement('button', {
+      className: 'aut-link-btn',
+      text: 'Open Claude',
+      attrs: { type: 'button', 'data-act': 'open-claude' },
+    });
+    const codexButton = createElement('button', {
+      className: 'aut-link-btn',
+      text: 'Open Codex',
+      attrs: { type: 'button', 'data-act': 'open-codex' },
+    });
+    appendChildren(empty, [
+      createElement('div', { className: 'aut-widget__empty-title', text: 'No usage data yet' }),
+      createElement('div', { text: 'Open a signed-in usage page once to seed the local tracker.' }),
+      createElement('div', { className: 'aut-widget__empty-actions', children: [claudeButton, codexButton] }),
+    ]);
+    claudeButton.addEventListener('click', () => openAnalytics('claude'));
+    codexButton.addEventListener('click', () => openAnalytics('codex'));
     body.appendChild(empty);
   }
 
   wrap.appendChild(body);
 
   if (snapshot && snapshot.fetchedAtISO) {
-    const foot = document.createElement('div');
-    foot.className = 'aut-widget__footer';
+    const foot = createElement('div', { className: 'aut-widget__footer' });
     const ago = formatAgo(snapshot.fetchedAtISO);
-    foot.innerHTML = `<span>Updated ${ago}</span><span>v${VERSION}</span>`;
+    appendChildren(foot, [
+      createElement('span', { text: `Updated ${ago}` }),
+      createElement('span', { text: `v${VERSION}` }),
+    ]);
     wrap.appendChild(foot);
   }
 
@@ -184,14 +200,14 @@ async function render({ onRefresh, onOpenSettings }) {
 function swapRoot(newWrap) {
   // Replace the single child inside .aut-root so we don't accumulate.
   const root = rootEl;
-  while (root.firstChild) root.removeChild(root.firstChild);
+  clearChildren(root);
   root.appendChild(newWrap);
 }
 
 function renderHeader({ onRefresh, onOpenSettings }) {
   const header = document.createElement('div');
   header.className = 'aut-widget__header';
-  header.innerHTML = `
+  setStaticMarkup(header, `
     <span class="aut-widget__brand-dot"></span>
     <span class="aut-widget__brand">AI Usage</span>
     <div class="aut-widget__actions">
@@ -205,7 +221,7 @@ function renderHeader({ onRefresh, onOpenSettings }) {
         <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
       </button>
     </div>
-  `;
+  `);
   header.querySelector('[data-act="refresh"]').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!onRefresh || refreshBusy) return;
@@ -281,29 +297,35 @@ export function renderProvider(providerKey, ps, buckets, extras = {}) {
 }
 
 function renderCacheTimer(cache) {
-  const row = document.createElement('div');
-  row.className = 'aut-cache';
+  const row = createElement('div', { className: 'aut-cache' });
   const cachedUntil = cache.cachedUntilISO || null;
   const remainingMs = cachedUntil ? Math.max(0, new Date(cachedUntil).getTime() - Date.now()) : 0;
   const windowMs = Math.max(1, Number(cache.windowMs) || 5 * 60 * 1000);
   const percent = Math.max(0, Math.min(100, (remainingMs / windowMs) * 100));
-
-  row.innerHTML = `
-    <div class="aut-cache__head">
-      <span>Cache timer</span>
-      <span class="aut-cache-countdown" data-target="${escapeHtml(cachedUntil || '')}" data-window-ms="${windowMs}">${cachedUntil ? formatCountdown(cachedUntil) : 'unknown'}</span>
-    </div>
-    <div class="aut-cache__bar" aria-hidden="true">
-      <span style="width: ${percent}%;"></span>
-    </div>
-    <div class="aut-cache__meta">Continue before expiry for the cheapest follow-up window.</div>
-  `;
+  const countdown = createElement('span', {
+    className: 'aut-cache-countdown',
+    text: cachedUntil ? formatCountdown(cachedUntil) : 'unknown',
+    attrs: { 'data-target': cachedUntil || '', 'data-window-ms': windowMs },
+  });
+  const barFill = createElement('span');
+  barFill.style.width = `${percent}%`;
+  appendChildren(row, [
+    createElement('div', {
+      className: 'aut-cache__head',
+      children: [createElement('span', { text: 'Cache timer' }), countdown],
+    }),
+    createElement('div', {
+      className: 'aut-cache__bar',
+      attrs: { 'aria-hidden': 'true' },
+      children: [barFill],
+    }),
+    createElement('div', { className: 'aut-cache__meta', text: 'Continue before expiry for the cheapest follow-up window.' }),
+  ]);
   return row;
 }
 
 function renderContextCounter(context) {
-  const row = document.createElement('div');
-  row.className = 'aut-context';
+  const row = createElement('div', { className: 'aut-context' });
   const percent = Math.max(0, Math.min(100, context.percentUsed || 0));
   const tokenEstimate = Math.max(0, Math.round(context.tokenEstimate || 0));
   const maxTokens = Math.max(1, Math.round(context.maxTokens || 200_000));
@@ -313,78 +335,129 @@ function renderContextCounter(context) {
     : 'No sampled turns yet';
   const draftText = draft > 0 ? ` + ${formatTokenCount(draft)} draft` : '';
 
-  row.innerHTML = `
-    <div class="aut-context__head">
-      <span>Context window</span>
-      <span>${percent.toFixed(percent < 10 ? 1 : 0)}%</span>
-    </div>
-    <div class="aut-context__bar" role="meter" aria-valuemin="0" aria-valuemax="${maxTokens}" aria-valuenow="${tokenEstimate}" aria-label="Claude context window usage">
-      <span style="width: ${percent}%;"></span>
-    </div>
-    <div class="aut-context__meta">
-      <span>~${formatTokenCount(tokenEstimate)} / ${formatTokenCount(maxTokens)} tokens</span>
-      <span>${messageText}${draftText}</span>
-    </div>
-  `;
+  const contextFill = createElement('span');
+  contextFill.style.width = `${percent}%`;
+  appendChildren(row, [
+    createElement('div', {
+      className: 'aut-context__head',
+      children: [
+        createElement('span', { text: 'Context window' }),
+        createElement('span', { text: `${percent.toFixed(percent < 10 ? 1 : 0)}%` }),
+      ],
+    }),
+    createElement('div', {
+      className: 'aut-context__bar',
+      attrs: {
+        role: 'meter',
+        'aria-valuemin': 0,
+        'aria-valuemax': maxTokens,
+        'aria-valuenow': tokenEstimate,
+        'aria-label': 'Claude context window usage',
+      },
+      children: [contextFill],
+    }),
+    createElement('div', {
+      className: 'aut-context__meta',
+      children: [
+        createElement('span', { text: `~${formatTokenCount(tokenEstimate)} / ${formatTokenCount(maxTokens)} tokens` }),
+        createElement('span', { text: `${messageText}${draftText}` }),
+      ],
+    }),
+  ]);
   return row;
 }
 
 export function renderBucket(b, thresholds) {
-  const row = document.createElement('div');
-  row.className = `aut-bucket aut-bucket--${severityFor(b.percentUsed, thresholds)}`;
-  row.setAttribute('role', 'group');
+  const row = createElement('div', {
+    className: `aut-bucket aut-bucket--${severityFor(b.percentUsed, thresholds)}`,
+    attrs: { role: 'group' },
+  });
 
-  const ring = document.createElement('div');
-  ring.className = 'aut-ring';
+  const ring = createElement('div', { className: 'aut-ring' });
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
   const offset = RING_C * (1 - remaining / 100);
-  const resetLine = b.resetISO
-    ? `<div class="aut-bucket__reset">
-        <span>resets in</span>
-         <span class="aut-countdown" role="timer" aria-live="polite" aria-atomic="true" data-target="${b.resetISO}">${formatCountdown(b.resetISO)}</span>
-      </div>`
-    : `<div class="aut-bucket__reset aut-bucket__reset--missing">${escapeHtml(b.rawResetText || 'Reset not published')}</div>`;
-  ring.innerHTML = `
-    <svg viewBox="0 0 44 44">
-      <circle class="aut-ring__track" cx="22" cy="22" r="${RING_R}" fill="none" stroke-width="4"></circle>
-      <circle class="aut-ring__fill"  cx="22" cy="22" r="${RING_R}" fill="none" stroke-width="4"
-              stroke-dasharray="${RING_C}" stroke-dashoffset="${offset}"
-              style="stroke: ${ringColor(percent, thresholds)};"></circle>
-    </svg>
-    <div class="aut-ring__label">${Math.round(remaining)}%</div>
-  `;
+  const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 44 44' } });
+  appendChildren(svg, [
+    createSvgElement('circle', {
+      attrs: { class: 'aut-ring__track', cx: 22, cy: 22, r: RING_R, fill: 'none', 'stroke-width': 4 },
+    }),
+    createSvgElement('circle', {
+      attrs: {
+        class: 'aut-ring__fill',
+        cx: 22,
+        cy: 22,
+        r: RING_R,
+        fill: 'none',
+        'stroke-width': 4,
+        'stroke-dasharray': RING_C,
+        'stroke-dashoffset': offset,
+        style: `stroke: ${ringColor(percent, thresholds)};`,
+      },
+    }),
+  ]);
+  appendChildren(ring, [
+    svg,
+    createElement('div', { className: 'aut-ring__label', text: `${Math.round(remaining)}%` }),
+  ]);
   row.appendChild(ring);
 
-  const text = document.createElement('div');
-  text.className = 'aut-bucket__text';
-  text.innerHTML = `
-    <div class="aut-bucket__label">${escapeHtml(humanBucketLabel(b))}</div>
-    ${resetLine}
-  `;
+  const text = createElement('div', { className: 'aut-bucket__text' });
+  const reset = b.resetISO
+    ? createElement('div', {
+      className: 'aut-bucket__reset',
+      children: [
+        createElement('span', { text: 'resets in' }),
+        createElement('span', {
+          className: 'aut-countdown',
+          text: formatCountdown(b.resetISO),
+          attrs: {
+            role: 'timer',
+            'aria-live': 'polite',
+            'aria-atomic': 'true',
+            'data-target': b.resetISO,
+          },
+        }),
+      ],
+    })
+    : createElement('div', {
+      className: 'aut-bucket__reset aut-bucket__reset--missing',
+      text: b.rawResetText || 'Reset not published',
+    });
+  appendChildren(text, [
+    createElement('div', { className: 'aut-bucket__label', text: humanBucketLabel(b) }),
+    reset,
+  ]);
   row.appendChild(text);
-  row.setAttribute('aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
+  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
   return row;
 }
 
 export function renderProviderError(provider, error) {
-  const wrap = document.createElement('div');
-  wrap.className = 'aut-provider';
-  const title = document.createElement('div');
-  title.className = 'aut-provider__title';
-  title.textContent = provider === 'claude' ? 'Claude' : 'Codex';
-  wrap.appendChild(title);
-
-  const err = document.createElement('div');
-  err.className = 'aut-widget__error';
-  const link = `<button class="aut-link-btn" data-act="open-${provider}">Open usage page</button>`;
-  if (error === 'shell-response' || error === 'unhydrated' || error === 'no-rows-rendered') {
-    err.innerHTML = `<div class="aut-widget__error-title">Waiting for a signed-in reading</div>Open the usage page once so the local scraper can recover. ${link}`;
-  } else {
-    err.innerHTML = `<div class="aut-widget__error-title">Unable to refresh ${provider === 'claude' ? 'Claude' : 'Codex'}</div>${escapeHtml(error || 'Unknown error')}. ${link}`;
-  }
-  wrap.appendChild(err);
-  err.querySelector('button')?.addEventListener('click', () => openAnalytics(provider));
+  const wrap = createElement('div', { className: 'aut-provider' });
+  const title = createElement('div', {
+    className: 'aut-provider__title',
+    text: provider === 'claude' ? 'Claude' : 'Codex',
+  });
+  const err = createElement('div', { className: 'aut-widget__error' });
+  const waiting = error === 'shell-response' || error === 'unhydrated' || error === 'no-rows-rendered';
+  const openButton = createElement('button', {
+    className: 'aut-link-btn',
+    text: 'Open usage page',
+    attrs: { type: 'button', 'data-act': `open-${provider}` },
+  });
+  appendChildren(err, [
+    createElement('div', {
+      className: 'aut-widget__error-title',
+      text: waiting ? 'Waiting for a signed-in reading' : `Unable to refresh ${provider === 'claude' ? 'Claude' : 'Codex'}`,
+    }),
+    createElement('span', {
+      text: waiting ? 'Open the usage page once so the local scraper can recover. ' : `${error || 'Unknown error'}. `,
+    }),
+    openButton,
+  ]);
+  appendChildren(wrap, [title, err]);
+  openButton.addEventListener('click', () => openAnalytics(provider));
   return wrap;
 }
 
@@ -420,12 +493,6 @@ function sourceLabel(source) {
   if (source === 'stream') return 'Stream';
   if (source === 'headers') return 'Headers';
   return String(source).slice(0, 12);
-}
-
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
 }
 
 function formatAgo(iso) {
@@ -546,19 +613,23 @@ async function showContextMenu(event, { onRefresh, onOpenSettings }) {
   const state = await loadState();
   const snoozedUntil = state.settings?.notifications?.snoozedUntilISO || '';
   const snoozedActive = isFutureISO(snoozedUntil);
-  const menu = document.createElement('div');
-  menu.className = 'aut-menu';
-  menu.setAttribute('role', 'menu');
-  menu.setAttribute('aria-label', 'AI Usage widget actions');
-  menu.innerHTML = `
-    <div class="aut-menu__label">Widget actions</div>
-    <button type="button" role="menuitem" data-act="${snoozedActive ? 'unsnooze' : 'snooze'}">${snoozedActive ? 'Resume notifications' : 'Snooze notifications 1 hr'}</button>
-    <button type="button" role="menuitem" data-act="hide">Hide for session</button>
-    <button type="button" role="menuitem" data-act="refresh">Refresh now</button>
-    <div class="aut-menu__rule"></div>
-    <button type="button" role="menuitem" data-act="analytics">Open analytics</button>
-    <button type="button" role="menuitem" data-act="settings">Open settings</button>
-  `;
+  const menu = createElement('div', {
+    className: 'aut-menu',
+    attrs: { role: 'menu', 'aria-label': 'AI Usage widget actions' },
+  });
+  const menuButton = (act, text) => createElement('button', {
+    text,
+    attrs: { type: 'button', role: 'menuitem', 'data-act': act },
+  });
+  appendChildren(menu, [
+    createElement('div', { className: 'aut-menu__label', text: 'Widget actions' }),
+    menuButton(snoozedActive ? 'unsnooze' : 'snooze', snoozedActive ? 'Resume notifications' : 'Snooze notifications 1 hr'),
+    menuButton('hide', 'Hide for session'),
+    menuButton('refresh', 'Refresh now'),
+    createElement('div', { className: 'aut-menu__rule' }),
+    menuButton('analytics', 'Open analytics'),
+    menuButton('settings', 'Open settings'),
+  ]);
   rootEl.appendChild(menu);
   contextMenuEl = menu;
 

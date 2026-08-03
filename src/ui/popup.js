@@ -1,6 +1,13 @@
 import { loadState } from '../lib/storage.js';
 import { formatCountdown, formatResetAbsolute, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { sparklineSamplesFor } from '../lib/history.js';
+import {
+  appendChildren,
+  clearChildren,
+  createElement,
+  createSvgElement,
+  setSafeAttribute,
+} from '../lib/dom.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
@@ -51,7 +58,7 @@ export async function render() {
   applyTheme(settings);
   const thresholds = normalizeThresholds(settings.thresholds);
 
-  dashboard.innerHTML = '';
+  clearChildren(dashboard);
   const overview = buildOverview(snapshot, settings, thresholds);
   if (overview) dashboard.appendChild(renderOverview(overview));
 
@@ -72,18 +79,26 @@ export async function render() {
   }
 
   if (!drew) {
-    const empty = document.createElement('div');
-    empty.className = 'popup-empty';
-    empty.innerHTML = `
-      <div class="popup-empty__title">No local usage snapshot yet</div>
-      <div>Open a signed-in usage page once. The tracker stores the reading locally, then this popup stays useful all day.</div>
-      <div class="popup-empty__actions">
-        <button class="aut-link-btn aut-link-btn--primary" data-provider="claude">Open Claude</button>
-        <button class="aut-link-btn" data-provider="codex">Open Codex</button>
-      </div>
-    `;
-    empty.querySelector('[data-provider="claude"]').addEventListener('click', () => openAnalytics('claude'));
-    empty.querySelector('[data-provider="codex"]').addEventListener('click', () => openAnalytics('codex'));
+    const empty = createElement('div', { className: 'popup-empty' });
+    const actions = createElement('div', { className: 'popup-empty__actions' });
+    const claudeButton = createElement('button', {
+      className: 'aut-link-btn aut-link-btn--primary',
+      text: 'Open Claude',
+      attrs: { type: 'button', 'data-provider': 'claude' },
+    });
+    const codexButton = createElement('button', {
+      className: 'aut-link-btn',
+      text: 'Open Codex',
+      attrs: { type: 'button', 'data-provider': 'codex' },
+    });
+    appendChildren(actions, [claudeButton, codexButton]);
+    appendChildren(empty, [
+      createElement('div', { className: 'popup-empty__title', text: 'No local usage snapshot yet' }),
+      createElement('div', { text: 'Open a signed-in usage page once. The tracker stores the reading locally, then this popup stays useful all day.' }),
+      actions,
+    ]);
+    claudeButton.addEventListener('click', () => openAnalytics('claude'));
+    codexButton.addEventListener('click', () => openAnalytics('codex'));
     dashboard.appendChild(empty);
   }
 
@@ -93,20 +108,25 @@ export async function render() {
 }
 
 function renderOverview(overview) {
-  const wrap = document.createElement('section');
-  wrap.className = `popup-overview popup-overview--${overview.tone}`;
-  wrap.setAttribute('aria-label', 'Usage overview');
-  wrap.innerHTML = `
-    <div class="popup-overview__copy">
-      <span class="popup-overview__label">Most constrained</span>
-      <strong>${escapeHtml(overview.title)}</strong>
-      <span>${escapeHtml(overview.detail)}</span>
-    </div>
-    <div class="popup-overview__meta">
-      <span class="aut-status-label aut-status-label--${overview.tone}">${overview.percent}% used</span>
-      <span class="aut-status-label aut-status-label--info">Local only</span>
-    </div>
-  `;
+  const wrap = createElement('section', {
+    className: `popup-overview popup-overview--${overview.tone}`,
+    attrs: { 'aria-label': 'Usage overview' },
+  });
+  const copy = createElement('div', { className: 'popup-overview__copy' });
+  appendChildren(copy, [
+    createElement('span', { className: 'popup-overview__label', text: 'Most constrained' }),
+    createElement('strong', { text: overview.title }),
+    createElement('span', { text: overview.detail }),
+  ]);
+  const meta = createElement('div', { className: 'popup-overview__meta' });
+  appendChildren(meta, [
+    createElement('span', {
+      className: `aut-status-label aut-status-label--${overview.tone}`,
+      text: `${overview.percent}% used`,
+    }),
+    createElement('span', { className: 'aut-status-label aut-status-label--info', text: 'Local only' }),
+  ]);
+  appendChildren(wrap, [copy, meta]);
   return wrap;
 }
 
@@ -116,9 +136,11 @@ function renderProvider(providerKey, ps, buckets, history, thresholds) {
 
   const head = document.createElement('div');
   head.className = 'popup-provider__head';
-  head.innerHTML = `<span class="aut-widget__brand-dot"></span>${providerKey === 'claude' ? 'Claude' : 'Codex'}`;
-  const meta = document.createElement('span');
-  meta.className = 'popup-provider__meta';
+  appendChildren(head, [
+    createElement('span', { className: 'aut-widget__brand-dot' }),
+    providerKey === 'claude' ? 'Claude' : 'Codex',
+  ]);
+  const meta = createElement('span', { className: 'popup-provider__meta' });
   if (ps.plan) {
     const plan = document.createElement('span');
     plan.className = 'popup-provider__plan aut-status-label';
@@ -152,42 +174,74 @@ function renderProvider(providerKey, ps, buckets, history, thresholds) {
 }
 
 function renderBucket(b, history, thresholds) {
-  const row = document.createElement('div');
-  row.className = `popup-bucket popup-bucket--${statusTone(b.percentUsed, thresholds)}`;
-  row.setAttribute('role', 'group');
+  const row = createElement('div', {
+    className: `popup-bucket popup-bucket--${statusTone(b.percentUsed, thresholds)}`,
+    attrs: { role: 'group' },
+  });
 
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
   const offset = RING_C * (1 - remaining / 100);
-  const ring = document.createElement('div');
-  ring.className = 'popup-bucket__ring';
-  ring.innerHTML = `
-    <svg viewBox="0 0 52 52" style="transform:rotate(-90deg);">
-      <circle cx="26" cy="26" r="${RING_R}" fill="none" stroke="var(--aut-surface0)" stroke-width="4"></circle>
-      <circle cx="26" cy="26" r="${RING_R}" fill="none" stroke="${ringColor(percent, thresholds)}" stroke-width="4"
-              stroke-dasharray="${RING_C}" stroke-dashoffset="${offset}" stroke-linecap="round"></circle>
-    </svg>
-    <div style="margin-top:-36px;text-align:center;font-size:11px;font-weight:700;">${Math.round(remaining)}%</div>
-  `;
+  const ring = createElement('div', { className: 'popup-bucket__ring' });
+  const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 52 52', style: 'transform:rotate(-90deg);' } });
+  appendChildren(svg, [
+    createSvgElement('circle', {
+      attrs: { cx: 26, cy: 26, r: RING_R, fill: 'none', stroke: 'var(--aut-surface0)', 'stroke-width': 4 },
+    }),
+    createSvgElement('circle', {
+      attrs: {
+        cx: 26,
+        cy: 26,
+        r: RING_R,
+        fill: 'none',
+        stroke: ringColor(percent, thresholds),
+        'stroke-width': 4,
+        'stroke-dasharray': RING_C,
+        'stroke-dashoffset': offset,
+        'stroke-linecap': 'round',
+      },
+    }),
+  ]);
+  appendChildren(ring, [
+    svg,
+    createElement('div', {
+      className: 'popup-bucket__remaining',
+      text: `${Math.round(remaining)}%`,
+    }),
+  ]);
   row.appendChild(ring);
 
-  const main = document.createElement('div');
-  main.className = 'popup-bucket__main';
+  const main = createElement('div', { className: 'popup-bucket__main' });
   const subClass = b.resetISO ? 'popup-bucket__sub' : 'popup-bucket__sub popup-bucket__sub--missing';
-  const subText = b.resetISO
-    ? `<span>Resets ${escapeHtml(formatResetAbsolute(b.resetISO))} - </span><span class="popup-bucket__countdown" role="timer" aria-live="polite" aria-atomic="true" data-target="${escapeHtml(b.resetISO)}">${escapeHtml(formatCountdown(b.resetISO))}</span>`
-    : escapeHtml(b.rawResetText || 'Reset not published');
-  main.innerHTML = `
-    <div class="popup-bucket__label">${escapeHtml(humanBucketLabel(b))}</div>
-    <div class="${subClass}">${subText}</div>
-  `;
+  const sub = createElement('div', { className: subClass });
+  if (b.resetISO) {
+    appendChildren(sub, [
+      createElement('span', { text: `Resets ${formatResetAbsolute(b.resetISO)} - ` }),
+      createElement('span', {
+        className: 'popup-bucket__countdown',
+        text: formatCountdown(b.resetISO),
+        attrs: {
+          role: 'timer',
+          'aria-live': 'polite',
+          'aria-atomic': 'true',
+          'data-target': b.resetISO,
+        },
+      }),
+    ]);
+  } else {
+    sub.textContent = b.rawResetText || 'Reset not published';
+  }
+  appendChildren(main, [
+    createElement('div', { className: 'popup-bucket__label', text: humanBucketLabel(b) }),
+    sub,
+  ]);
   row.appendChild(main);
 
   const spark = document.createElement('div');
   spark.className = 'popup-bucket__spark';
   buildSparkline(spark, history, b.id);
   row.appendChild(spark);
-  row.setAttribute('aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
+  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
 
   return row;
 }
@@ -229,17 +283,12 @@ function statusTone(percent, thresholds) {
 function buildSparkline(host, history, bucketId) {
   const samples = sparklineSamplesFor(history, bucketId, { n: 24 });
   const pts = samples.map((sample) => sample.percentUsed);
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 80 28');
-  svg.setAttribute('preserveAspectRatio', 'none');
+  const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 80 28', preserveAspectRatio: 'none' } });
   if (pts.length < 2) {
-    const text = document.createElementNS(svgNS, 'text');
-    text.setAttribute('x', '40'); text.setAttribute('y', '20');
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', 'var(--aut-overlay1)');
-    text.setAttribute('font-size', '9');
-    text.textContent = '-';
+    const text = createSvgElement('text', {
+      attrs: { x: 40, y: 20, 'text-anchor': 'middle', fill: 'var(--aut-overlay1)', 'font-size': 9 },
+      children: ['-'],
+    });
     svg.appendChild(text);
     host.appendChild(svg);
     return;
@@ -254,8 +303,7 @@ function buildSparkline(host, history, bucketId) {
     d += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
   });
   d += ` L ${w} ${h} L 0 ${h} Z`;
-  const path = document.createElementNS(svgNS, 'path');
-  path.setAttribute('d', d);
+  const path = createSvgElement('path', { attrs: { d } });
   svg.appendChild(path);
   host.appendChild(svg);
   attachSparklineTooltip(host, samples);
@@ -264,8 +312,8 @@ function buildSparkline(host, history, bucketId) {
 function attachSparklineTooltip(host, samples) {
   if (!samples.length) return;
   host.tabIndex = 0;
-  host.setAttribute('role', 'img');
-  host.setAttribute('aria-label', sparklineAriaLabel(samples));
+  setSafeAttribute(host, 'role', 'img');
+  setSafeAttribute(host, 'aria-label', sparklineAriaLabel(samples));
 
   const tip = document.createElement('div');
   tip.className = 'popup-spark-tooltip';
@@ -313,21 +361,33 @@ function formatHistoryTime(ts) {
 }
 
 function renderError(provider, error) {
-  const wrap = document.createElement('section');
-  wrap.className = 'popup-provider';
-  wrap.innerHTML = `
-    <div class="popup-provider__head"><span class="aut-widget__brand-dot"></span>${provider === 'claude' ? 'Claude' : 'Codex'}</div>
-    <div class="popup-error">
-      <div class="popup-error__title">${error === 'shell-response' ? 'Waiting for a signed-in reading' : 'Refresh failed'}</div>
-      <div>${error === 'shell-response'
+  const wrap = createElement('section', { className: 'popup-provider' });
+  const heading = createElement('div', { className: 'popup-provider__head' });
+  appendChildren(heading, [
+    createElement('span', { className: 'aut-widget__brand-dot' }),
+    provider === 'claude' ? 'Claude' : 'Codex',
+  ]);
+  const errorBox = createElement('div', { className: 'popup-error' });
+  const waiting = error === 'shell-response';
+  const openButton = createElement('button', {
+    className: 'aut-link-btn',
+    text: 'Open usage page',
+    attrs: { type: 'button', 'data-provider': provider },
+  });
+  appendChildren(errorBox, [
+    createElement('div', {
+      className: 'popup-error__title',
+      text: waiting ? 'Waiting for a signed-in reading' : 'Refresh failed',
+    }),
+    createElement('div', {
+      text: waiting
         ? 'Open the usage page once while signed in, then refresh this popup.'
-        : escapeHtml(error || 'Unknown error')}</div>
-      <div class="popup-error__actions">
-        <button class="aut-link-btn" data-provider="${provider}">Open usage page</button>
-      </div>
-    </div>
-  `;
-  wrap.querySelector('[data-provider]')?.addEventListener('click', () => openAnalytics(provider));
+        : (error || 'Unknown error'),
+    }),
+    createElement('div', { className: 'popup-error__actions', children: [openButton] }),
+  ]);
+  appendChildren(wrap, [heading, errorBox]);
+  openButton.addEventListener('click', () => openAnalytics(provider));
   return wrap;
 }
 
@@ -344,12 +404,6 @@ function titleModel(model) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
-  }[c]));
 }
 
 function formatAgo(iso) {

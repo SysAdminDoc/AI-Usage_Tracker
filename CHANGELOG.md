@@ -12,6 +12,7 @@
 - Provider API, auth, DOM, HTML, stream, and header contracts now carry stable provider-specific error codes with fixture coverage for renamed fields and fallback surfaces.
 - An isolated linkedom regression harness now renders popup, widget, and options state permutations and checks labels, busy/focus hooks, reduced motion, and overflow guards without opening a browser window.
 - A canonical two-provider host matrix now validates extension matches, apex permissions, web-accessible resources, userscript metadata, README hosts, and runtime predicates during tests and builds.
+- UI rendering now uses shared text/attribute/DOM builders; the CI safety audit rejects direct HTML sinks and guards the single reviewed static icon template.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

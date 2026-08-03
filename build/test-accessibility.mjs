@@ -14,8 +14,10 @@ assert.match(theme, /prefers-reduced-motion:\s*reduce/, 'reduced-motion rules mu
 assert.match(theme, /--aut-control-h:\s*44px/, 'interactive icon targets should be touch-sized');
 assert.match(theme, /data-aut-contrast="high"/, 'high-contrast palette must be available');
 assert.match(theme, /focus-visible/, 'shared controls need visible keyboard focus');
-assert.match(widget, /role="timer" aria-live="polite"/, 'widget countdowns need a live timer label');
-assert.match(popup, /role="timer" aria-live="polite"/, 'popup countdowns need a live timer label');
+assert.match(widget, /role:\s*'timer'/, 'widget countdowns need a live timer role');
+assert.match(widget, /'aria-live':\s*'polite'/, 'widget countdowns need a polite live region');
+assert.match(popup, /role:\s*'timer'/, 'popup countdowns need a live timer role');
+assert.match(popup, /'aria-live':\s*'polite'/, 'popup countdowns need a polite live region');
 assert.match(widget, /aut-bucket--\$\{severityFor/, 'widget must expose non-color severity classes');
 assert.match(popup, /popup-bucket--\$\{statusTone/, 'popup must expose non-color severity classes');
 assert.match(options, /id="highContrast"/, 'extension settings must expose high contrast');

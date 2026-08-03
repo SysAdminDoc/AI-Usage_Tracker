@@ -11,6 +11,7 @@ import {
   normalizeThemeValue,
 } from '../lib/settings.js';
 import { normalizeThresholds } from '../lib/countdown.js';
+import { clearChildren } from '../lib/dom.js';
 
 const VERSION = '0.2.2';
 
@@ -41,7 +42,7 @@ export async function init() {
 
 async function renderProviders() {
   const wrap = document.getElementById('provider-toggles');
-  wrap.innerHTML = '';
+  clearChildren(wrap);
   for (const id of ['claude', 'codex']) {
     const label = document.createElement('label');
     label.className = 'opt-toggle';
@@ -56,7 +57,7 @@ async function renderProviders() {
 async function renderRows() {
   const state = await loadState();
   const wrap = document.getElementById('row-toggles');
-  wrap.innerHTML = '';
+  clearChildren(wrap);
   for (const row of listRowOptions(state)) {
     const label = document.createElement('label');
     label.className = 'opt-toggle';
@@ -305,7 +306,7 @@ export async function renderDiagnostics() {
 
   const usage = await getStorageUsage(state);
   const diag = buildDiagnostics(state, usage);
-  wrap.innerHTML = '';
+  clearChildren(wrap);
   addDiagnostic(wrap, 'Snapshot', diag.snapshot);
   addDiagnostic(wrap, 'Claude', diag.providers.claude.summary, diag.providers.claude.ok ? 'good' : 'bad');
   addDiagnostic(wrap, 'Codex', diag.providers.codex.summary, diag.providers.codex.ok ? 'good' : 'bad');

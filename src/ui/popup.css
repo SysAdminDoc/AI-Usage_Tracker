@@ -126,6 +126,12 @@ html, body {
 .popup-bucket__ring {
   width: 52px; height: 52px;
 }
+.popup-bucket__remaining {
+  margin-top: -36px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+}
 
 .popup-bucket__main { min-width: 0; }
 .popup-bucket__label {
