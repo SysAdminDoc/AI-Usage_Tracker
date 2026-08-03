@@ -237,7 +237,7 @@ function renderHeader({ onRefresh, onOpenSettings }) {
   return header;
 }
 
-function renderProvider(providerKey, ps, buckets, extras = {}) {
+export function renderProvider(providerKey, ps, buckets, extras = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'aut-provider';
 
@@ -329,7 +329,7 @@ function renderContextCounter(context) {
   return row;
 }
 
-function renderBucket(b, thresholds) {
+export function renderBucket(b, thresholds) {
   const row = document.createElement('div');
   row.className = `aut-bucket aut-bucket--${severityFor(b.percentUsed, thresholds)}`;
   row.setAttribute('role', 'group');
@@ -367,7 +367,7 @@ function renderBucket(b, thresholds) {
   return row;
 }
 
-function renderProviderError(provider, error) {
+export function renderProviderError(provider, error) {
   const wrap = document.createElement('div');
   wrap.className = 'aut-provider';
   const title = document.createElement('div');

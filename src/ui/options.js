@@ -10,14 +10,15 @@ import {
   normalizeSettings,
   normalizeThemeValue,
 } from '../lib/settings.js';
+import { normalizeThresholds } from '../lib/countdown.js';
 
 const VERSION = '0.2.2';
 
 const saveStatus = document.getElementById('saveStatus');
 
-init();
+export const ready = init();
 
-async function init() {
+export async function init() {
   document.querySelector('.opt-head__sub').textContent = `Settings - v${VERSION}`;
   saveStatus.textContent = 'Ready';
 
@@ -117,7 +118,7 @@ function setThresholdLabels(thresholds) {
   document.getElementById('dangerAtValue').textContent = `${thresholds.dangerAt}%`;
 }
 
-function renderSnoozeStatus(settings = {}) {
+export function renderSnoozeStatus(settings = {}) {
   const wrap = document.getElementById('snoozeStatus');
   const clearBtn = document.getElementById('clearSnooze');
   if (!wrap) return;
@@ -297,7 +298,7 @@ function bindHandlers() {
   });
 }
 
-async function renderDiagnostics() {
+export async function renderDiagnostics() {
   const state = await loadState();
   const wrap = document.getElementById('diagnostics');
   if (!wrap) return;
@@ -375,7 +376,7 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function buildDiagnostics(state, usage = {}) {
+export function buildDiagnostics(state, usage = {}) {
   const providers = state.snapshot?.providers || {};
   const settings = normalizeSettings(state.settings);
   const thresholds = normalizeThresholds(state.settings?.thresholds);

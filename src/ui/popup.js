@@ -45,7 +45,7 @@ function updateCountdowns() {
   }
 }
 
-async function render() {
+export async function render() {
   const state = await loadState();
   const { snapshot, settings, history } = state;
   applyTheme(settings);

@@ -85,7 +85,7 @@ node build/build-all.mjs
 npm test
 ```
 
-Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency.
+Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency. `npm test` also runs an isolated linkedom render harness for popup, widget, and options state permutations, so UI checks do not open a browser window.
 
 ## Privacy
 

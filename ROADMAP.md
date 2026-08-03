@@ -206,13 +206,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Research-Driven Additions
 
 ### P1
-- [ ] P1 — Rendered UI and accessibility regression harness
-  Why: Current tests do not render popup/options/widget state permutations where overflow, focus, copy, and contrast regressions occur.
-  Evidence: `src/ui/popup.js`, `src/ui/options.js`, `src/ui/widget.js`, WCAG 2.2, existing appearance smoke test limitations.
-  Touches: UI test harness, `src/ui/*.js`, CSS, CI scripts
-  Acceptance: Automated checks render first-run, loading, stale, error, disabled, snoozed, and reduced-motion states for popup/options/widget and fail on console errors, missing labels, focus traps, or obvious overflow.
-  Complexity: M
-
 - [ ] P1 — Manifest and host matrix validator
   Why: Content scripts cover wildcard subdomains, but host permissions and web-accessible resources are apex-only; userscript metadata and runtime host checks also disagree on `openai.com`.
   Evidence: `manifests/chrome.json`, `manifests/firefox.json`, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, Chrome content-script and web-accessible resource docs.

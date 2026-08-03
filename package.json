@@ -10,7 +10,7 @@
     "build:firefox": "node build/build-firefox.mjs",
     "build:bridge": "node build/build-bridge.mjs",
     "build:userscript": "node build/build-userscript.mjs",
-    "test": "node build/test-release-provenance.mjs && node build/test-scrapers.mjs && node build/test-context-counter.mjs && node build/test-cache-timer.mjs && node build/test-history.mjs && node build/test-notify.mjs && node build/test-appearance.mjs && node build/test-storage.mjs && node build/test-countdown.mjs && node build/test-inline-settings.mjs && node build/test-accessibility.mjs && node build/test-manifest-profile.mjs"
+    "test": "node build/test-release-provenance.mjs && node build/test-scrapers.mjs && node build/test-context-counter.mjs && node build/test-cache-timer.mjs && node build/test-history.mjs && node build/test-notify.mjs && node build/test-appearance.mjs && node build/test-storage.mjs && node build/test-countdown.mjs && node build/test-inline-settings.mjs && node build/test-accessibility.mjs && node build/test-ui-regression.mjs && node build/test-manifest-profile.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
