@@ -16,6 +16,17 @@ const ORG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 let orgCache = { id: null, ts: 0 };
 
+function claudeFailure(source, errorCode, error, extra = {}) {
+  return {
+    ok: false,
+    provider: 'claude',
+    source,
+    error,
+    errorCode: `claude.${errorCode}`,
+    ...extra,
+  };
+}
+
 export async function fetchClaude({ now = new Date(), fetchImpl = null } = {}) {
   const api = await fetchClaudeApi({ now, fetchImpl });
   if (api.ok) return api;
@@ -30,10 +41,10 @@ export async function fetchClaude({ now = new Date(), fetchImpl = null } = {}) {
 
 export async function fetchClaudeApi({ now = new Date(), fetchImpl = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
-  if (!doFetch) return { ok: false, provider: 'claude', error: 'fetch-unavailable' };
+  if (!doFetch) return claudeFailure('api', 'fetch.unavailable', 'fetch-unavailable');
 
   const org = await getClaudeOrgId({ fetchImpl: doFetch });
-  if (!org.ok) return { ok: false, provider: 'claude', source: 'api', error: org.error };
+  if (!org.ok) return { ...org, provider: 'claude', source: 'api' };
 
   try {
     const res = await doFetch(`${CLAUDE_ORGS_URL}/${encodeURIComponent(org.orgId)}/usage`, {
@@ -41,18 +52,18 @@ export async function fetchClaudeApi({ now = new Date(), fetchImpl = null } = {}
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) {
-      return { ok: false, provider: 'claude', source: 'api', error: `usage-http-${res.status}` };
+      return claudeFailure('api', 'usage.http', `usage-http-${res.status}`, { status: res.status, orgId: org.orgId });
     }
     const data = await res.json();
     return parseClaudeUsageApi(data, { now, orgId: org.orgId });
   } catch (err) {
-    return { ok: false, provider: 'claude', source: 'api', error: `usage-fetch-failed: ${String(err)}` };
+    return claudeFailure('api', 'usage.fetch-failed', `usage-fetch-failed: ${String(err)}`, { orgId: org.orgId });
   }
 }
 
 export async function getClaudeOrgId({ fetchImpl = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
-  if (!doFetch) return { ok: false, error: 'fetch-unavailable' };
+  if (!doFetch) return claudeFailure('account', 'account.fetch-unavailable', 'fetch-unavailable');
 
   const nowTs = Date.now();
   if (orgCache.id && nowTs - orgCache.ts < ORG_CACHE_TTL_MS) {
@@ -64,18 +75,18 @@ export async function getClaudeOrgId({ fetchImpl = null } = {}) {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     });
-    if (!res.ok) return { ok: false, error: `orgs-http-${res.status}` };
+    if (!res.ok) return claudeFailure('account', 'account.http', `orgs-http-${res.status}`, { status: res.status });
 
     const data = await res.json();
     const orgs = normalizeOrgList(data);
     const org = pickClaudeOrg(orgs);
     const orgId = org?.uuid || org?.id;
-    if (!orgId) return { ok: false, error: 'org-id-not-found' };
+    if (!orgId) return claudeFailure('account', 'account.missing', 'org-id-not-found');
 
     orgCache = { id: orgId, ts: nowTs };
     return { ok: true, orgId, source: 'organizations' };
   } catch (err) {
-    return { ok: false, error: `orgs-fetch-failed: ${String(err)}` };
+    return claudeFailure('account', 'account.fetch-failed', `orgs-fetch-failed: ${String(err)}`);
   }
 }
 
@@ -101,7 +112,7 @@ export function parseClaudeUsageApi(data, { now = new Date(), orgId = null } = {
   }
 
   if (buckets.length === 0) {
-    return { ok: false, provider: 'claude', source: 'api', orgId, error: 'usage-schema-empty' };
+    return claudeFailure('api', 'usage.schema-empty', 'usage-schema-empty', { orgId });
   }
 
   return {
@@ -116,16 +127,16 @@ export function parseClaudeUsageApi(data, { now = new Date(), orgId = null } = {
 
 async function fetchClaudeUsagePage({ now, fetchImpl }) {
   const doFetch = resolveFetch(fetchImpl);
-  if (!doFetch) return { ok: false, provider: 'claude', source: 'html', error: 'fetch-unavailable' };
+  if (!doFetch) return claudeFailure('html', 'page.fetch-unavailable', 'fetch-unavailable');
 
   try {
     const res = await doFetch(CLAUDE_URL, { credentials: 'include' });
-    if (!res.ok) return { ok: false, provider: 'claude', source: 'html', error: `HTTP ${res.status}` };
+    if (!res.ok) return claudeFailure('html', 'page.http', `HTTP ${res.status}`, { status: res.status });
     const html = await res.text();
     const parsed = parseClaude(html, { now });
     return parsed.ok ? { ...parsed, source: 'html' } : { ...parsed, source: 'html' };
   } catch (err) {
-    return { ok: false, provider: 'claude', source: 'html', error: String(err) };
+    return claudeFailure('html', 'page.fetch-failed', String(err));
   }
 }
 
@@ -345,13 +356,13 @@ function firstDefined(obj, keys) {
 // - PRIMARY: live DOM ------------------------------------------------------
 
 export function parseClaudeDoc(doc, { now = new Date() } = {}) {
-  if (!doc) return { ok: false, provider: 'claude', error: 'no-document' };
+  if (!doc) return claudeFailure('dom', 'dom.no-document', 'no-document');
 
   // Wait-state check -- the React tree may not be done hydrating yet.
   const sessionH3 = findHeadingContaining(doc, 'Plan usage limits');
   const weeklyH3  = findHeadingContaining(doc, 'Weekly limits');
   if (!sessionH3 && !weeklyH3) {
-    return { ok: false, provider: 'claude', source: 'dom', error: 'unhydrated' };
+    return claudeFailure('dom', 'dom.unhydrated', 'unhydrated');
   }
 
   const plan = extractPlanFromHeading(sessionH3);
@@ -372,7 +383,7 @@ export function parseClaudeDoc(doc, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return { ok: false, provider: 'claude', source: 'dom', error: 'no-rows-rendered' };
+    return claudeFailure('dom', 'dom.no-rows', 'no-rows-rendered');
   }
   return { ok: true, provider: 'claude', source: 'dom', plan, buckets };
 }
@@ -435,7 +446,7 @@ function extractRowsFromSection(section, { now }) {
 
 export function parseClaude(html, { now = new Date() } = {}) {
   if (!/Plan usage limits|Weekly limits/.test(html)) {
-    return { ok: false, provider: 'claude', error: 'shell-response' };
+    return claudeFailure('html', 'html.shell', 'shell-response');
   }
 
   // The page may be a hydration shell -- the strings can appear in the JS
@@ -459,7 +470,7 @@ export function parseClaude(html, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return { ok: false, provider: 'claude', error: 'shell-response' };
+    return claudeFailure('html', 'html.shell', 'shell-response');
   }
   return { ok: true, provider: 'claude', plan, buckets };
 }

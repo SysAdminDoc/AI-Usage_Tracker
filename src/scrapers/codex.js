@@ -13,6 +13,17 @@ export const CODEX_URL = 'https://chatgpt.com/codex/cloud/settings/analytics#usa
 export const CODEX_AUTH_SESSION_URL = 'https://chatgpt.com/api/auth/session';
 export const CODEX_USAGE_API_URL = 'https://chatgpt.com/backend-api/wham/usage';
 
+function codexFailure(source, errorCode, error, extra = {}) {
+  return {
+    ok: false,
+    provider: 'codex',
+    source,
+    error,
+    errorCode: `codex.${errorCode}`,
+    ...extra,
+  };
+}
+
 export async function fetchCodex({ now = new Date(), fetchImpl = null } = {}) {
   const api = await fetchCodexApi({ now, fetchImpl });
   if (api.ok) return api;
@@ -25,7 +36,7 @@ export async function fetchCodex({ now = new Date(), fetchImpl = null } = {}) {
 
 export async function fetchCodexApi({ now = new Date(), fetchImpl = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
-  if (!doFetch) return { ok: false, provider: 'codex', source: 'api', error: 'fetch-unavailable' };
+  if (!doFetch) return codexFailure('api', 'fetch.unavailable', 'fetch-unavailable');
 
   const auth = await getChatGptAuthContext({ fetchImpl: doFetch });
   const headers = { Accept: 'application/json' };
@@ -38,30 +49,30 @@ export async function fetchCodexApi({ now = new Date(), fetchImpl = null } = {})
       headers,
     });
     if (!res.ok) {
-      return {
-        ok: false,
-        provider: 'codex',
-        source: 'api',
-        error: `usage-http-${res.status}${auth.error ? `; ${auth.error}` : ''}`,
-      };
+      return codexFailure('api', 'usage.http', `usage-http-${res.status}${auth.error ? `; ${auth.error}` : ''}`, {
+        status: res.status,
+        authErrorCode: auth.errorCode || null,
+      });
     }
     const data = await res.json();
     return parseCodexUsageApi(data, { now, accountId: auth.accountId, authSource: auth.source });
   } catch (err) {
-    return { ok: false, provider: 'codex', source: 'api', error: `usage-fetch-failed: ${String(err)}` };
+    return codexFailure('api', 'usage.fetch-failed', `usage-fetch-failed: ${String(err)}`, {
+      authErrorCode: auth.errorCode || null,
+    });
   }
 }
 
 export async function getChatGptAuthContext({ fetchImpl = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
-  if (!doFetch) return { ok: false, error: 'fetch-unavailable' };
+  if (!doFetch) return codexFailure('auth', 'auth.fetch-unavailable', 'fetch-unavailable');
 
   try {
     const res = await doFetch(CODEX_AUTH_SESSION_URL, {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     });
-    if (!res.ok) return { ok: false, error: `auth-http-${res.status}` };
+    if (!res.ok) return codexFailure('auth', 'auth.http', `auth-http-${res.status}`, { status: res.status });
 
     const data = await res.json();
     const accessToken = findFirstStringDeep(data, [
@@ -75,14 +86,16 @@ export async function getChatGptAuthContext({ fetchImpl = null } = {}) {
 
     return {
       ok: !!accessToken,
+      provider: 'codex',
       source: 'session',
       accessToken,
       accountId,
       plan,
       error: accessToken ? null : 'auth-token-not-found',
+      errorCode: accessToken ? null : 'codex.auth.missing-token',
     };
   } catch (err) {
-    return { ok: false, error: `auth-fetch-failed: ${String(err)}` };
+    return codexFailure('auth', 'auth.fetch-failed', `auth-fetch-failed: ${String(err)}`);
   }
 }
 
@@ -175,7 +188,7 @@ export function parseCodexUsageApi(data, { now = new Date(), accountId = null, a
 
   const uniqueBuckets = dedupeBuckets(buckets);
   if (uniqueBuckets.length === 0) {
-    return { ok: false, provider: 'codex', source: 'api', accountId, authSource, error: 'usage-schema-empty' };
+    return codexFailure('api', 'usage.schema-empty', 'usage-schema-empty', { accountId, authSource });
   }
 
   return {
@@ -191,16 +204,16 @@ export function parseCodexUsageApi(data, { now = new Date(), accountId = null, a
 
 async function fetchCodexAnalyticsPage({ now, fetchImpl }) {
   const doFetch = resolveFetch(fetchImpl);
-  if (!doFetch) return { ok: false, provider: 'codex', source: 'html', error: 'fetch-unavailable' };
+  if (!doFetch) return codexFailure('html', 'page.fetch-unavailable', 'fetch-unavailable');
 
   try {
     const res = await doFetch(CODEX_URL, { credentials: 'include' });
-    if (!res.ok) return { ok: false, provider: 'codex', source: 'html', error: `HTTP ${res.status}` };
+    if (!res.ok) return codexFailure('html', 'page.http', `HTTP ${res.status}`, { status: res.status });
     const html = await res.text();
     const parsed = parseCodex(html, { now });
     return parsed.ok ? { ...parsed, source: 'html' } : { ...parsed, source: 'html' };
   } catch (err) {
-    return { ok: false, provider: 'codex', source: 'html', error: String(err) };
+    return codexFailure('html', 'page.fetch-failed', String(err));
   }
 }
 
@@ -457,11 +470,11 @@ function firstArray(obj, keys) {
 // - PRIMARY FALLBACK: live DOM ---------------------------------------------
 
 export function parseCodexDoc(doc, { now = new Date() } = {}) {
-  if (!doc) return { ok: false, provider: 'codex', error: 'no-document' };
+  if (!doc) return codexFailure('dom', 'dom.no-document', 'no-document');
 
   const articles = doc.querySelectorAll('article');
   if (articles.length === 0) {
-    return { ok: false, provider: 'codex', source: 'dom', error: 'unhydrated' };
+    return codexFailure('dom', 'dom.unhydrated', 'unhydrated');
   }
 
   const buckets = [];
@@ -497,7 +510,7 @@ export function parseCodexDoc(doc, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return { ok: false, provider: 'codex', source: 'dom', error: 'no-rows-rendered' };
+    return codexFailure('dom', 'dom.no-rows', 'no-rows-rendered');
   }
   return { ok: true, provider: 'codex', source: 'dom', plan: null, buckets };
 }
@@ -506,7 +519,7 @@ export function parseCodexDoc(doc, { now = new Date() } = {}) {
 
 export function parseCodex(html, { now = new Date() } = {}) {
   if (!/Codex Analytics|usage limit/i.test(html)) {
-    return { ok: false, provider: 'codex', error: 'shell-response' };
+    return codexFailure('html', 'html.shell', 'shell-response');
   }
 
   const buckets = [];
@@ -538,7 +551,7 @@ export function parseCodex(html, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return { ok: false, provider: 'codex', error: 'shell-response' };
+    return codexFailure('html', 'html.shell', 'shell-response');
   }
   return { ok: true, provider: 'codex', plan: null, buckets };
 }

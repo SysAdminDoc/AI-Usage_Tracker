@@ -160,6 +160,7 @@ function keepPreviousSuccess(previous, next) {
       lastSuccessSource: next.source || 'unknown',
       lastErrorISO: previous?.lastErrorISO || null,
       lastErrorDetail: previous?.lastErrorDetail || null,
+      lastErrorCode: previous?.lastErrorCode || null,
       stale: false,
     };
   }
@@ -168,6 +169,7 @@ function keepPreviousSuccess(previous, next) {
       ...previous,
       lastErrorISO: nowISO,
       lastErrorDetail: next?.error || 'unknown',
+      lastErrorCode: next?.errorCode || null,
       stale: true,
     };
   }
@@ -175,6 +177,7 @@ function keepPreviousSuccess(previous, next) {
     ...next,
     lastErrorISO: nowISO,
     lastErrorDetail: next?.error || 'unknown',
+    lastErrorCode: next?.errorCode || null,
     stale: true,
   };
 }

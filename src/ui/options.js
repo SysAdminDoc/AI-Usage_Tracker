@@ -419,7 +419,10 @@ function notificationDiagnostic(settings = {}) {
 
 function providerDiagnostic(provider, ps) {
   if (!ps) return { ok: false, summary: 'No local snapshot yet' };
-  if (!ps.ok && !ps.stale) return { ok: false, summary: ps.lastErrorDetail || ps.error || 'Last refresh failed' };
+  if (!ps.ok && !ps.stale) return {
+    ok: false,
+    summary: formatProviderError(ps.lastErrorDetail || ps.error || 'Last refresh failed', ps.lastErrorCode),
+  };
   const parts = [
     `${ps.buckets?.length || 0} rows`,
     sourceLabel(ps.lastSuccessSource || ps.source),
@@ -427,8 +430,12 @@ function providerDiagnostic(provider, ps) {
   if (provider === 'claude' && ps.orgId) parts.push(`org ${shortId(ps.orgId)}`);
   if (ps.plan) parts.push(ps.plan);
   if (ps.lastSuccessISO) parts.push(`fresh ${formatAgo(ps.lastSuccessISO)}`);
-  if (ps.stale) parts.push('(stale - last fetch failed)');
+  if (ps.stale) parts.push(`(stale - ${formatProviderError('last fetch failed', ps.lastErrorCode)})`);
   return { ok: !ps.stale && ps.ok !== false, summary: parts.filter(Boolean).join(' - ') };
+}
+
+function formatProviderError(detail, errorCode) {
+  return errorCode ? `${detail} [${errorCode}]` : detail;
 }
 
 function visibleRowCount(state) {

@@ -9,6 +9,7 @@
 - Keyboard/live-region improvements, reduced-motion and touch-target coverage, plus an opt-in high-contrast palette with non-color warning cues.
 - Default extension packages no longer request `nativeMessaging`; an explicit `npm run build:bridge` channel retains optional QuotaGlass support.
 - Renewal, reset, and daily briefing notifications now recover within tested grace periods after browser or service-worker sleep, with a derived one-shot alarm for the next deadline.
+- Provider API, auth, DOM, HTML, stream, and header contracts now carry stable provider-specific error codes with fixture coverage for renamed fields and fallback surfaces.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

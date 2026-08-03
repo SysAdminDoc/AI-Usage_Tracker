@@ -206,13 +206,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Research-Driven Additions
 
 ### P1
-- [ ] P1 — Provider contract fixture matrix
-  Why: Private Claude/ChatGPT schemas and DOM selectors drift, and parser breakage should fail with actionable diagnostics before users report bad numbers.
-  Evidence: `src/scrapers/claude.js`, `src/scrapers/codex.js`, `build/test-scrapers.mjs`, Claude Counter issues #26/#27/#30, Codex WHAM issue #10869.
-  Touches: `build/test-scrapers.mjs`, `src/scrapers/*.js`, fixture data, error classification
-  Acceptance: Tests cover API, stream, header, DOM, raw HTML, auth failure, missing account, and renamed-field payloads with provider-specific error codes.
-  Complexity: M
-
 - [ ] P1 — Rendered UI and accessibility regression harness
   Why: Current tests do not render popup/options/widget state permutations where overflow, focus, copy, and contrast regressions occur.
   Evidence: `src/ui/popup.js`, `src/ui/options.js`, `src/ui/widget.js`, WCAG 2.2, existing appearance smoke test limitations.

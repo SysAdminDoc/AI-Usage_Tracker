@@ -206,6 +206,7 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
       ...prev,
       lastErrorISO: nowISO,
       lastErrorDetail: providerSnapshot.error || 'unknown',
+      lastErrorCode: providerSnapshot.errorCode || null,
       stale: true,
     };
   } else if (providerSnapshot.ok) {
@@ -215,6 +216,7 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
       lastSuccessSource: source || providerSnapshot.source || 'unknown',
       lastErrorISO: prev?.lastErrorISO || null,
       lastErrorDetail: prev?.lastErrorDetail || null,
+      lastErrorCode: prev?.lastErrorCode || null,
       stale: false,
     };
   } else {
@@ -223,6 +225,7 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
       ...providerSnapshot,
       lastErrorISO: nowISO,
       lastErrorDetail: providerSnapshot.error || 'unknown',
+      lastErrorCode: providerSnapshot.errorCode || null,
       stale: true,
     };
   }

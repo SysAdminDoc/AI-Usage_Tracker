@@ -5,8 +5,21 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './common.mjs';
-import { parseClaude, parseClaudeUsageApi } from '../src/scrapers/claude.js';
-import { fetchCodexApi, parseCodex, parseCodexUsageApi } from '../src/scrapers/codex.js';
+import {
+  clearClaudeOrgCache,
+  fetchClaudeApi,
+  getClaudeOrgId,
+  parseClaude,
+  parseClaudeDoc,
+  parseClaudeUsageApi,
+} from '../src/scrapers/claude.js';
+import {
+  fetchCodexApi,
+  getChatGptAuthContext,
+  parseCodex,
+  parseCodexDoc,
+  parseCodexUsageApi,
+} from '../src/scrapers/codex.js';
 import { collectClaudeMessageLimitsFromSseText, extractClaudeRateLimitHeaders } from '../src/lib/claude-stream.js';
 
 async function run() {
@@ -32,6 +45,7 @@ async function run() {
   smokeClaudeStream();
   smokeClaudeRateLimitHeaders();
   await smokeCodexApi();
+  await smokeProviderContractMatrix();
 }
 
 function decodeMhtmlBody(mhtml) {
@@ -183,6 +197,169 @@ async function smokeCodexApi() {
   console.log(`  auth/session + wham/usage requests: ${requests.length}`);
 }
 
+async function smokeProviderContractMatrix() {
+  const now = new Date('2026-05-14T12:00:00Z');
+
+  // Renamed fields and alternate nesting are kept as named fixtures so a
+  // provider schema change points to the affected contract row.
+  const claudeFixture = {
+    organization: { tier: 'team' },
+    usage: {
+      windows: {
+        fiveHour: { utilization: 0.125, resetAt: '2026-05-14T17:00:00Z' },
+        sevenDay: { remaining: 60, maximum: 100, reset_time: '2026-05-19T17:00:00Z' },
+      },
+    },
+  };
+  const claudeApi = parseClaudeUsageApi(claudeFixture, { now, orgId: 'org_fixture' });
+  assert(claudeApi.ok, 'Claude renamed-field fixture should parse');
+  assert(nearly(findBucket(claudeApi, 'claude-session')?.percentUsed, 12.5), 'Claude utilization alias should remain fractional');
+  assert(nearly(findBucket(claudeApi, 'claude-weekly-all')?.percentUsed, 40), 'Claude remaining/max aliases should normalize');
+
+  clearClaudeOrgCache();
+  const claudeRequests = [];
+  const fetchedClaude = await fetchClaudeApi({
+    now,
+    fetchImpl: async (url) => {
+      claudeRequests.push(String(url));
+      if (String(url) === 'https://claude.ai/api/organizations') {
+        return jsonResponse({ organizations: [{ id: 'org_fixture', is_default: true }] });
+      }
+      return jsonResponse(claudeFixture);
+    },
+  });
+  assert(fetchedClaude.ok, 'Claude API fixture should pass through org and usage fetches');
+  assertEqual(fetchedClaude.orgId, 'org_fixture', 'Claude account fixture should preserve org id');
+  assertEqual(claudeRequests.length, 2, 'Claude API fixture should make org and usage requests');
+
+  clearClaudeOrgCache();
+  const missingClaude = await getClaudeOrgId({ fetchImpl: async () => jsonResponse([]) });
+  assertError(missingClaude, 'claude.account.missing', 'Claude missing-account fixture should classify the failure');
+  assertError(parseClaudeUsageApi({}, { now }), 'claude.usage.schema-empty', 'Claude empty API fixture should classify the failure');
+
+  const codexFixture = {
+    usage: {
+      rateLimit: {
+        primaryWindow: { percentUsed: 12, resetAfter: 3600 },
+        secondaryWindow: { remainingPercent: 75, resetAt: '2026-05-19T06:05:00Z' },
+      },
+    },
+  };
+  const codexApi = parseCodexUsageApi(codexFixture, { now });
+  assert(codexApi.ok, 'Codex renamed-field fixture should parse');
+  assertEqual(findBucket(codexApi, 'codex-5h-all')?.percentUsed, 12, 'Codex percentUsed alias should parse');
+  assertEqual(findBucket(codexApi, 'codex-weekly-all')?.percentUsed, 25, 'Codex remainingPercent alias should normalize');
+  assertError(parseCodexUsageApi({}, { now }), 'codex.usage.schema-empty', 'Codex empty API fixture should classify the failure');
+
+  const missingCodex = await getChatGptAuthContext({ fetchImpl: async () => jsonResponse({ accountId: 'acc_fixture' }) });
+  assertError(missingCodex, 'codex.auth.missing-token', 'Codex missing-auth fixture should classify the failure');
+
+  const claudeHtml = [
+    '<h2>Plan usage limits <span>Max (20x)</span></h2>',
+    '<span class="text-body text-primary">Current session</span><div role="progressbar" aria-valuenow="42"></div><span>Resets in 1 hr</span>',
+    '<h2>Weekly limits</h2>',
+    '<span class="text-body text-primary">Sonnet only</span><div role="progressbar" aria-valuenow="18"></div><span>Resets Tue 1:00 PM</span>',
+  ].join('');
+  const parsedClaudeHtml = parseClaude(claudeHtml, { now });
+  assert(parsedClaudeHtml.ok && parsedClaudeHtml.buckets.length === 2, 'Claude raw HTML fixture should render both rows');
+  assertEqual(findBucket(parsedClaudeHtml, 'claude-session')?.percentUsed, 42, 'Claude raw HTML session should parse');
+  assertError(parseClaude('<main>hydration shell</main>', { now }), 'claude.html.shell', 'Claude shell fixture should classify the failure');
+
+  const codexHtml = [
+    '<div>Codex Analytics</div>',
+    '<article><header><p>5 hour usage limit</p></header><span>25%</span><span>Resets in 1 hr</span></article>',
+    '<article><header><p>Weekly usage limit</p></header><span>60%</span><span>Resets Tue 1:00 PM</span></article>',
+  ].join('');
+  const parsedCodexHtml = parseCodex(codexHtml, { now });
+  assert(parsedCodexHtml.ok && parsedCodexHtml.buckets.length === 2, 'Codex raw HTML fixture should render both rows');
+  assertEqual(findBucket(parsedCodexHtml, 'codex-5h-all')?.percentUsed, 75, 'Codex raw HTML remaining percent should normalize');
+  assertError(parseCodex('<main>hydration shell</main>', { now }), 'codex.html.shell', 'Codex shell fixture should classify the failure');
+
+  const claudeDom = makeClaudeDocument();
+  const parsedClaudeDom = parseClaudeDoc(claudeDom, { now });
+  assert(parsedClaudeDom.ok && parsedClaudeDom.buckets.length === 2, 'Claude DOM fixture should render both rows');
+  assertEqual(findBucket(parsedClaudeDom, 'claude-weekly-sonnet')?.percentUsed, 18, 'Claude DOM weekly row should parse');
+  assertError(parseClaudeDoc(null, { now }), 'claude.dom.no-document', 'Claude missing DOM fixture should classify the failure');
+  assertError(parseClaudeDoc({ querySelectorAll: () => [] }, { now }), 'claude.dom.unhydrated', 'Claude unhydrated DOM fixture should classify the failure');
+
+  const codexDom = makeCodexDocument();
+  const parsedCodexDom = parseCodexDoc(codexDom, { now });
+  assert(parsedCodexDom.ok && parsedCodexDom.buckets.length === 1, 'Codex DOM fixture should render the usage row');
+  assertEqual(findBucket(parsedCodexDom, 'codex-5h-all')?.percentUsed, 55, 'Codex DOM remaining percent should normalize');
+  assertError(parseCodexDoc(null, { now }), 'codex.dom.no-document', 'Codex missing DOM fixture should classify the failure');
+  assertError(parseCodexDoc({ querySelectorAll: () => [] }, { now }), 'codex.dom.unhydrated', 'Codex unhydrated DOM fixture should classify the failure');
+
+  console.log('\n=== Provider Contract Matrix ===');
+  console.log('  API aliases, auth/account failures, DOM, raw HTML, and diagnostics: OK');
+}
+
+function assertError(result, errorCode, message) {
+  assert(!result.ok, message);
+  assertEqual(result.errorCode, errorCode, message);
+  assertEqual(result.provider, errorCode.split('.')[0], `${message} should retain provider identity`);
+}
+
+function makeClaudeDocument() {
+  const sessionLabel = { textContent: 'Current session' };
+  const sessionReset = { textContent: 'Resets in 1 hr' };
+  const sessionRow = makeRow(sessionLabel, sessionReset);
+  const sessionBar = makeBar('42', sessionRow);
+  const sessionSection = makeSection([sessionBar]);
+  const sessionHeading = makeHeading('Plan usage limits', 'Max (20x)', sessionSection);
+
+  const weeklyLabel = { textContent: 'Sonnet only' };
+  const weeklyReset = { textContent: 'Resets Tue 1:00 PM' };
+  const weeklyRow = makeRow(weeklyLabel, weeklyReset);
+  const weeklyBar = makeBar('18', weeklyRow);
+  const weeklySection = makeSection([weeklyBar]);
+  const weeklyHeading = makeHeading('Weekly limits', null, weeklySection);
+
+  return {
+    querySelectorAll(selector) {
+      return selector === 'h1, h2, h3, h4' ? [sessionHeading, weeklyHeading] : [];
+    },
+  };
+}
+
+function makeHeading(text, plan, section) {
+  return {
+    textContent: text,
+    querySelectorAll(selector) {
+      return selector === 'span' && plan ? [{ textContent: plan }] : [];
+    },
+    closest() { return section; },
+  };
+}
+
+function makeSection(bars) {
+  return { querySelectorAll(selector) { return selector === '[role="progressbar"]' ? bars : []; } };
+}
+
+function makeRow(label, reset) {
+  return {
+    querySelector() { return label; },
+    querySelectorAll(selector) { return selector === 'span' ? [label, reset] : []; },
+  };
+}
+
+function makeBar(value, row) {
+  return {
+    closest() { return row; },
+    getAttribute(name) { return name === 'aria-valuenow' ? value : null; },
+  };
+}
+
+function makeCodexDocument() {
+  const label = { textContent: '5 hour usage limit' };
+  const percent = { textContent: '45%' };
+  const reset = { textContent: 'Resets in 1 hr' };
+  const article = {
+    querySelector() { return label; },
+    querySelectorAll(selector) { return selector === 'span' ? [percent, reset] : []; },
+  };
+  return { querySelectorAll(selector) { return selector === 'article' ? [article] : []; } };
+}
+
 function findBucket(parsed, id) {
   return parsed.buckets.find((b) => b.id === id);
 }
@@ -208,6 +385,10 @@ function makeJwt(payload) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function assertEqual(actual, expected, message) {
+  assert(Object.is(actual, expected), `${message} (expected ${expected}, got ${actual})`);
 }
 
 run().catch((e) => { console.error(e); process.exit(1); });
