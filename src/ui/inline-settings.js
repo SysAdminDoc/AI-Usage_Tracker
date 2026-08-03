@@ -78,8 +78,8 @@ const MODAL_CSS = `
 .aut-inline-settings__head-copy { min-width: 0; }
 .aut-inline-settings__close {
   margin-left: auto;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border: 1px solid transparent;
   border-radius: var(--aut-r-sm);
   color: var(--aut-subtext0);
@@ -121,7 +121,7 @@ const MODAL_CSS = `
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 38px;
+  min-height: 44px;
   padding: 8px 10px;
   color: var(--aut-text);
   background: var(--aut-row-bg);
@@ -146,7 +146,7 @@ const MODAL_CSS = `
 }
 .aut-inline-settings__row > label:first-child { min-width: 118px; }
 .aut-inline-settings__select {
-  min-height: 34px;
+  min-height: 44px;
   padding: 6px 10px;
   color: var(--aut-text);
   background: var(--aut-row-bg);
@@ -171,7 +171,7 @@ const MODAL_CSS = `
 }
 .aut-inline-settings__status { margin-right: auto; color: var(--aut-subtext0); font-size: 11px; }
 .aut-inline-settings__button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 8px 13px;
   color: var(--aut-text);
   background: var(--aut-row-bg);
@@ -324,6 +324,7 @@ function buildControls(body, state) {
   }));
   body.appendChild(buildSection('Appearance', 'Choose the surface theme and visual warning thresholds.', (section) => {
     controls.theme = addSelectRow(section, 'Theme', [['mocha', 'Mocha dark'], ['latte', 'Latte light'], ['system', 'Follow system']], 'theme');
+    controls.highContrast = addCheckboxRow(section, 'Use high-contrast colors and non-color status cues', 'highContrast');
     const thresholdWrap = document.createElement('div');
     thresholdWrap.className = 'aut-inline-settings__thresholds';
     controls.warnAt = addRange(thresholdWrap, 'Warn at', 'warnAt', 25, 85, 5);
@@ -547,6 +548,7 @@ function applyDraft(controls, settings) {
   for (const [id, input] of Object.entries(controls.notifications)) input.checked = settings.notifications[id] === true;
   controls.refreshMinutes.value = String(settings.refreshMinutes);
   controls.silentTabRefresh.checked = settings.silentTabRefresh === true;
+  controls.highContrast.checked = settings.highContrast === true;
   controls.theme.value = normalizeThemeValue(settings.theme);
   controls.dailyBriefingHour.value = String(settings.notifications.dailyBriefingHour);
   controls.history.retentionDays.value = String(settings.historyRetentionDays);
@@ -562,6 +564,7 @@ function readDraft(controls, prior) {
   for (const [id, input] of Object.entries(controls.notifications)) next.notifications[id] = input.checked;
   next.refreshMinutes = Number(controls.refreshMinutes.value);
   next.silentTabRefresh = controls.silentTabRefresh.checked;
+  next.highContrast = controls.highContrast.checked;
   next.theme = controls.theme.value;
   next.notifications.dailyBriefingHour = Number(controls.dailyBriefingHour.value);
   next.historyRetentionDays = Number(controls.history.retentionDays.value);
@@ -587,4 +590,5 @@ function applyTheme(root, settings) {
   const theme = normalizeThemeValue(settings.theme);
   const systemLight = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches;
   root.dataset.autTheme = theme === 'system' ? (systemLight ? 'latte' : 'mocha') : theme;
+  root.dataset.autContrast = settings.highContrast === true ? 'high' : 'normal';
 }

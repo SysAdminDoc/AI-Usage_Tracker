@@ -55,11 +55,14 @@ export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
 
 export async function refreshWidget({ onRefresh, onOpenSettings } = {}) {
   if (!rootEl) return;
+  const active = rootEl.getRootNode?.().activeElement;
+  const focusAction = active?.dataset?.act || '';
   widgetCallbacks = {
     onRefresh: onRefresh || widgetCallbacks.onRefresh,
     onOpenSettings: onOpenSettings || widgetCallbacks.onOpenSettings,
   };
   await render(widgetCallbacks);
+  if (focusAction) rootEl.querySelector(`[data-act="${focusAction}"]`)?.focus();
 }
 
 async function fetchInlineCSS(relPath) {
@@ -328,7 +331,8 @@ function renderContextCounter(context) {
 
 function renderBucket(b, thresholds) {
   const row = document.createElement('div');
-  row.className = 'aut-bucket';
+  row.className = `aut-bucket aut-bucket--${severityFor(b.percentUsed, thresholds)}`;
+  row.setAttribute('role', 'group');
 
   const ring = document.createElement('div');
   ring.className = 'aut-ring';
@@ -338,7 +342,7 @@ function renderBucket(b, thresholds) {
   const resetLine = b.resetISO
     ? `<div class="aut-bucket__reset">
         <span>resets in</span>
-        <span class="aut-countdown" data-target="${b.resetISO}">${formatCountdown(b.resetISO)}</span>
+         <span class="aut-countdown" role="timer" aria-live="polite" aria-atomic="true" data-target="${b.resetISO}">${formatCountdown(b.resetISO)}</span>
       </div>`
     : `<div class="aut-bucket__reset aut-bucket__reset--missing">${escapeHtml(b.rawResetText || 'Reset not published')}</div>`;
   ring.innerHTML = `
@@ -455,6 +459,15 @@ function applyTheme(root, settings = {}) {
     ? (systemLight ? 'latte' : 'mocha')
     : (requested === 'latte' || requested === 'mocha-light' ? 'latte' : 'mocha');
   root.dataset.autTheme = resolved;
+  root.dataset.autContrast = settings.highContrast === true ? 'high' : 'normal';
+}
+
+function severityFor(percentUsed, thresholds) {
+  const t = normalizeThresholds(thresholds);
+  const percent = Number(percentUsed) || 0;
+  if (percent >= t.dangerAt) return 'danger';
+  if (percent >= t.warnAt) return 'warn';
+  return 'good';
 }
 
 function startTicker() {

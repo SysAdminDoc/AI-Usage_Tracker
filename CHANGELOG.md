@@ -6,6 +6,7 @@
 - A userscript in-page settings modal for provider and quota-row visibility, refresh fallback, theme, thresholds, notifications, and daily briefing time.
 - Pure settings normalization and dynamic quota-row catalog coverage for userscript controls.
 - CSV export, retention selection, storage-size diagnostics, representative-sample compaction, and confirmation-gated history clearing in extension and userscript settings.
+- Keyboard/live-region improvements, reduced-motion and touch-target coverage, plus an opt-in high-contrast palette with non-color warning cues.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

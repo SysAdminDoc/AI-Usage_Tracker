@@ -25,6 +25,7 @@ export function normalizeSettings(input = {}) {
     ? Number(next.refreshMinutes)
     : 5;
   next.silentTabRefresh = next.silentTabRefresh === true;
+  next.highContrast = next.highContrast === true;
   next.showProviders = {
     claude: next.showProviders?.claude !== false,
     codex: next.showProviders?.codex !== false,

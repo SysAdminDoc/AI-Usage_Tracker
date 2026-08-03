@@ -58,7 +58,7 @@
   --aut-r-md: 8px;
   --aut-r-lg: 12px;
 
-  --aut-control-h: 32px;
+  --aut-control-h: 44px;
   --aut-transition: 140ms ease;
   --aut-transition-slow: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
@@ -122,6 +122,84 @@
   color-scheme: light;
 }
 
+/* Optional high-contrast mode. The palette intentionally uses near-black/
+   near-white surfaces and stronger semantic separation, then adds text and
+   pattern cues so warning state is never communicated by color alone. */
+.aut-root[data-aut-contrast="high"] {
+  --aut-base: #000000;
+  --aut-mantle: #080808;
+  --aut-crust: #000000;
+  --aut-surface0: #252525;
+  --aut-surface1: #3b3b3b;
+  --aut-surface2: #555555;
+  --aut-overlay0: #c8c8c8;
+  --aut-overlay1: #e2e2e2;
+  --aut-overlay2: #f0f0f0;
+  --aut-text: #ffffff;
+  --aut-subtext0: #ededed;
+  --aut-subtext1: #f7f7f7;
+  --aut-mauve: #c7ddff;
+  --aut-red: #ff7b9c;
+  --aut-peach: #ffd166;
+  --aut-yellow: #ffd166;
+  --aut-green: #7dff6f;
+  --aut-teal: #6fffe9;
+  --aut-sapphire: #9cc8ff;
+  --aut-blue: #9cc8ff;
+  --aut-lavender: #c7ddff;
+  --aut-accent: var(--aut-lavender);
+  --aut-amber: var(--aut-peach);
+  --aut-focus: #ffffff;
+  --aut-card-bg: #111111;
+  --aut-panel-bg: #080808;
+  --aut-row-bg: #1d1d1d;
+  --aut-row-bg-hover: #303030;
+  --aut-border: rgba(255, 255, 255, 0.62);
+  --aut-border-subtle: rgba(255, 255, 255, 0.38);
+  --aut-glass-bg: var(--aut-card-bg);
+  --aut-glass-border: var(--aut-border);
+  --aut-good-bg: #123117;
+  --aut-warn-bg: #3a2a00;
+  --aut-bad-bg: #3d0d1b;
+  --aut-info-bg: #102642;
+}
+.aut-root[data-aut-theme="latte"][data-aut-contrast="high"] {
+  --aut-base: #ffffff;
+  --aut-mantle: #f7f7f7;
+  --aut-crust: #ffffff;
+  --aut-surface0: #dedede;
+  --aut-surface1: #c5c5c5;
+  --aut-surface2: #a6a6a6;
+  --aut-overlay0: #444444;
+  --aut-overlay1: #333333;
+  --aut-overlay2: #222222;
+  --aut-text: #111111;
+  --aut-subtext0: #333333;
+  --aut-subtext1: #222222;
+  --aut-mauve: #003d99;
+  --aut-red: #a0002a;
+  --aut-peach: #7a4f00;
+  --aut-yellow: #7a4f00;
+  --aut-green: #087f23;
+  --aut-teal: #006b63;
+  --aut-sapphire: #004a99;
+  --aut-blue: #004a99;
+  --aut-lavender: #003d99;
+  --aut-accent: var(--aut-blue);
+  --aut-amber: var(--aut-yellow);
+  --aut-focus: #000000;
+  --aut-card-bg: #ffffff;
+  --aut-panel-bg: #f7f7f7;
+  --aut-row-bg: #eeeeee;
+  --aut-row-bg-hover: #dddddd;
+  --aut-border: rgba(0, 0, 0, 0.62);
+  --aut-border-subtle: rgba(0, 0, 0, 0.38);
+  --aut-good-bg: #d9f3dd;
+  --aut-warn-bg: #fff0c2;
+  --aut-bad-bg: #ffdce5;
+  --aut-info-bg: #dcecff;
+}
+
 /* Shared utilities */
 .aut-root *, .aut-root *::before, .aut-root *::after {
   box-sizing: border-box;
@@ -182,6 +260,10 @@
   outline: 2px solid var(--aut-focus);
   outline-offset: 2px;
 }
+.aut-root[data-aut-contrast="high"] .aut-status-label--good::before { content: "✓ "; }
+.aut-root[data-aut-contrast="high"] .aut-status-label--warn::before { content: "! "; }
+.aut-root[data-aut-contrast="high"] .aut-status-label--bad::before { content: "× "; }
+.aut-root[data-aut-contrast="high"] .aut-status-label--info::before { content: "i "; }
 .aut-iconbtn svg {
   width: 15px;
   height: 15px;
@@ -199,7 +281,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
+  min-height: 44px;
   width: auto;
   padding: 6px 10px;
   background: rgba(49, 50, 68, 0.48);

@@ -147,7 +147,7 @@ html, body {
 }
 
 .popup-bucket__spark {
-  width: 80px; height: 28px;
+  width: 80px; height: 44px; min-height: 44px;
   position: relative;
   overflow: hidden;
   outline: none;
@@ -161,6 +161,16 @@ html, body {
   fill: rgba(180, 190, 254, 0.18);
   stroke: var(--aut-lavender);
   stroke-width: 1.5;
+}
+.aut-root[data-aut-contrast="high"] .popup-bucket__ring circle:nth-child(2) {
+  stroke-dasharray: 5 3 !important;
+  stroke-linecap: butt;
+}
+.aut-root[data-aut-contrast="high"] .popup-bucket--warn .popup-bucket__label::before {
+  content: "Warning · ";
+}
+.aut-root[data-aut-contrast="high"] .popup-bucket--bad .popup-bucket__label::before {
+  content: "Danger · ";
 }
 .popup-bucket__spark:focus-visible {
   outline: 2px solid var(--aut-focus);

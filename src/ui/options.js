@@ -84,6 +84,7 @@ async function loadCurrent() {
   }
   document.getElementById('refreshMinutes').value = String(s.refreshMinutes ?? 5);
   document.getElementById('silentTabRefresh').checked = s.silentTabRefresh === true;
+  document.getElementById('highContrast').checked = s.highContrast === true;
   document.getElementById('dailyBriefingHour').value = String(notifications.dailyBriefingHour ?? 8);
   document.getElementById('theme').value = normalizeThemeValue(s.theme);
   const thresholds = normalizeThresholds(s.thresholds);
@@ -137,6 +138,7 @@ function applyTheme(settings = {}) {
   document.body.dataset.autTheme = requested === 'system'
     ? (systemLight ? 'latte' : 'mocha')
     : requested;
+  document.body.dataset.autContrast = settings.highContrast === true ? 'high' : 'normal';
 }
 
 function bindHandlers() {
@@ -154,6 +156,8 @@ function bindHandlers() {
       s.refreshMinutes = parseInt(t.value, 10) || 5;
     } else if (t.id === 'silentTabRefresh') {
       s.silentTabRefresh = t.checked;
+    } else if (t.id === 'highContrast') {
+      s.highContrast = t.checked;
     } else if (t.id === 'dailyBriefingHour') {
       s.notifications = s.notifications || {};
       s.notifications.dailyBriefingHour = parseInt(t.value, 10) || 8;
@@ -391,6 +395,7 @@ function buildDiagnostics(state, usage = {}) {
       refreshMinutes: settings.refreshMinutes,
       silentTabRefresh: settings.silentTabRefresh === true,
       theme: normalizeThemeValue(settings.theme),
+      highContrast: settings.highContrast === true,
       thresholds,
       providers: settings.showProviders,
     },

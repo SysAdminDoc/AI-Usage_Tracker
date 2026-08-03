@@ -230,6 +230,16 @@
               stroke 400ms ease;
   stroke-linecap: round;
 }
+.aut-root[data-aut-contrast="high"] .aut-ring__fill {
+  stroke-dasharray: 5 3 !important;
+  stroke-linecap: butt;
+}
+.aut-root[data-aut-contrast="high"] .aut-bucket--warn .aut-bucket__label::before {
+  content: "Warning · ";
+}
+.aut-root[data-aut-contrast="high"] .aut-bucket--danger .aut-bucket__label::before {
+  content: "Danger · ";
+}
 .aut-ring__label {
   position: absolute;
   inset: 0;
@@ -343,7 +353,7 @@
 }
 .aut-menu button {
   width: 100%;
-  min-height: 34px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   padding: 7px 9px;

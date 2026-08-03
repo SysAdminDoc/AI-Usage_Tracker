@@ -49,7 +49,7 @@ html, body {
   background: rgba(239, 241, 245, 0.68);
 }
 .opt-nav a {
-  min-height: 34px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   padding: 7px 9px;
@@ -108,6 +108,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 44px;
   padding: 10px 12px;
   background: var(--aut-row-bg);
   border: 1px solid var(--aut-border-subtle);
@@ -150,7 +151,7 @@ html, body {
   color: var(--aut-text);
   border: 1px solid var(--aut-border);
   border-radius: var(--aut-r-sm);
-  min-height: 34px;
+  min-height: 44px;
   padding: 6px 10px;
   font: inherit;
   font-size: 12px;
@@ -166,7 +167,7 @@ html, body {
   color: var(--aut-text);
   border: 1px solid var(--aut-border);
   border-radius: var(--aut-r-md);
-  min-height: 34px;
+  min-height: 44px;
   padding: 8px 14px;
   font: inherit;
   font-size: 12px;

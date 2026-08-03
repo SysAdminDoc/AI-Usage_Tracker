@@ -34,7 +34,16 @@ document.getElementById('settings').addEventListener('click', () => {
 });
 
 render();
-setInterval(render, 1000);
+setInterval(() => {
+  updateCountdowns();
+  if (!dashboard.contains(document.activeElement)) render();
+}, 1000);
+
+function updateCountdowns() {
+  for (const element of dashboard.querySelectorAll('.popup-bucket__countdown[data-target]')) {
+    element.textContent = formatCountdown(element.dataset.target);
+  }
+}
 
 async function render() {
   const state = await loadState();
@@ -144,7 +153,8 @@ function renderProvider(providerKey, ps, buckets, history, thresholds) {
 
 function renderBucket(b, history, thresholds) {
   const row = document.createElement('div');
-  row.className = 'popup-bucket';
+  row.className = `popup-bucket popup-bucket--${statusTone(b.percentUsed, thresholds)}`;
+  row.setAttribute('role', 'group');
 
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
@@ -165,11 +175,11 @@ function renderBucket(b, history, thresholds) {
   main.className = 'popup-bucket__main';
   const subClass = b.resetISO ? 'popup-bucket__sub' : 'popup-bucket__sub popup-bucket__sub--missing';
   const subText = b.resetISO
-    ? `Resets ${formatResetAbsolute(b.resetISO)} - in ${formatCountdown(b.resetISO)}`
-    : (b.rawResetText || 'Reset not published');
+    ? `<span>Resets ${escapeHtml(formatResetAbsolute(b.resetISO))} - </span><span class="popup-bucket__countdown" role="timer" aria-live="polite" aria-atomic="true" data-target="${escapeHtml(b.resetISO)}">${escapeHtml(formatCountdown(b.resetISO))}</span>`
+    : escapeHtml(b.rawResetText || 'Reset not published');
   main.innerHTML = `
     <div class="popup-bucket__label">${escapeHtml(humanBucketLabel(b))}</div>
-    <div class="${subClass}">${escapeHtml(subText)}</div>
+    <div class="${subClass}">${subText}</div>
   `;
   row.appendChild(main);
 
@@ -370,6 +380,7 @@ function applyTheme(settings = {}) {
   document.body.dataset.autTheme = requested === 'system'
     ? (systemLight ? 'latte' : 'mocha')
     : (requested === 'latte' || requested === 'mocha-light' ? 'latte' : 'mocha');
+  document.body.dataset.autContrast = settings.highContrast === true ? 'high' : 'normal';
 }
 
 function openAnalytics(provider) {

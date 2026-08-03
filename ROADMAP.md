@@ -5,20 +5,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Existing Open Items
 
 ### P1
-- [ ] P1 — WCAG 2.2 AA conformance pass
-  Why: A tracker users keep open during work must be keyboard-accessible, readable, and calm under reduced-motion settings.
-  Evidence: WCAG 2.2; current widget/popup/options rely on compact controls and dynamic states.
-  Touches: `src/ui/widget.js`, `src/ui/popup.js`, `src/ui/options.js`, `src/styles/theme.css`, `src/styles/widget.css`
-  Acceptance: Keyboard navigation, focus states, aria-live countdowns, reduced motion, touch targets, and contrast pass documented AA checks.
-  Complexity: M
-
-- [ ] P1 — High-contrast and color-blind safe palette
-  Why: Rings and badges currently lean heavily on color for warning/danger meaning.
-  Evidence: WCAG 2.2 non-color guidance; existing theme threshold colors in `src/ui/theme.js` and CSS.
-  Touches: `src/ui/theme.js`, `src/styles/theme.css`, `src/styles/widget.css`, `src/styles/popup.css`
-  Acceptance: A high-contrast option adds shape/pattern cues and preserves 4.5:1 text contrast across widget, popup, and options.
-  Complexity: M
-
 ### P2
 - [ ] P2 — TypeScript migration
   Why: Provider payloads are schema-drift prone and typed normalization would catch common parser mistakes earlier.
