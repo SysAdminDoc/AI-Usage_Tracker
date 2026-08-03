@@ -208,13 +208,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Chrome users can open a side panel with current usage, history, diagnostics, and settings links while the popup remains compact.
   Complexity: L
 
-- [ ] P2 — Redacted diagnostics export bundle
-  Why: Schema drift and auth failures need support evidence without leaking tokens, prompts, account IDs, org IDs, or raw cookies.
-  Evidence: Existing options diagnostics, Codex issue reports, README privacy promise.
-  Touches: `src/ui/options.js`, `src/lib/storage.js`, provider error types
-  Acceptance: Copy/export diagnostics includes version, manifest channel, permissions, provider freshness/source/error codes, storage usage, and redacted identifiers.
-  Complexity: M
-
 ### P3
 - [ ] P3 — Claude cache-hit ratio metric
   Why: Cache timer visibility is useful, but users also need to know whether they are actually reusing cache before it expires.

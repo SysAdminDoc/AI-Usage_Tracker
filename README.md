@@ -30,6 +30,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Claude context counter** — estimates the visible conversation plus draft prompt against the 200k context window and shows a compact progress bar in the widget.
 - **Claude cache timer** — starts a five-minute follow-up countdown from streamed `message_limit` events, with explicit cache expiry support if Claude publishes it.
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
+- **Redacted support bundle** — export version, channel, permission, freshness, source, error-code, and storage evidence without history, raw errors, cookies, prompts, or full identifiers.
 - **Premium settings controls** — compact section navigation, theme selection, configurable warn/danger visual thresholds, notification snooze, and local diagnostics.
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
 - **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
@@ -142,6 +143,8 @@ The host matrix is checked at test and build time: wildcard content scripts cove
 **Can I use it without a provider tab open?** The extension can use its authenticated API path and service-worker alarms. The userscript requires an open Claude or ChatGPT tab for refresh and browser notifications.
 
 **How do I disable background page fallback?** It is off by default. If enabled for a debugging case, turn off “Use hidden fallback tabs when API refresh fails” in Settings; the extension does not silently enable it.
+
+**What should I attach to a support report?** Use Status → Export redacted bundle. It omits history and raw provider errors; still inspect the JSON once before sharing it outside your trusted support channel.
 
 ## Privacy
 

@@ -20,6 +20,7 @@ import {
 import { normalizeThresholds } from '../lib/countdown.js';
 import { clearChildren } from '../lib/dom.js';
 import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
+import { buildSupportBundle } from '../lib/diagnostics.js';
 
 const VERSION = '0.2.2';
 
@@ -370,13 +371,20 @@ function bindHandlers() {
   document.getElementById('copyDiagnostics').addEventListener('click', async () => {
     const state = await loadState();
     const usage = await getStorageUsage(state);
-    const text = JSON.stringify(buildDiagnostics(state, usage), null, 2);
+    const text = JSON.stringify(buildDiagnosticsBundle(state, usage), null, 2);
     try {
       await navigator.clipboard.writeText(text);
-      flash('Diagnostics copied');
+      flash('Redacted diagnostics copied');
     } catch {
       flash('Clipboard unavailable', 'bad');
     }
+  });
+
+  document.getElementById('exportDiagnostics').addEventListener('click', async () => {
+    const state = await loadState();
+    const usage = await getStorageUsage(state);
+    downloadDiagnostics(buildDiagnosticsBundle(state, usage));
+    flash('Redacted diagnostics download started');
   });
 }
 
@@ -456,6 +464,23 @@ function downloadSettings(payload) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function downloadDiagnostics(bundle) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-diagnostics-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function confirmAction(message) {
   return typeof window !== 'undefined' && typeof window.confirm === 'function'
     ? window.confirm(message)
@@ -503,6 +528,18 @@ export function buildDiagnostics(state, usage = {}) {
     storage: formatStorageUsage(usage),
     notifications: notificationDiagnostic(settings),
   };
+}
+
+export function buildDiagnosticsBundle(state, usage = {}) {
+  const runtime = getRuntime();
+  const manifest = runtime?.getManifest?.() || null;
+  return buildSupportBundle({
+    state,
+    usage,
+    version: manifest?.version || VERSION,
+    channel: manifest ? 'extension' : 'settings-page',
+    manifest,
+  });
 }
 
 function notificationDiagnostic(settings = {}) {

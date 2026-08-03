@@ -130,6 +130,7 @@ try {
   assert.equal(document.querySelectorAll('[data-provider]').length, 2, 'options should render both provider toggles');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
+  assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
   assert.ok(document.querySelector('#snoozeStatus').className.includes('warn'), 'options should render active snooze state');
   assert.match(document.querySelector('#diagnostics').textContent, /Claude/);
   assert.match(document.querySelector('#diagnostics').textContent, /claude\.html\.shell/, 'options diagnostics should expose provider error codes');
