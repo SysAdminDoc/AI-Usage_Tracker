@@ -120,6 +120,8 @@ npm test
 
 Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency. `npm test` runs isolated linkedom UI permutations plus Chrome callback/Firefox promise WebExtension contract fixtures, so UI and runtime compatibility checks do not open a browser window.
 
+The model boundary is also checked with TypeScript 7 in strict mode: provider snapshots, settings, history samples, and tracker-state guards compile before tests and release packaging.
+
 The host matrix is checked at test and build time: wildcard content scripts cover `claude.ai` and `chatgpt.com` subdomains, while host permissions and web-accessible resources remain apex-only. The userscript metadata and runtime predicates use the same two-provider contract. The DOM safety audit rejects direct HTML sinks in UI modules and only permits reviewed static icon markup through the guarded helper.
 
 ## Comparison and FAQ

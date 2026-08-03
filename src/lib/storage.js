@@ -4,6 +4,7 @@
 
 import { SUPPORTED_HOSTS } from './hosts.js';
 import { invokeWebExtension } from './browser.js';
+import { isTrackerState } from './type-guards.js';
 
 const STORE_KEY = 'aut.state.v1';
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
@@ -226,11 +227,7 @@ export function migrateState(raw) {
  * Returns true if the state appears safe to use.
  */
 function isStateValid(raw) {
-  if (!raw || typeof raw !== 'object') return false;
-  if (Array.isArray(raw)) return false;
-  // Must have at least a snapshot key.
-  if (!raw.snapshot || typeof raw.snapshot !== 'object') return false;
-  return true;
+  return isTrackerState(raw);
 }
 
 export async function loadState() {

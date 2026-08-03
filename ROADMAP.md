@@ -6,13 +6,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 
 ### P1
 ### P2
-- [ ] P2 — TypeScript migration
-  Why: Provider payloads are schema-drift prone and typed normalization would catch common parser mistakes earlier.
-  Evidence: `src/scrapers/*.js` accept multiple private API shapes; esbuild already supports TypeScript.
-  Touches: `src/**/*.js`, `build/*.mjs`, `package.json`, `tsconfig.json`
-  Acceptance: Core source compiles as TypeScript with checked provider snapshot/settings/history types and no runtime behavior regression.
-  Complexity: L
-
 - [ ] P2 — README screenshots and animated product captures
   Why: The README explains features but does not prove the actual widget, popup, and options experience visually.
   Evidence: Direct competitors show screenshots/GIFs; current README relies mostly on text.
@@ -33,13 +26,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Touches: `src/providers`, `src/ui/options.js`, `src/ui/popup.js`, `src/lib/storage.js`
   Acceptance: Users can add an OpenAI API key locally and see usage/cost grouped by model/project/API key.
   Complexity: L
-
-- [ ] P2 — Settings export/import JSON
-  Why: Local-only users need a manual migration path across browsers and fresh installs.
-  Evidence: Chrome storage sync quotas; README local-only stance; existing settings live in `aut.state.v1`.
-  Touches: `src/lib/storage.js`, `src/ui/options.js`, `userscript/entry.js`
-  Acceptance: Users can export/import settings without history unless explicitly selected, with schema validation and rollback on invalid imports.
-  Complexity: M
 
 - [ ] P2 — i18n string table
   Why: Locale-specific date/time/percent formatting and extractable strings are needed before adding more user-facing settings and providers.

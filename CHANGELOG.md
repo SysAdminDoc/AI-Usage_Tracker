@@ -19,6 +19,7 @@
 - Browser support is now declared as Chromium 111+ and Firefox 115+ in one checked runtime matrix; Chrome manifests and README installation guidance carry the same floor.
 - Status now exports/copies a versioned redacted diagnostics bundle with permissions, provider freshness/source/error codes, storage usage, and shortened identifiers while omitting history and raw errors.
 - Chrome 114+ packages now include an optional persistent side-panel dashboard with the current quota view, local diagnostics, and a full-settings link; Firefox and userscript packages remain unchanged.
+- A strict TypeScript model boundary now checks provider snapshots, settings, history samples, and storage state guards before tests and builds without changing the existing esbuild runtime shape.
 
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.

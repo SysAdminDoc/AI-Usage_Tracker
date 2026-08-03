@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
+  const typecheck = spawnSync(process.execPath, [path.join(__dirname, 'typecheck.mjs')], { stdio: 'inherit' });
+  if (typecheck.status !== 0) process.exit(typecheck.status || 1);
   await validateHostMatrix();
   await validateRuntimeMatrix();
   await validateReleaseProvenance();
