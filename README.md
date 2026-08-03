@@ -76,6 +76,23 @@ Release downloads include `SHA256SUMS.txt` for verifying the Chrome ZIP, Firefox
 
 Default extension packages do not request the optional `nativeMessaging` permission. QuotaGlass users who want the local desktop mirror can build the explicitly separated bridge channel with `npm run build:bridge`; it produces `AI-Usage-Tracker-chrome-bridge-v0.2.2.zip` and `ai-usage-tracker-firefox-bridge-v0.2.2.xpi` with the companion permission and no other tracking behavior changes.
 
+## Permissions and data
+
+The default extension packages use this narrow, local-first permission boundary:
+
+| Surface | Why it is requested | What stays local |
+| --- | --- | --- |
+| `storage` | Save the current snapshot, settings, and rolling history | All tracker state remains in local extension storage; it is not put in sync storage. |
+| `alarms` | Refresh the snapshot and recover notification deadlines after service-worker sleep | Alarm names and times are local browser scheduling metadata. |
+| `notifications` | Show the alert rules that you enable | Notification text is derived from local snapshot state. |
+| `tabs` | Open provider analytics pages and, only when explicitly enabled, a hidden fallback tab | The extension does not read arbitrary tabs or cookies. |
+| `claude.ai` and `chatgpt.com` host access | Fetch or scrape usage from signed-in first-party pages | Requests stay between the extension and provider origins; no relay server is used. |
+| `nativeMessaging` | Optional QuotaGlass desktop mirror only | Missing from default packages; the bridge profile sends a minimal redacted quota envelope to the locally installed companion. |
+
+The userscript has the equivalent two-provider `@match`/`@connect` scope and stores state through the userscript manager. It cannot refresh while no provider tab is open. No tracker path stores provider passwords, cookies, or raw prompt text. Provider snapshots may retain first-party identifiers needed for diagnostics; the optional bridge explicitly excludes account/org identifiers. The Claude context counter reads visible page text locally to estimate context usage; it does not transmit that text.
+
+To revoke access, remove the extension or userscript from the browser. Before removal, use Settings → History → Export CSV if you want a portable history copy, then use the clear-history control. The optional QuotaGlass bridge can be excluded simply by using the default build; uninstalling the companion stops its local pipe.
+
 ## Build from source
 
 ```bash
@@ -89,9 +106,34 @@ Runtime has no external services. Builds use Node 20 and the local esbuild dev d
 
 The host matrix is checked at test and build time: wildcard content scripts cover `claude.ai` and `chatgpt.com` subdomains, while host permissions and web-accessible resources remain apex-only. The userscript metadata and runtime predicates use the same two-provider contract. The DOM safety audit rejects direct HTML sinks in UI modules and only permits reviewed static icon markup through the guarded helper.
 
+## Comparison and FAQ
+
+| Product | Strong fit | Honest tradeoff |
+| --- | --- | --- |
+| AI Usage Tracker | Browser-first Claude + Codex quota windows, local history, reset/threshold alerts, and an optional userscript | It intentionally covers fewer providers and does not provide cloud sync, team reporting, or API-spend accounting yet. |
+| [Claude Counter](https://github.com/she-llac/claude-counter) | Lightweight Claude bars, reset countdowns, cache timing, and streamed usage | Primarily Claude-focused; page/API schema drift still needs maintenance in any tracker. |
+| [Claude Usage Extension](https://github.com/lugia19/Claude-Usage-Extension) | Broad Claude accounting, tokenizer/API estimates, and wider distribution materials | Its broader accounting surface is a different privacy and complexity tradeoff from this tracker’s quota-window focus. |
+| [CodexBar](https://github.com/steipete/CodexBar) | Multi-provider status and desktop/menu-bar diagnostics | A desktop-first workflow is better for system-wide status; this project stays in the browser where provider sessions already exist. |
+| [OpenUsage](https://github.com/janekbaraniewski/openusage) | Provider breadth, local dashboard, exports, metrics, and spend views | A local daemon/database and wider integration surface are more operational overhead than this extension currently assumes. |
+| Tokens 4 Breakfast / TokenWatch / WakaTime AI | Budgets, forecasting, attribution, and commercial cost intelligence | Those capabilities generally require API-cost data, project metadata, or a different cloud/team privacy model. |
+
+### FAQ
+
+**Does the tracker upload prompts or usage data?** No. The default build has no telemetry or remote relay. It makes first-party requests to Claude/ChatGPT using the browser session, then stores normalized state locally. The optional bridge is a separate local native-messaging build and receives only its documented redacted display envelope.
+
+**Does it save API keys?** No API-key provider path is included in this release. Do not paste provider secrets into settings or diagnostics.
+
+**Why is Firefox installation different?** The downloadable XPI is unsigned for self-hosted development. Firefox Release requires a signed store channel; Developer Edition/Nightly can use the documented development setting.
+
+**What happens when a provider changes its page or endpoint?** The dashboard keeps the last known state with source/freshness/error diagnostics, and the contract tests cover representative API, stream, header, DOM, and failure shapes. A stale value is not presented as a fresh reading.
+
+**Can I use it without a provider tab open?** The extension can use its authenticated API path and service-worker alarms. The userscript requires an open Claude or ChatGPT tab for refresh and browser notifications.
+
+**How do I disable background page fallback?** It is off by default. If enabled for a debugging case, turn off “Use hidden fallback tabs when API refresh fails” in Settings; the extension does not silently enable it.
+
 ## Privacy
 
-- Nothing leaves your browser. No analytics, no telemetry, no remote servers.
+- The default package sends no tracker data to analytics, telemetry, or remote relay servers. The optional bridge sends only its redacted display envelope to the locally installed QuotaGlass companion.
 - All scraping is against your own logged-in session on `claude.ai` and `chatgpt.com`.
 - History stored locally in `chrome.storage.local` (extension) or `GM.setValue` (userscript).
 - Source is auditable — open the built files and read them; they are not minified.

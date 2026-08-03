@@ -20,13 +20,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: README shows current widget, popup dashboard, options, first-run, and degraded/error states from this product.
   Complexity: S
 
-- [ ] P2 — README comparison table and FAQ
-  Why: Users need an honest tradeoff view versus Claude Counter, Claude Usage Extension, Tokens 4 Breakfast, CodexBar, and OpenUsage.
-  Evidence: `RESEARCH.md` competitive landscape; README privacy/install sections.
-  Touches: `README.md`
-  Acceptance: README covers data stored, permissions, revoke path, release assets, local-only limits, and competitor tradeoffs without inflated claims.
-  Complexity: S
-
 - [ ] P2 — Anthropic API-key provider path
   Why: Official Anthropic analytics endpoints are more store-safe and less schema-fragile than private web endpoints for eligible users.
   Evidence: Anthropic Enterprise Analytics API and Claude Code usage report docs.
@@ -208,13 +201,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 
 ### P2
-- [ ] P2 — Store-readiness disclosure matrix
-  Why: Store reviewers and privacy-sensitive users need a precise explanation of permissions, host access, data storage, native messaging, and no-telemetry behavior.
-  Evidence: README privacy/install sections, MDN Firefox data collection permissions, Chrome extension permission model, lugia19 privacy docs.
-  Touches: `README.md`, release checklist, manifests
-  Acceptance: README has a concise permission/data matrix that matches manifests and clearly separates local-only core tracking from optional bridge behavior.
-  Complexity: S
-
 - [ ] P2 — Chrome side-panel dashboard
   Why: The popup is a glance surface; long-lived diagnostics, history, and provider comparison fit better in an optional persistent panel.
   Evidence: Chrome Side Panel API docs; CodexBar/OpenUsage persistent dashboard patterns.
