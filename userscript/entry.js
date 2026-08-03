@@ -13,11 +13,12 @@ import { installClaudeMessageLimitInterceptor } from '../src/lib/claude-stream.j
 import { startClaudeContextCounter } from '../src/lib/context-counter.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from '../src/lib/cache-timer.js';
 import { openInlineSettings as showInlineSettings } from '../src/ui/inline-settings.js';
+import { isClaudeHost, isSupportedHost } from '../src/lib/hosts.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 
 (async function main() {
-  if (!isHostOk()) return;
+  if (!isSupportedHost(location.hostname)) return;
 
   installClaudeStreamInterceptor();
 
@@ -40,11 +41,6 @@ const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
   // Re-render widget every 5s so countdowns tick + "Updated Xs ago" stays fresh.
   setInterval(() => refreshWidget(), 5_000);
 })();
-
-function isHostOk() {
-  const host = location.hostname;
-  return /(^|\.)claude\.ai$/.test(host) || /(^|\.)chatgpt\.com$/.test(host) || /(^|\.)openai\.com$/.test(host);
-}
 
 async function refreshNow() {
   const now = new Date();
@@ -89,7 +85,7 @@ async function refreshNow() {
 }
 
 function installClaudeStreamInterceptor() {
-  if (!/(^|\.)claude\.ai$/.test(location.hostname)) return;
+  if (!isClaudeHost(location.hostname)) return;
   const target = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
   installClaudeMessageLimitInterceptor({
     target,

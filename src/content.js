@@ -5,11 +5,12 @@ import { mountWidget, refreshWidget } from './ui/widget.js';
 import { loadState, saveState } from './lib/storage.js';
 import { send } from './lib/browser.js';
 import { startClaudeContextCounter } from './lib/context-counter.js';
+import { isSupportedHost } from './lib/hosts.js';
 
 (async function main() {
   // Some sub-paths of these origins are full-screen experiences (e.g. inline
   // assistants in third-party embeds). Only mount on the primary chat origins.
-  if (!isHostOk()) return;
+  if (!isSupportedHost(location.hostname)) return;
 
   await mountWidget({
     onRefresh: async () => {
@@ -33,11 +34,6 @@ import { startClaudeContextCounter } from './lib/context-counter.js';
     onChange: () => refreshWidget({ onRefresh: () => send({ type: 'aut/refresh' }), onOpenSettings: openOptions }),
   });
 })();
-
-function isHostOk() {
-  const host = location.hostname;
-  return /(^|\.)claude\.ai$/.test(host) || /(^|\.)chatgpt\.com$/.test(host) || /(^|\.)openai\.com$/.test(host);
-}
 
 function openOptions() {
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {

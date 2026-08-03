@@ -87,6 +87,8 @@ npm test
 
 Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency. `npm test` also runs an isolated linkedom render harness for popup, widget, and options state permutations, so UI checks do not open a browser window.
 
+The host matrix is checked at test and build time: wildcard content scripts cover `claude.ai` and `chatgpt.com` subdomains, while host permissions and web-accessible resources remain apex-only. The userscript metadata and runtime predicates use the same two-provider contract.
+
 ## Privacy
 
 - Nothing leaves your browser. No analytics, no telemetry, no remote servers.

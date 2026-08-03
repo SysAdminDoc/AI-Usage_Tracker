@@ -12,6 +12,7 @@
 import { fetchClaude, parseClaudeDoc } from './scrapers/claude.js';
 import { fetchCodexApi, parseCodexDoc } from './scrapers/codex.js';
 import { send } from './lib/browser.js';
+import { isClaudeHost, isCodexHost } from './lib/hosts.js';
 
 const POLL_MS = 1000;
 const STABLE_REQUIRED = 2;    // consecutive identical scrapes before we ship
@@ -30,8 +31,8 @@ if (provider) bootstrap();
 
 function detectProvider() {
   const h = location.hostname;
-  if (/(^|\.)claude\.ai$/.test(h) && /\/settings\/usage/.test(location.pathname)) return 'claude';
-  if (/(^|\.)chatgpt\.com$/.test(h) && /\/codex\/cloud\/settings\/analytics/.test(location.pathname)) return 'codex';
+  if (isClaudeHost(h) && /\/settings\/usage/.test(location.pathname)) return 'claude';
+  if (isCodexHost(h) && /\/codex\/cloud\/settings\/analytics/.test(location.pathname)) return 'codex';
   return null;
 }
 

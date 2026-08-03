@@ -206,13 +206,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ## Research-Driven Additions
 
 ### P1
-- [ ] P1 — Manifest and host matrix validator
-  Why: Content scripts cover wildcard subdomains, but host permissions and web-accessible resources are apex-only; userscript metadata and runtime host checks also disagree on `openai.com`.
-  Evidence: `manifests/chrome.json`, `manifests/firefox.json`, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, Chrome content-script and web-accessible resource docs.
-  Touches: manifests, `userscript/header.txt`, `src/content.js`, `userscript/entry.js`, build validation
-  Acceptance: A build/test step fails when content script matches, host permissions, web-accessible resource matches, userscript `@match/@connect`, README hosts, and runtime host predicates drift.
-  Complexity: S
-
 - [ ] P1 — Safe DOM rendering policy
   Why: The UI uses scattered `innerHTML` writes with local escape helpers, making future dynamic copy changes easy to get wrong.
   Evidence: `src/ui/widget.js`, `src/ui/popup.js`, `src/ui/options.js`, Chrome extension CSP docs, Trusted Types docs.

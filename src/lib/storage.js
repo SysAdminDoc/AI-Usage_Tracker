@@ -2,6 +2,8 @@
 // GM.* in userscripts. Falls back to localStorage when nothing else exists
 // (e.g. in unit tests).
 
+import { SUPPORTED_HOSTS } from './hosts.js';
+
 const STORE_KEY = 'aut.state.v1';
 
 const adapter = pickAdapter();
@@ -53,12 +55,10 @@ function pickAdapter() {
   //    provider page's localStorage would expose usage metadata to the host
   //    origin.  We allow it only when an explicit flag is set (unit tests) or
   //    when the page origin is NOT a provider site.
-  const PROVIDER_HOSTS = ['claude.ai', 'chatgpt.com', 'openai.com'];
-
   function isProviderOrigin() {
     try {
       const host = typeof location !== 'undefined' ? location.hostname : '';
-      return PROVIDER_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+      return SUPPORTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
     } catch { return false; }
   }
 
