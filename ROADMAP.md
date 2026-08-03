@@ -213,13 +213,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: R1/R2/D1 rules have tested catch-up grace, duplicate-fire prevention, and next-alarm derivation after browser sleep or late refresh.
   Complexity: M
 
-- [ ] P1 — Split optional native bridge permission surface
-  Why: `nativeMessaging` is requested for every install even though QuotaGlass integration is optional.
-  Evidence: `manifests/chrome.json`, `manifests/firefox.json`, README privacy claims, browser store permission review expectations.
-  Touches: manifests, build scripts, bridge settings, README/install docs
-  Acceptance: Default builds avoid bridge-only permission where feasible, or clearly separate a bridge build/channel with explicit install copy and unchanged core tracking behavior.
-  Complexity: M
-
 - [ ] P1 — Provider contract fixture matrix
   Why: Private Claude/ChatGPT schemas and DOM selectors drift, and parser breakage should fail with actionable diagnostics before users report bad numbers.
   Evidence: `src/scrapers/claude.js`, `src/scrapers/codex.js`, `build/test-scrapers.mjs`, Claude Counter issues #26/#27/#30, Codex WHAM issue #10869.

@@ -12,9 +12,10 @@ import {
   log, VERSION,
 } from './common.mjs';
 
-export async function buildExtension({ target }) {
+export async function buildExtension({ target, bridge = false }) {
   const esbuild = await loadEsbuild();
-  const outDir = path.join(DIST, target);
+  const profile = bridge ? `${target}-bridge` : target;
+  const outDir = path.join(DIST, profile);
   await clean(outDir);
 
   // 1) Bundle JS entry points.
@@ -54,7 +55,8 @@ export async function buildExtension({ target }) {
   await copyDir(ICONS, path.join(outDir, 'icons'));
 
   // 3) Manifest — pull from manifests/<target>.json and stamp the version.
-  const manifest = await readJSON(path.join(MANIFESTS, `${target}.json`));
+  const sourceManifest = await readJSON(path.join(MANIFESTS, `${target}.json`));
+  const manifest = applyBridgeProfile(sourceManifest, { bridge });
   if (manifest.version !== VERSION) {
     manifest.version = VERSION;
   }
@@ -62,22 +64,35 @@ export async function buildExtension({ target }) {
 
   // 4) Pack into a ZIP for distribution.
   const zipName = target === 'firefox'
-    ? `ai-usage-tracker-firefox-v${VERSION}.xpi`
-    : `AI-Usage-Tracker-${target}-v${VERSION}.zip`;
+    ? `ai-usage-tracker-firefox${bridge ? '-bridge' : ''}-v${VERSION}.xpi`
+    : `AI-Usage-Tracker-${target}${bridge ? '-bridge' : ''}-v${VERSION}.zip`;
   const zipPath = path.join(DIST, zipName);
-  await removeStalePackages(target, zipPath);
+  await removeStalePackages(target, bridge, zipPath);
   await zipDir(outDir, zipPath);
 
-  log('extension', `built ${target} → ${path.relative(ROOT, outDir)}`);
+  log('extension', `built ${profile} → ${path.relative(ROOT, outDir)}`);
   log('extension', `packaged ${path.relative(ROOT, zipPath)}`);
   return { outDir, zipPath };
 }
 
-async function removeStalePackages(target, keepPath) {
+export function applyBridgeProfile(sourceManifest, { bridge = false } = {}) {
+  const manifest = JSON.parse(JSON.stringify(sourceManifest));
+  const permissions = new Set(manifest.permissions || []);
+  if (bridge) {
+    permissions.add('nativeMessaging');
+    manifest.description = `${manifest.description} Optional QuotaGlass native-messaging companion.`;
+  } else {
+    permissions.delete('nativeMessaging');
+  }
+  manifest.permissions = [...permissions];
+  return manifest;
+}
+
+async function removeStalePackages(target, bridge, keepPath) {
   await ensureDir(DIST);
   const prefix = target === 'firefox'
-    ? 'ai-usage-tracker-firefox-v'
-    : `AI-Usage-Tracker-${target}-v`;
+    ? `ai-usage-tracker-firefox${bridge ? '-bridge' : ''}-v`
+    : `AI-Usage-Tracker-${target}${bridge ? '-bridge' : ''}-v`;
   const suffix = target === 'firefox' ? '.xpi' : '.zip';
   const entries = await fs.readdir(DIST, { withFileTypes: true });
   for (const entry of entries) {
