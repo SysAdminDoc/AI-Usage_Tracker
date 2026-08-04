@@ -111,6 +111,42 @@ export interface BudgetLedger {
   lastTotals: Record<string, { amountUSD: number; source: 'official' | 'estimated' }>;
 }
 
+export interface CollaborationProviderTotal {
+  provider: ProviderId;
+  providerLabel: string;
+  costUSD: number | null;
+  costSource: 'official' | 'estimated' | null;
+  totalTokens: number | null;
+  requests: number | null;
+  activeDays: number | null;
+}
+
+export interface CollaborationContribution {
+  id: string;
+  memberLabel: string;
+  exportedAtISO: string | null;
+  periodStartISO: string | null;
+  periodEndISO: string | null;
+  providers: CollaborationProviderTotal[];
+}
+
+export interface CollaborationLedger {
+  schema: string;
+  version: number;
+  kind: 'ledger';
+  teamName: string;
+  periodStartISO: string | null;
+  periodEndISO: string | null;
+  contributions: CollaborationContribution[];
+}
+
+export interface CollaborationState {
+  enabled: boolean;
+  teamName: string;
+  memberName: string;
+  ledger: CollaborationLedger;
+}
+
 export interface WidgetState {
   x: number | null;
   y: number | null;
@@ -125,6 +161,7 @@ export interface TrackerState {
   settings: TrackerSettings;
   widget: WidgetState;
   budget: BudgetLedger;
+  collaboration?: CollaborationState;
   [key: string]: unknown;
 }
 

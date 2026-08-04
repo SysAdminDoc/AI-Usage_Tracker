@@ -7,6 +7,7 @@ import { invokeWebExtension } from './browser.js';
 import { isTrackerState } from './type-guards.js';
 import { normalizeWebhookURL } from './notify.js';
 import { defaultBudgetLedger, normalizeBudgetCap } from './budget.js';
+import { defaultCollaborationState, normalizeCollaborationState } from './collaboration.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 
 const LEGACY_STORE_KEY = 'aut.state.v1';
@@ -376,6 +377,7 @@ const MIGRATIONS = [
     }
     // Merge in any missing settings with defaults.
     next.settings = mergeDefaults(next.settings, defaultSettings());
+    next.collaboration = normalizeCollaborationState(next.collaboration || defaultCollaborationState());
     return next;
   },
 ];
@@ -668,6 +670,7 @@ export async function loadState() {
   if (migrated) {
     try { await adapter.set(stateKey, state); } catch { /* best effort */ }
   }
+  state.collaboration = normalizeCollaborationState(state.collaboration || defaultCollaborationState());
   state.profileId = profileId;
   return applySyncedSettings(state, profileId);
 }
@@ -681,6 +684,7 @@ export async function saveState(state) {
   // Stamp current version on every write.
   state.stateVersion = CURRENT_STATE_VERSION;
   state.profileId = profileId;
+  state.collaboration = normalizeCollaborationState(state.collaboration || defaultCollaborationState());
   await adapter.set(profileStateStorageKey(profileId), state);
   if (state.settings?.syncSettings === true) {
     try { await saveSyncedSettings(state.settings, profileId); } catch (error) {
@@ -948,6 +952,7 @@ export function defaultState() {
     history: [],          // [{ ts, bucketId, percentUsed }]
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
     budget: defaultBudgetLedger(),
+    collaboration: defaultCollaborationState(),
     settings: defaultSettings(),
     widget: { x: null, y: null, minimized: false },
   };

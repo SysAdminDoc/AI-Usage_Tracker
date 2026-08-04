@@ -235,6 +235,53 @@ html, body {
   border-color: rgba(166, 227, 161, 0.24);
 }
 
+.collaboration-config {
+  margin-bottom: 12px;
+}
+.collaboration-config label {
+  display: grid;
+  gap: 6px;
+  color: var(--aut-subtext1);
+  font-size: 12px;
+}
+.collaboration-breakdown {
+  display: grid;
+  gap: 8px;
+}
+.collaboration-summary,
+.collaboration-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--aut-row-bg);
+  border: 1px solid var(--aut-border-subtle);
+  border-radius: var(--aut-r-md);
+}
+.collaboration-summary,
+.collaboration-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.collaboration-summary strong,
+.collaboration-row__head strong {
+  color: var(--aut-text);
+  font-size: 11px;
+}
+.collaboration-summary span,
+.collaboration-row__head span {
+  color: var(--aut-green);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.collaboration-row__meta {
+  color: var(--aut-subtext0) !important;
+  font-size: 10px !important;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .profile-list {
   display: grid;
   gap: 8px;

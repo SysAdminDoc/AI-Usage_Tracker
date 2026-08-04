@@ -45,6 +45,13 @@ import { forecastMonthEnd } from '../lib/forecast.js';
 import { buildPlanRecommendations } from '../lib/optimization.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
 import { exportMcpState } from '../lib/mcp-state.js';
+import {
+  buildCollaborationContribution,
+  buildCollaborationDashboard,
+  buildCollaborationLedger,
+  mergeCollaborationImport,
+  normalizeCollaborationState,
+} from '../lib/collaboration.js';
 import { apiBreakdownToCSV, buildApiBreakdown } from '../lib/api-breakdown.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
@@ -338,6 +345,7 @@ async function loadCurrent() {
   renderBudgetStatus(s, state.budget);
   await renderForecastStatus();
   await renderApiBreakdown();
+  await renderCollaboration();
 }
 
 export async function renderSyncSettings(state = null) {
@@ -556,6 +564,88 @@ export async function renderApiBreakdown() {
   return breakdown;
 }
 
+export async function renderCollaboration() {
+  const status = document.getElementById('collaborationStatus');
+  const breakdown = document.getElementById('collaborationBreakdown');
+  if (!status || !breakdown) return null;
+  const state = await loadState();
+  const collaboration = normalizeCollaborationState(state.collaboration);
+  const dashboard = buildCollaborationDashboard(collaboration);
+  const enabled = document.getElementById('collaborationEnabled');
+  const teamName = document.getElementById('collaborationTeamName');
+  const memberName = document.getElementById('collaborationMemberName');
+  if (enabled) enabled.checked = collaboration.enabled;
+  if (teamName && document.activeElement !== teamName) teamName.value = collaboration.teamName;
+  if (memberName && document.activeElement !== memberName) memberName.value = collaboration.memberName;
+  const importButton = document.getElementById('importCollaboration');
+  const exportContributionButton = document.getElementById('exportCollaborationContribution');
+  const exportLedgerButton = document.getElementById('exportCollaborationLedger');
+  const clearButton = document.getElementById('clearCollaboration');
+  if (importButton) importButton.disabled = !collaboration.enabled;
+  if (exportContributionButton) exportContributionButton.disabled = !collaboration.enabled;
+  if (exportLedgerButton) exportLedgerButton.disabled = !collaboration.enabled || dashboard.contributionCount === 0;
+  if (clearButton) clearButton.disabled = dashboard.contributionCount === 0;
+  clearChildren(breakdown);
+
+  if (dashboard.status === 'disabled') {
+    status.textContent = 'Off. Nothing is shared or aggregated until you explicitly enable this local dashboard.';
+    status.className = 'opt-callout';
+    return dashboard;
+  }
+  if (dashboard.status === 'empty') {
+    status.textContent = 'Enabled, but no contribution has been imported yet. Export a redacted contribution or import a user-provided ledger.';
+    status.className = 'opt-callout opt-callout--warn';
+    return dashboard;
+  }
+
+  status.textContent = `${dashboard.teamName} · ${dashboard.memberCount} member${dashboard.memberCount === 1 ? '' : 's'} · ${dashboard.contributionCount} contribution${dashboard.contributionCount === 1 ? '' : 's'} · ${formatUSD(dashboard.total.costUSD)} observed. Aggregation stays local.`;
+  status.className = 'opt-callout opt-callout--good';
+  const heading = document.createElement('article');
+  heading.className = 'collaboration-summary';
+  const headingTitle = document.createElement('strong');
+  headingTitle.textContent = 'Team total';
+  const headingValue = document.createElement('span');
+  headingValue.textContent = formatCollaborationAggregate(dashboard.total);
+  heading.append(headingTitle, headingValue);
+  breakdown.appendChild(heading);
+
+  for (const member of dashboard.members) {
+    appendCollaborationAggregate(breakdown, 'Member', member);
+  }
+  for (const provider of dashboard.providers) {
+    appendCollaborationAggregate(breakdown, 'Provider', provider);
+  }
+  return dashboard;
+}
+
+function appendCollaborationAggregate(wrap, kind, aggregate) {
+  const row = document.createElement('article');
+  row.className = 'collaboration-row';
+  const head = document.createElement('div');
+  head.className = 'collaboration-row__head';
+  const label = document.createElement('strong');
+  label.textContent = `${kind} · ${aggregate.label}`;
+  const value = document.createElement('span');
+  value.textContent = formatUSD(aggregate.costUSD);
+  head.append(label, value);
+  const meta = document.createElement('span');
+  meta.className = 'collaboration-row__meta';
+  meta.textContent = [
+    aggregate.totalTokens ? `${formatCount(aggregate.totalTokens)} tokens` : '',
+    aggregate.requests ? `${formatCount(aggregate.requests)} requests` : '',
+    aggregate.source ? (aggregate.source === 'mixed' ? 'Mixed cost sources' : `${aggregate.source} cost`) : '',
+  ].filter(Boolean).join(' · ') || 'No cost-bearing usage in this aggregate';
+  row.append(head, meta);
+  wrap.appendChild(row);
+}
+
+function formatCollaborationAggregate(aggregate) {
+  const parts = [formatUSD(aggregate.costUSD)];
+  if (aggregate.totalTokens) parts.push(`${formatCount(aggregate.totalTokens)} tokens`);
+  if (aggregate.requests) parts.push(`${formatCount(aggregate.requests)} requests`);
+  return parts.join(' · ');
+}
+
 function apiMetricSummary(row) {
   const parts = [];
   if (row.costUSD != null) parts.push(formatUSD(row.costUSD));
@@ -683,6 +773,8 @@ function bindHandlers() {
     const t = e.target;
     const state = await loadState();
     let s = normalizeSettings(state.settings || defaultSettings());
+    let collaboration = normalizeCollaborationState(state.collaboration);
+    let collaborationChanged = false;
     if (t.dataset.provider) {
       s.showProviders = { ...s.showProviders, [t.dataset.provider]: t.checked };
     } else if (t.dataset.row) {
@@ -742,10 +834,20 @@ function bindHandlers() {
       s.apiBudget = { ...s.apiBudget, sessionCapUSD: normalizeBudgetCap(t.value) };
     } else if (t.id === 'dailyBudgetCap') {
       s.apiBudget = { ...s.apiBudget, dailyCapUSD: normalizeBudgetCap(t.value) };
+    } else if (t.id === 'collaborationEnabled') {
+      collaboration.enabled = t.checked;
+      collaborationChanged = true;
+    } else if (t.id === 'collaborationTeamName') {
+      collaboration.teamName = t.value;
+      collaborationChanged = true;
+    } else if (t.id === 'collaborationMemberName') {
+      collaboration.memberName = t.value;
+      collaborationChanged = true;
     } else {
       return;
     }
     state.settings = s;
+    state.collaboration = collaboration;
     await saveState(state);
     await renderSyncSettings(state);
     await renderHistoryStatus();
@@ -753,6 +855,7 @@ function bindHandlers() {
     renderSnoozeStatus(s);
     renderWebhookStatus(s);
     renderBudgetStatus(s, state.budget);
+    if (collaborationChanged) await renderCollaboration();
     flash('Saved just now');
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
@@ -1075,6 +1178,69 @@ function bindHandlers() {
     downloadMcpState(exportMcpState(state));
     flash('Redacted MCP state download started');
   });
+
+  document.getElementById('exportCollaborationContribution')?.addEventListener('click', async () => {
+    const state = await loadState();
+    const collaboration = normalizeCollaborationState(state.collaboration);
+    if (!collaboration.enabled) {
+      flash('Enable the local team dashboard first', 'bad');
+      return;
+    }
+    const payload = buildCollaborationContribution(state.snapshot, {
+      teamName: document.getElementById('collaborationTeamName')?.value || collaboration.teamName,
+      memberName: document.getElementById('collaborationMemberName')?.value || collaboration.memberName,
+      now: new Date(),
+    });
+    if (!payload.contribution.providers.length) {
+      flash('No cost-bearing API usage is available for this contribution', 'bad');
+      return;
+    }
+    downloadCollaboration(payload, 'contribution');
+    flash('Redacted team contribution download started');
+  });
+
+  document.getElementById('exportCollaborationLedger')?.addEventListener('click', async () => {
+    const state = await loadState();
+    const collaboration = normalizeCollaborationState(state.collaboration);
+    if (!collaboration.ledger.contributions.length) {
+      flash('No local team contributions are available yet', 'bad');
+      return;
+    }
+    downloadCollaboration(buildCollaborationLedger(collaboration), 'ledger');
+    flash('Local team ledger download started');
+  });
+
+  document.getElementById('clearCollaboration')?.addEventListener('click', async () => {
+    if (!confirmAction('Clear all locally imported team contributions? This does not affect personal usage history or provider data.')) return;
+    const state = await loadState();
+    const collaboration = normalizeCollaborationState(state.collaboration);
+    state.collaboration = normalizeCollaborationState({
+      enabled: collaboration.enabled,
+      teamName: collaboration.teamName,
+      memberName: collaboration.memberName,
+    });
+    await saveState(state);
+    await renderCollaboration();
+    flash('Local team ledger cleared');
+  });
+
+  const collaborationImportFile = document.getElementById('collaborationImportFile');
+  document.getElementById('importCollaboration')?.addEventListener('click', () => collaborationImportFile?.click());
+  collaborationImportFile?.addEventListener('change', async () => {
+    const file = collaborationImportFile.files?.[0];
+    if (!file) return;
+    try {
+      const state = await loadState();
+      state.collaboration = mergeCollaborationImport(state.collaboration, await file.text());
+      await saveState(state);
+      await renderCollaboration();
+      flash('Team contribution imported locally');
+    } catch (error) {
+      flash(`Team import rejected: ${error?.message || 'invalid file'}`, 'bad');
+    } finally {
+      collaborationImportFile.value = '';
+    }
+  });
 }
 
 export async function renderDiagnostics() {
@@ -1198,6 +1364,23 @@ function downloadMcpState(payload) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-mcp-state-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadCollaboration(payload, kind) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-team-${kind}-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.hidden = true;
   document.body.appendChild(anchor);
   anchor.click();

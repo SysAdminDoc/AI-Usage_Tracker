@@ -22,6 +22,8 @@ const fresh = defaultState();
 assert.equal(fresh.stateVersion, 2, 'defaultState() should have stateVersion 2');
 assert.ok(fresh.snapshot, 'defaultState() should have snapshot');
 assert.ok(fresh.settings, 'defaultState() should have settings');
+assert.equal(fresh.collaboration.enabled, false, 'collaboration dashboard should be opt-in by default');
+assert.deepEqual(fresh.collaboration.ledger.contributions, [], 'collaboration ledger should start empty');
 assert.equal(fresh.settings.historyRetentionDays, 30, 'history retention should default to 30 days');
 assert.equal(fresh.settings.anomalyThresholdPercent, 20, 'anomaly threshold should default to 20 percentage points');
 assert.equal(fresh.settings.notifications.U3, false, 'anomaly alerts should be opt-in');
@@ -56,6 +58,7 @@ assert.equal(migrated.widget.x, 100, 'widget position preserved');
 assert.equal(migrated.widget.minimized, true, 'widget minimized preserved');
 assert.equal(migrated.history.length, 1, 'history preserved');
 assert.equal(migrated.firedRules.foo, 123, 'firedRules preserved');
+assert.equal(migrated.collaboration.enabled, false, 'migration should add an opt-in collaboration state');
 
 // Fills in missing defaults
 assert.equal(migrated.settings.thresholds.warnAt, 50, 'missing thresholds filled in');

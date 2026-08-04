@@ -21,6 +21,7 @@
       <a href="#providers">Providers</a>
       <a href="#api">API access</a>
       <a href="#forecast">Forecast</a>
+      <a href="#collaboration">Team</a>
       <a href="#rows">Rows</a>
       <a href="#refresh">Refresh</a>
       <a href="#appearance">Appearance</a>
@@ -84,6 +85,30 @@
       <p class="opt-hint">Guidance appears only after seven days of fresh cost coverage and never claims to know current provider plan prices.</p>
       <div id="optimizationStatus" class="opt-callout" role="status" aria-live="polite">Loading plan guidance...</div>
       <div id="optimizationBreakdown" class="forecast-breakdown"></div>
+    </section>
+
+    <section id="collaboration" class="opt-card">
+      <h2>Local team dashboard</h2>
+      <p class="opt-hint">Opt in to aggregate user-provided redacted contributions on this device. The contract includes team/member labels and provider cost, token, and request totals only; prompts, code, credentials, paths, and branch names never enter it.</p>
+      <label class="opt-toggle"><input id="collaborationEnabled" type="checkbox"> Enable local team dashboard</label>
+      <div class="opt-grid collaboration-config">
+        <label>Team label
+          <input id="collaborationTeamName" class="opt-text" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Product team">
+        </label>
+        <label>Member label for exports
+          <input id="collaborationMemberName" class="opt-text" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Ada">
+        </label>
+      </div>
+      <div id="collaborationStatus" class="opt-callout" role="status" aria-live="polite">Local team dashboard is off.</div>
+      <div id="collaborationBreakdown" class="collaboration-breakdown"></div>
+      <div class="opt-row opt-row--wrap">
+        <button id="exportCollaborationContribution" class="opt-btn">Export redacted contribution</button>
+        <button id="importCollaboration" class="opt-btn">Import contribution or ledger</button>
+        <button id="exportCollaborationLedger" class="opt-btn opt-btn--quiet">Export local ledger</button>
+        <button id="clearCollaboration" class="opt-btn opt-btn--quiet">Clear local ledger</button>
+        <input id="collaborationImportFile" type="file" accept="application/json,.json" aria-label="Select collaboration JSON file" hidden>
+      </div>
+      <p class="opt-hint">Share JSON through a channel you control, or merge it with a self-hosted/user-provided process. This extension does not upload, sync, or fetch team data.</p>
     </section>
 
     <section id="rows" class="opt-card">

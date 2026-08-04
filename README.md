@@ -45,6 +45,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **Redacted support bundle** — export version, channel, permission, freshness, source, error-code, and storage evidence without history, raw errors, cookies, prompts, or full identifiers.
 - **Local MCP usage server** — export an explicit redacted state file, then let a local stdio MCP process answer `get_usage`, `forecast`, and `time_to_reset` without browser storage or network access.
+- **Opt-in local team dashboard** — import user-provided redacted contribution files and aggregate provider cost, token, and request totals on-device without prompts, code, credentials, project paths, or branch names.
 - **Premium settings controls** — compact section navigation, theme selection, configurable warn/danger visual thresholds, notification snooze, and local diagnostics.
 - **Locale-aware dashboard** — English, Spanish, French, and German labels plus `Intl` percent, date, and relative-time formatting; add another locale in the string table without changing render logic.
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
@@ -178,6 +179,12 @@ node mcp/server.mjs --state C:\path\to\ai-usage-tracker-mcp-state-2026-08-03.jso
 
 Configure an MCP client to launch that command over stdio. The server exposes `get_usage`, `forecast`, and `time_to_reset`; it reads only the supplied file and never opens browser storage, calls a provider, or receives API credentials. Re-export the state when a fresh reading is needed.
 
+### Local team dashboard
+
+Enable Settings → Team → **Enable local team dashboard** when you want to review team-provided usage. Enter a team label and member label, then use **Export redacted contribution**. A teammate can provide another contribution JSON or a ledger JSON through a channel you control; import it with **Import contribution or ledger**. Aggregation is stored in the active local profile and can be exported as a ledger JSON.
+
+The dashboard is opt-in and file-based. It never uploads, syncs, or fetches team data. The contribution schema includes only user-chosen labels and aggregate official/pricing-table provider cost, token, and request totals. Prompts, code, API credentials, project paths, and branch names are omitted by construction. A self-hosted or user-provided process can transport or merge the JSON without becoming part of this extension.
+
 ## Comparison and FAQ
 
 | Product | Strong fit | Honest tradeoff |
@@ -200,6 +207,8 @@ Configure an MCP client to launch that command over stdio. The server exposes `g
 **How is the API breakdown kept safe?** The provider APIs group rows by workspace, project, and API-key ID where available. Settings shows shortened identifiers and the CSV export uses the same redaction; credential values are stored separately and never enter the snapshot, UI, diagnostics, or export.
 
 **How does the local MCP server get data?** Export MCP state from Settings → Status, then pass that file explicitly to `node mcp/server.mjs --state <file>`. The server is a local stdio process over a static redacted snapshot; it does not read extension storage, access the network, or reconstruct missed refreshes. Re-export after refreshing the extension.
+
+**How does team mode share data?** It does not share data automatically. Enable the local dashboard, export a redacted contribution, and import user-provided contribution or ledger JSON files on the device where you want aggregation. Only aggregate provider cost, token, and request totals plus labels are accepted; prompts, code, credentials, paths, and branches are not part of the schema.
 
 **How does the month-end cost forecast work?** The popup and Settings → Forecast project each cost-bearing API provider's month-to-date total through the end of the current UTC month using a straight-line daily run rate. Official provider totals receive higher confidence than pricing-table estimates; stale snapshots and short coverage are explicitly downgraded, and the UI lists the assumptions. A provider needs more than one full day of observed cost coverage before it receives a numeric projection. The forecast is local and does not reconstruct spend during missed refreshes.
 
