@@ -3,6 +3,7 @@
 // notification has an idempotent `fireKey`; caller persists fired keys.
 
 import { detectAnomaly, forecastExhaustion } from './history.js';
+import { localBudgetDayKey } from './budget.js';
 
 export const WEBHOOK_SCHEMA = 'ai-usage-tracker.webhook';
 export const WEBHOOK_SCHEMA_VERSION = 1;
@@ -23,7 +24,7 @@ export const NOTIFICATION_GRACE_MS = Object.freeze({
   briefing: 2 * 60 * 60 * 1000,
 });
 
-export function evaluateRules({ snapshot, history, settings, firedRules, now = new Date() }) {
+export function evaluateRules({ snapshot, history, settings, budget, firedRules, now = new Date() }) {
   const out = [];
   if (!snapshot || !snapshot.providers) return out;
   if (isSnoozed(settings, now)) return out;
@@ -193,6 +194,50 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
     }
   }
 
+  out.push(...evaluateBudgetRules({ budget, settings, firedRules, now }));
+
+  return out;
+}
+
+export function evaluateBudgetRules({ budget, settings, firedRules = {}, now = new Date() } = {}) {
+  const caps = settings?.apiBudget || {};
+  const candidates = [
+    {
+      scope: 'session',
+      capUSD: Number(caps.sessionCapUSD) || 0,
+      spentUSD: Number(budget?.sessionSpentUSD) || 0,
+      windowKey: budget?.sessionStartedISO || 'session',
+      label: 'current session',
+    },
+    {
+      scope: 'daily',
+      capUSD: Number(caps.dailyCapUSD) || 0,
+      spentUSD: Number(budget?.dailySpentUSD) || 0,
+      windowKey: budget?.dailyKey || localBudgetDayKey(now),
+      label: 'today',
+    },
+  ];
+  const out = [];
+  for (const candidate of candidates) {
+    if (!(candidate.capUSD > 0) || !(candidate.spentUSD >= 0)) continue;
+    for (const threshold of [80, 100]) {
+      if (candidate.spentUSD < candidate.capUSD * threshold / 100) continue;
+      const key = `budget-${candidate.scope}-${threshold}-${candidate.windowKey}`;
+      if (firedRules[key]) continue;
+      out.push({
+        fireKey: key,
+        ruleId: `BUDGET-${candidate.scope}-${threshold}`,
+        title: `API spend ${candidate.scope} cap at ${threshold}%`,
+        body: `${formatUSD(candidate.spentUSD)} observed of ${formatUSD(candidate.capUSD)} ${candidate.label} API spend cap.`,
+        tone: threshold >= 100 ? 'bad' : 'warn',
+        provider: 'api-budget',
+        bucketId: `api-budget-${candidate.scope}`,
+        bucketLabel: `${candidate.label} API spend`,
+        percentUsed: Math.min(100, candidate.spentUSD / candidate.capUSD * 100),
+        resetISO: candidate.scope === 'daily' ? nextLocalDayISO(now) : null,
+      });
+    }
+  }
   return out;
 }
 
@@ -367,6 +412,17 @@ function validISO(value) {
   if (typeof value !== 'string' || !value.trim()) return null;
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function formatUSD(value) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function nextLocalDayISO(now) {
+  const next = new Date(now.getTime());
+  next.setDate(next.getDate() + 1);
+  next.setHours(0, 0, 0, 0);
+  return next.toISOString();
 }
 
 function isSnoozed(settings, now) {

@@ -90,10 +90,25 @@ export interface TrackerSettings {
   thresholds: { warnAt: number; dangerAt: number };
   anomalyThresholdPercent?: number;
   historyRetentionDays: 7 | 14 | 30 | 60 | 90;
+  apiBudget: ApiBudgetSettings;
   syncSettings?: boolean;
   githubCopilotOrganization?: string;
   githubCopilotUsername?: string;
   geminiProjectId?: string;
+}
+
+export interface ApiBudgetSettings {
+  sessionCapUSD: number;
+  dailyCapUSD: number;
+}
+
+export interface BudgetLedger {
+  version: number;
+  sessionStartedISO: string;
+  sessionSpentUSD: number;
+  dailyKey: string;
+  dailySpentUSD: number;
+  lastTotals: Record<string, { amountUSD: number; source: 'official' | 'estimated' }>;
 }
 
 export interface WidgetState {
@@ -109,6 +124,7 @@ export interface TrackerState {
   firedRules: Record<string, number>;
   settings: TrackerSettings;
   widget: WidgetState;
+  budget: BudgetLedger;
   [key: string]: unknown;
 }
 

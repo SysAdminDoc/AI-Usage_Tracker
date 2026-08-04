@@ -6,6 +6,7 @@ import { SUPPORTED_HOSTS } from './hosts.js';
 import { invokeWebExtension } from './browser.js';
 import { isTrackerState } from './type-guards.js';
 import { normalizeWebhookURL } from './notify.js';
+import { defaultBudgetLedger, normalizeBudgetCap } from './budget.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 
 const LEGACY_STORE_KEY = 'aut.state.v1';
@@ -195,6 +196,7 @@ export function pickSyncSettings(settings = {}) {
     thresholds: { ...safe.thresholds },
     anomalyThresholdPercent: safe.anomalyThresholdPercent,
     historyRetentionDays: safe.historyRetentionDays,
+    apiBudget: { ...safe.apiBudget },
   };
 }
 
@@ -207,6 +209,7 @@ export function mergeSyncedSettings(current, remote) {
     showRows: { ...current?.showRows, ...safe.showRows },
     notifications: { ...current?.notifications, ...safe.notifications },
     thresholds: { ...current?.thresholds, ...safe.thresholds },
+    apiBudget: { ...current?.apiBudget, ...safe.apiBudget },
     syncSettings: current?.syncSettings === true,
   };
 }
@@ -368,6 +371,9 @@ const MIGRATIONS = [
     if (!Array.isArray(next.history)) next.history = [];
     if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
     if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
+    if (!next.budget || typeof next.budget !== 'object' || Array.isArray(next.budget)) {
+      next.budget = defaultBudgetLedger();
+    }
     // Merge in any missing settings with defaults.
     next.settings = mergeDefaults(next.settings, defaultSettings());
     return next;
@@ -853,6 +859,12 @@ function sanitizeImportedSettings(input) {
   settings.notifications.webhookLastSuccessISO = normalizeISO(settings.notifications.webhookLastSuccessISO);
   settings.notifications.webhookLastErrorCode = sanitizeErrorCode(settings.notifications.webhookLastErrorCode);
   settings.notifications.webhookLastAttempts = clampNumber(settings.notifications.webhookLastAttempts, 0, 3, 0);
+  settings.apiBudget = {
+    ...defaultSettings().apiBudget,
+    ...(settings.apiBudget || {}),
+  };
+  settings.apiBudget.sessionCapUSD = normalizeBudgetCap(settings.apiBudget.sessionCapUSD);
+  settings.apiBudget.dailyCapUSD = normalizeBudgetCap(settings.apiBudget.dailyCapUSD);
   settings.anomalyThresholdPercent = clampNumber(settings.anomalyThresholdPercent, 10, 50, 20);
   const warnAt = clampNumber(settings.thresholds?.warnAt, 25, 85, 50);
   let dangerAt = clampNumber(settings.thresholds?.dangerAt, 55, 95, 80);
@@ -935,6 +947,7 @@ export function defaultState() {
     },
     history: [],          // [{ ts, bucketId, percentUsed }]
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
+    budget: defaultBudgetLedger(),
     settings: defaultSettings(),
     widget: { x: null, y: null, minimized: false },
   };
@@ -995,5 +1008,9 @@ export function defaultSettings() {
     },
     anomalyThresholdPercent: 20,
     historyRetentionDays: 30,
+    apiBudget: {
+      sessionCapUSD: 0,
+      dailyCapUSD: 0,
+    },
   };
 }

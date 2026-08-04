@@ -8,6 +8,7 @@ import type {
   TrackerSnapshot,
   TrackerState,
   WidgetState,
+  BudgetLedger,
 } from './types.js';
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
@@ -35,6 +36,7 @@ export const DEFAULT_TRACKER_SETTINGS: TrackerSettings = {
   thresholds: { warnAt: 50, dangerAt: 80 },
   anomalyThresholdPercent: 20,
   historyRetentionDays: 30,
+  apiBudget: { sessionCapUSD: 0, dailyCapUSD: 0 },
 };
 
 export function typedBucket(input: Pick<QuotaBucket, 'id' | 'label' | 'percentUsed'>): QuotaBucket {
@@ -76,5 +78,13 @@ export function typedState(snapshot = typedSnapshot(), history: HistorySample[] 
     firedRules: {},
     settings: DEFAULT_TRACKER_SETTINGS,
     widget,
+    budget: {
+      version: 1,
+      sessionStartedISO: '1970-01-01T00:00:00.000Z',
+      sessionSpentUSD: 0,
+      dailyKey: '1970-01-01',
+      dailySpentUSD: 0,
+      lastTotals: {},
+    } satisfies BudgetLedger,
   };
 }

@@ -287,6 +287,9 @@ html, body {
 .opt-input--wide {
   flex: 1 1 280px;
 }
+.opt-input--number {
+  width: 160px;
+}
 .opt-input:focus-visible {
   outline: 2px solid var(--aut-focus);
   outline-offset: 2px;
@@ -497,6 +500,10 @@ html, body {
 
   .opt-input--wide {
     flex: 0 1 auto;
+    width: 100%;
+  }
+
+  .opt-input--number {
     width: 100%;
   }
 }

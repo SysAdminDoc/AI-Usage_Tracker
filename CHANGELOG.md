@@ -5,6 +5,7 @@
 ### Added
 - The userscript now detects narrow/coarse-pointer viewports, anchors a compact widget to the safe viewport edges, preserves 44px touch targets, and disables desktop dragging while in mobile mode.
 - Optional webhook notification delivery now supports endpoint-origin permission requests, redacted-by-default rule events, bounded transient retries, a redacted test action, and visible failure status while remaining disabled by default.
+- Optional local API spend caps now track session/day deltas for cost-bearing providers and alert at 80% and 100%, with explicit baseline/reset behavior and fixture coverage for counter resets and pricing-source changes.
 - API-key providers now register through a versioned `auth` → `fetch` → `parse` → `normalize` plugin contract with a shared credential boundary, generic background dispatch, and fixture coverage for every built-in adapter.
 - API analytics now follow paginated usage/cost reports, show Anthropic’s official model/workspace costs, and show OpenAI per-model pricing-table estimates beside the official organization cost reconciliation rows with visible provenance.
 - Optional U3 spike alerts now compare each new quota sample with the recent moving average, with configurable percentage-point thresholds in extension and userscript settings.

@@ -2,6 +2,7 @@ import { normalizeThresholds } from './countdown.js';
 import { defaultSettings } from './storage.js';
 import { resolveLocale } from './i18n.js';
 import { normalizeWebhookURL } from './notify.js';
+import { normalizeBudgetCap } from './budget.js';
 
 export const KNOWN_ROWS = [
   { id: 'claude-session', label: 'Claude - Current session' },
@@ -54,6 +55,9 @@ export function normalizeSettings(input = {}) {
   next.notifications.webhookLastErrorCode = typeof next.notifications.webhookLastErrorCode === 'string'
     ? next.notifications.webhookLastErrorCode.trim().slice(0, 96) : null;
   next.notifications.webhookLastAttempts = clampInteger(next.notifications.webhookLastAttempts, 0, 3, 0);
+  next.apiBudget = { ...defaultSettings().apiBudget, ...(next.apiBudget || {}) };
+  next.apiBudget.sessionCapUSD = normalizeBudgetCap(next.apiBudget.sessionCapUSD);
+  next.apiBudget.dailyCapUSD = normalizeBudgetCap(next.apiBudget.dailyCapUSD);
   next.anomalyThresholdPercent = clampInteger(next.anomalyThresholdPercent, 10, 50, 20);
   next.theme = normalizeThemeValue(next.theme);
   next.thresholds = normalizeThresholds(next.thresholds);

@@ -178,6 +178,21 @@
         <button id="testWebhook" class="opt-btn opt-btn--quiet">Send redacted test webhook</button>
       </div>
       <div id="webhookStatus" class="opt-callout" role="status" aria-live="polite">Webhook delivery is off.</div>
+      <div class="opt-divider"></div>
+      <h3>API spend caps</h3>
+      <p class="opt-hint">Optional local alerts for observed increases in API-provider spend. The first month-to-date observation establishes a baseline; missed refreshes cannot be reconstructed.</p>
+      <div class="opt-row opt-row--wrap">
+        <label for="sessionBudgetCap">Session cap (USD)</label>
+        <input id="sessionBudgetCap" class="opt-input opt-input--number" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Off">
+      </div>
+      <div class="opt-row opt-row--wrap">
+        <label for="dailyBudgetCap">Daily cap (USD)</label>
+        <input id="dailyBudgetCap" class="opt-input opt-input--number" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Off">
+      </div>
+      <div class="opt-row opt-row--wrap">
+        <button id="resetBudgetSession" class="opt-btn opt-btn--quiet">Reset session spend baseline</button>
+      </div>
+      <div id="budgetStatus" class="opt-callout" role="status" aria-live="polite">No API spend caps configured.</div>
     </section>
 
     <section id="history" class="opt-card">

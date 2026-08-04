@@ -14,13 +14,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
   Acceptance: Optional webhook delivery is disabled by default, redacts provider data by default, and is tested for retries/failure copy.
   Complexity: M
 
-- [ ] P3 — Dollar-budget caps
-  Why: Session budget alerts are a commercial differentiator once API cost data exists.
-  Evidence: Tokens 4 Breakfast Focus Mode; OpenAI/Anthropic API usage cost surfaces.
-  Touches: cost provider modules, `src/lib/notify.js`, `src/ui/options.js`
-  Acceptance: Users can set per-session or per-day API spend caps with 80 percent and 100 percent alerts.
-  Complexity: L
-
 - [ ] P3 — Month-end bill prediction
   Why: Run-rate prediction turns raw API usage into a planning signal.
   Evidence: Tokens 4 Breakfast and CostGoat emphasize monthly spend forecasting.

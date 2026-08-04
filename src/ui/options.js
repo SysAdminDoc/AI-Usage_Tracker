@@ -40,6 +40,7 @@ import {
   requestNotificationPermission,
   requestWebhookHostPermission,
 } from '../lib/browser.js';
+import { normalizeBudgetCap, resetSessionBudget } from '../lib/budget.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
@@ -323,11 +324,14 @@ async function loadCurrent() {
   document.getElementById('webhookEnabled').checked = s.notifications.webhookEnabled === true;
   document.getElementById('webhookURL').value = s.notifications.webhookURL || '';
   document.getElementById('webhookIncludeDetails').checked = s.notifications.webhookIncludeDetails === true;
+  document.getElementById('sessionBudgetCap').value = s.apiBudget.sessionCapUSD ? String(s.apiBudget.sessionCapUSD) : '';
+  document.getElementById('dailyBudgetCap').value = s.apiBudget.dailyCapUSD ? String(s.apiBudget.dailyCapUSD) : '';
   const syncCheckbox = document.getElementById('syncSettings');
   if (syncCheckbox) syncCheckbox.checked = s.syncSettings === true;
   setThresholdLabels(thresholds);
   renderSnoozeStatus(s);
   renderWebhookStatus(s);
+  renderBudgetStatus(s, state.budget);
 }
 
 export async function renderSyncSettings(state = null) {
@@ -432,6 +436,28 @@ export function renderWebhookStatus(settings = {}) {
     wrap.textContent = 'Webhook delivery is enabled. The next matching rule will send a redacted event.';
     wrap.className = 'opt-callout opt-callout--good';
   }
+}
+
+export function renderBudgetStatus(settings = {}, budget = {}) {
+  const wrap = document.getElementById('budgetStatus');
+  if (!wrap) return;
+  const caps = settings.apiBudget || {};
+  const sessionCap = normalizeBudgetCap(caps.sessionCapUSD);
+  const dailyCap = normalizeBudgetCap(caps.dailyCapUSD);
+  if (!sessionCap && !dailyCap) {
+    wrap.textContent = 'No API spend caps configured.';
+    wrap.className = 'opt-callout';
+    return;
+  }
+  const parts = [];
+  if (sessionCap) parts.push(`Session ${formatUSD(budget.sessionSpentUSD)} / ${formatUSD(sessionCap)}`);
+  if (dailyCap) parts.push(`Today ${formatUSD(budget.dailySpentUSD)} / ${formatUSD(dailyCap)}`);
+  wrap.textContent = `${parts.join(' · ')}. Alerts fire at 80% and 100% of each cap.`;
+  const over = (sessionCap && Number(budget.sessionSpentUSD) >= sessionCap)
+    || (dailyCap && Number(budget.dailySpentUSD) >= dailyCap);
+  const warn = (sessionCap && Number(budget.sessionSpentUSD) >= sessionCap * 0.8)
+    || (dailyCap && Number(budget.dailySpentUSD) >= dailyCap * 0.8);
+  wrap.className = `opt-callout ${over ? 'opt-callout--warn' : warn ? 'opt-callout--warn' : 'opt-callout--good'}`;
 }
 
 function applyTheme(settings = {}) {
@@ -554,6 +580,10 @@ function bindHandlers() {
       s.notifications = { ...s.notifications, webhookURL, webhookEnabled: enabled };
     } else if (t.id === 'webhookIncludeDetails') {
       s.notifications = { ...s.notifications, webhookIncludeDetails: t.checked };
+    } else if (t.id === 'sessionBudgetCap') {
+      s.apiBudget = { ...s.apiBudget, sessionCapUSD: normalizeBudgetCap(t.value) };
+    } else if (t.id === 'dailyBudgetCap') {
+      s.apiBudget = { ...s.apiBudget, dailyCapUSD: normalizeBudgetCap(t.value) };
     } else {
       return;
     }
@@ -564,6 +594,7 @@ function bindHandlers() {
     await renderDiagnostics();
     renderSnoozeStatus(s);
     renderWebhookStatus(s);
+    renderBudgetStatus(s, state.budget);
     flash('Saved just now');
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
@@ -743,6 +774,15 @@ function bindHandlers() {
     } finally {
       button.disabled = false;
     }
+  });
+
+  document.getElementById('resetBudgetSession')?.addEventListener('click', async () => {
+    const state = await loadState();
+    state.budget = resetSessionBudget(state.budget, state.snapshot, { now: new Date() });
+    await saveState(state);
+    renderBudgetStatus(state.settings, state.budget);
+    await renderDiagnostics();
+    flash('Session spend baseline reset');
   });
 
   document.getElementById('exportHistory').addEventListener('click', async () => {
@@ -1037,6 +1077,10 @@ function notificationDiagnostic(settings = {}) {
     snoozed,
     summary,
   };
+}
+
+function formatUSD(value) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value) || 0);
 }
 
 function providerDiagnostic(provider, ps) {

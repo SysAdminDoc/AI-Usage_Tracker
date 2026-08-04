@@ -4,6 +4,7 @@ import {
   deliverWebhook,
   deriveNextNotificationAlarm,
   evaluateRules,
+  evaluateBudgetRules,
   normalizeWebhookURL,
   NOTIFICATION_GRACE_MS,
 } from '../src/lib/notify.js';
@@ -29,6 +30,32 @@ const baseSettings = {
   showRows: { 'claude-session': true },
   notifications: { 'R1-15': true, 'U1-95': true },
 };
+
+// --- API budget caps fire at 80% and 100% once a cap is configured ---
+{
+  const budgetRules = evaluateBudgetRules({
+    budget: {
+      sessionSpentUSD: 10,
+      dailySpentUSD: 4,
+      sessionStartedISO: '2026-06-16T09:00:00.000Z',
+      dailyKey: '2026-06-16',
+    },
+    settings: { apiBudget: { sessionCapUSD: 10, dailyCapUSD: 5 } },
+    firedRules: {},
+    now,
+  });
+  assert.deepEqual(budgetRules.map((rule) => rule.ruleId), [
+    'BUDGET-session-80', 'BUDGET-session-100', 'BUDGET-daily-80',
+  ]);
+  assert.equal(budgetRules.find((rule) => rule.ruleId === 'BUDGET-session-100').tone, 'bad');
+  assert.equal(budgetRules.find((rule) => rule.ruleId === 'BUDGET-daily-80').provider, 'api-budget');
+  assert.equal(evaluateBudgetRules({
+    budget: { sessionSpentUSD: 10, dailySpentUSD: 4, sessionStartedISO: '2026-06-16T09:00:00.000Z', dailyKey: '2026-06-16' },
+    settings: { apiBudget: { sessionCapUSD: 10, dailyCapUSD: 5 } },
+    firedRules: { 'budget-session-80-2026-06-16T09:00:00.000Z': now.getTime() },
+    now,
+  }).some((rule) => rule.ruleId === 'BUDGET-session-80'), false);
+}
 
 // --- Webhook payloads are redacted unless details are explicitly enabled ---
 {

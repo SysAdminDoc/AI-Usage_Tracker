@@ -25,6 +25,7 @@ import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMes
 import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
+import { forgetApiProvider, updateBudgetLedger } from './lib/budget.js';
 import { loadApiCredential } from './lib/storage.js';
 import { API_PROVIDER_IDS } from './providers/api-contract.js';
 import { fetchProviderUsage } from './providers/registry.js';
@@ -135,9 +136,14 @@ async function refreshNow({ allowSilentTab = false } = {}) {
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
   for (const [index, provider] of API_PROVIDER_IDS.entries()) {
-    if (!apiCredentials[index]) state.snapshot.providers[provider] = null;
+    if (!apiCredentials[index]) {
+      state.snapshot.providers[provider] = null;
+      state.budget = forgetApiProvider(state.budget, provider, now);
+    }
     else state = await mergeSnapshot(state, apiSnapshots[index], { source: 'api-key', now });
   }
+  state.budget = updateBudgetLedger(state.budget, state.snapshot, { now }).ledger;
+  await saveState(state);
 
   // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
   if (allowSilentTab && state.settings?.silentTabRefresh === true) {
@@ -293,6 +299,7 @@ async function fireNotifications(state, now) {
     snapshot: state.snapshot,
     history:  state.history,
     settings: state.settings,
+    budget: state.budget,
     firedRules: state.firedRules || {},
     now,
   });
