@@ -165,6 +165,19 @@
         <label for="dailyBriefingHour">Daily briefing time</label>
         <select id="dailyBriefingHour" class="opt-select aut-field"></select>
       </div>
+      <div class="opt-divider"></div>
+      <h3>Webhook delivery</h3>
+      <p class="opt-hint">Off by default. When enabled, rule events POST directly to your HTTPS/HTTP endpoint. Provider and bucket details stay redacted unless you explicitly include them.</p>
+      <label class="opt-toggle"><input id="webhookEnabled" type="checkbox"> Send notification rule events to a webhook</label>
+      <div class="opt-row opt-row--wrap">
+        <label for="webhookURL">Webhook URL</label>
+        <input id="webhookURL" class="opt-input opt-input--wide" type="url" maxlength="2048" autocomplete="off" placeholder="https://example.test/ai-usage-alerts">
+      </div>
+      <label class="opt-toggle"><input id="webhookIncludeDetails" type="checkbox"> Include provider and bucket details in webhook payloads</label>
+      <div class="opt-row opt-row--wrap">
+        <button id="testWebhook" class="opt-btn opt-btn--quiet">Send redacted test webhook</button>
+      </div>
+      <div id="webhookStatus" class="opt-callout" role="status" aria-live="polite">Webhook delivery is off.</div>
     </section>
 
     <section id="history" class="opt-card">

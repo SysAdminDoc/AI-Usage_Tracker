@@ -5,6 +5,7 @@
 import { SUPPORTED_HOSTS } from './hosts.js';
 import { invokeWebExtension } from './browser.js';
 import { isTrackerState } from './type-guards.js';
+import { normalizeWebhookURL } from './notify.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 
 const LEGACY_STORE_KEY = 'aut.state.v1';
@@ -845,6 +846,13 @@ function sanitizeImportedSettings(input) {
   };
   settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
   settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
+  settings.notifications.webhookEnabled = settings.notifications.webhookEnabled === true;
+  settings.notifications.webhookURL = normalizeWebhookURL(settings.notifications.webhookURL);
+  settings.notifications.webhookIncludeDetails = settings.notifications.webhookIncludeDetails === true;
+  settings.notifications.webhookLastAttemptISO = normalizeISO(settings.notifications.webhookLastAttemptISO);
+  settings.notifications.webhookLastSuccessISO = normalizeISO(settings.notifications.webhookLastSuccessISO);
+  settings.notifications.webhookLastErrorCode = sanitizeErrorCode(settings.notifications.webhookLastErrorCode);
+  settings.notifications.webhookLastAttempts = clampNumber(settings.notifications.webhookLastAttempts, 0, 3, 0);
   settings.anomalyThresholdPercent = clampNumber(settings.anomalyThresholdPercent, 10, 50, 20);
   const warnAt = clampNumber(settings.thresholds?.warnAt, 25, 85, 50);
   let dangerAt = clampNumber(settings.thresholds?.dangerAt, 55, 95, 80);
@@ -892,6 +900,16 @@ function sanitizeOptionalIdentifier(value) {
 function sanitizeProjectIdentifier(value) {
   const project = String(value || '').trim().toLowerCase();
   return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) ? project : '';
+}
+
+function normalizeISO(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function sanitizeErrorCode(value) {
+  return typeof value === 'string' ? value.trim().slice(0, 96) : null;
 }
 
 function cloneJSON(value) {
@@ -962,6 +980,13 @@ export function defaultSettings() {
       'U3':    false,
       'D1':    true,
       dailyBriefingHour: 8,    // 24h local
+      webhookEnabled: false,
+      webhookURL: '',
+      webhookIncludeDetails: false,
+      webhookLastAttemptISO: null,
+      webhookLastSuccessISO: null,
+      webhookLastErrorCode: null,
+      webhookLastAttempts: 0,
     },
     theme: 'mocha',            // 'mocha' (default) | 'latte' | 'system'
     thresholds: {

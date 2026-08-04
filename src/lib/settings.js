@@ -1,6 +1,7 @@
 import { normalizeThresholds } from './countdown.js';
 import { defaultSettings } from './storage.js';
 import { resolveLocale } from './i18n.js';
+import { normalizeWebhookURL } from './notify.js';
 
 export const KNOWN_ROWS = [
   { id: 'claude-session', label: 'Claude - Current session' },
@@ -45,6 +46,14 @@ export function normalizeSettings(input = {}) {
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
   next.notifications.dailyBriefingHour = clampInteger(next.notifications.dailyBriefingHour, 0, 23, 8);
+  next.notifications.webhookEnabled = next.notifications.webhookEnabled === true;
+  next.notifications.webhookURL = normalizeWebhookURL(next.notifications.webhookURL);
+  next.notifications.webhookIncludeDetails = next.notifications.webhookIncludeDetails === true;
+  next.notifications.webhookLastAttemptISO = normalizeISO(next.notifications.webhookLastAttemptISO);
+  next.notifications.webhookLastSuccessISO = normalizeISO(next.notifications.webhookLastSuccessISO);
+  next.notifications.webhookLastErrorCode = typeof next.notifications.webhookLastErrorCode === 'string'
+    ? next.notifications.webhookLastErrorCode.trim().slice(0, 96) : null;
+  next.notifications.webhookLastAttempts = clampInteger(next.notifications.webhookLastAttempts, 0, 3, 0);
   next.anomalyThresholdPercent = clampInteger(next.anomalyThresholdPercent, 10, 50, 20);
   next.theme = normalizeThemeValue(next.theme);
   next.thresholds = normalizeThresholds(next.thresholds);
@@ -100,6 +109,12 @@ function sanitizeIdentifier(value) {
 function sanitizeProjectIdentifier(value) {
   const project = String(value || '').trim().toLowerCase();
   return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) ? project : '';
+}
+
+function normalizeISO(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
 function mergeDefaults(current, defaults) {

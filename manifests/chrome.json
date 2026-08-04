@@ -102,6 +102,11 @@
     "https://openrouter.ai/*"
   ],
 
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+
   "web_accessible_resources": [
     {
       "resources": ["ui/theme.css", "ui/widget.css", "icons/*.png"],

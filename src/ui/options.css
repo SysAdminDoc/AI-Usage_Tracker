@@ -273,6 +273,35 @@ html, body {
   min-width: 120px;
 }
 
+.opt-input {
+  min-height: 44px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--aut-row-bg);
+  color: var(--aut-text);
+  border: 1px solid var(--aut-border);
+  border-radius: var(--aut-r-sm);
+  font: inherit;
+  font-size: 12px;
+}
+.opt-input--wide {
+  flex: 1 1 280px;
+}
+.opt-input:focus-visible {
+  outline: 2px solid var(--aut-focus);
+  outline-offset: 2px;
+}
+.opt-divider {
+  height: 1px;
+  margin: 18px 0 14px;
+  background: var(--aut-border-subtle);
+}
+.opt-card h3 {
+  margin: 0;
+  color: var(--aut-text);
+  font-size: 14px;
+}
+
 .opt-select {
   background: var(--aut-row-bg);
   color: var(--aut-text);
@@ -464,5 +493,10 @@ html, body {
 
   .opt-row label {
     min-width: 0;
+  }
+
+  .opt-input--wide {
+    flex: 0 1 auto;
+    width: 100%;
   }
 }

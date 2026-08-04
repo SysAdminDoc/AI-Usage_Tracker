@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  buildWebhookPayload,
+  deliverWebhook,
   deriveNextNotificationAlarm,
   evaluateRules,
+  normalizeWebhookURL,
   NOTIFICATION_GRACE_MS,
 } from '../src/lib/notify.js';
 
@@ -26,6 +29,65 @@ const baseSettings = {
   showRows: { 'claude-session': true },
   notifications: { 'R1-15': true, 'U1-95': true },
 };
+
+// --- Webhook payloads are redacted unless details are explicitly enabled ---
+{
+  const notification = {
+    ruleId: 'U1-90',
+    tone: 'warn',
+    provider: 'anthropic-api',
+    bucketId: 'workspace-secret-row',
+    bucketLabel: 'Claude workspace secret',
+    percentUsed: 91,
+    resetISO: '2026-06-16T13:00:00.000Z',
+    title: 'Anthropic API workspace secret at 91%',
+    body: 'Threshold reached',
+  };
+  const redacted = buildWebhookPayload(notification, { now });
+  assert.equal(redacted.schema, 'ai-usage-tracker.webhook');
+  assert.equal('details' in redacted, false);
+  assert.doesNotMatch(JSON.stringify(redacted), /anthropic|workspace-secret|Threshold/);
+  const detailed = buildWebhookPayload(notification, { includeDetails: true, now });
+  assert.equal(detailed.details.provider, 'anthropic-api');
+  assert.equal(detailed.details.percentUsed, 91);
+  assert.equal(normalizeWebhookURL('javascript:alert(1)'), '');
+  assert.equal(normalizeWebhookURL('https://hooks.example.test/events'), 'https://hooks.example.test/events');
+}
+
+// --- Webhook retries transient failures and stops on permanent failures ---
+{
+  let attempts = 0;
+  const waits = [];
+  const delivered = await deliverWebhook({
+    url: 'https://hooks.example.test/events',
+    payload: { event: 'test' },
+    fetchImpl: async (url, options) => {
+      assert.equal(url, 'https://hooks.example.test/events');
+      assert.equal(options.method, 'POST');
+      assert.equal(options.headers['Content-Type'], 'application/json');
+      attempts += 1;
+      return attempts < 3 ? { ok: false, status: 503 } : { ok: true, status: 204 };
+    },
+    sleep: async (ms) => waits.push(ms),
+  });
+  assert.equal(delivered.ok, true);
+  assert.equal(delivered.attempts, 3);
+  assert.deepEqual(waits, [250, 500]);
+
+  let permanentAttempts = 0;
+  const rejected = await deliverWebhook({
+    url: 'https://hooks.example.test/events',
+    payload: { event: 'test' },
+    fetchImpl: async () => {
+      permanentAttempts += 1;
+      return { ok: false, status: 400 };
+    },
+    sleep: async () => { throw new Error('permanent failures must not sleep'); },
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.errorCode, 'webhook.http-400');
+  assert.equal(permanentAttempts, 1);
+}
 
 // --- Basic: rules fire when conditions met ---
 assert.ok(evaluateRules({ snapshot, history: [], settings: baseSettings, firedRules: {}, now }).length > 0);

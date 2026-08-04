@@ -34,9 +34,15 @@ import {
 } from '../lib/settings.js';
 import { normalizeThresholds } from '../lib/countdown.js';
 import { clearChildren } from '../lib/dom.js';
-import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
+import {
+  getNotificationPermission,
+  notify,
+  requestNotificationPermission,
+  requestWebhookHostPermission,
+} from '../lib/browser.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
+import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
 
 const VERSION = '0.2.2';
 
@@ -314,10 +320,14 @@ async function loadCurrent() {
   document.getElementById('dangerAt').value = String(thresholds.dangerAt);
   document.getElementById('anomalyThresholdPercent').value = String(s.anomalyThresholdPercent ?? 20);
   document.getElementById('historyRetentionDays').value = String(s.historyRetentionDays);
+  document.getElementById('webhookEnabled').checked = s.notifications.webhookEnabled === true;
+  document.getElementById('webhookURL').value = s.notifications.webhookURL || '';
+  document.getElementById('webhookIncludeDetails').checked = s.notifications.webhookIncludeDetails === true;
   const syncCheckbox = document.getElementById('syncSettings');
   if (syncCheckbox) syncCheckbox.checked = s.syncSettings === true;
   setThresholdLabels(thresholds);
   renderSnoozeStatus(s);
+  renderWebhookStatus(s);
 }
 
 export async function renderSyncSettings(state = null) {
@@ -397,6 +407,31 @@ export async function renderNotificationPermission(capability = getNotificationP
   wrap.textContent = labels[capability.source] || capability.detail || 'Notification status unavailable.';
   wrap.className = `opt-callout ${capability.state === 'granted' ? 'opt-callout--good' : capability.state === 'denied' ? 'opt-callout--warn' : ''}`;
   return capability;
+}
+
+export function renderWebhookStatus(settings = {}) {
+  const wrap = document.getElementById('webhookStatus');
+  if (!wrap) return;
+  const notifications = settings.notifications || {};
+  const enabled = notifications.webhookEnabled === true;
+  const hasURL = !!normalizeWebhookURL(notifications.webhookURL);
+  const attempts = Number(notifications.webhookLastAttempts) || 0;
+  if (!enabled) {
+    wrap.textContent = 'Webhook delivery is off.';
+    wrap.className = 'opt-callout';
+  } else if (!hasURL) {
+    wrap.textContent = 'Webhook is enabled, but no valid HTTP(S) URL is configured.';
+    wrap.className = 'opt-callout opt-callout--warn';
+  } else if (notifications.webhookLastErrorCode) {
+    wrap.textContent = `Last webhook delivery failed after ${attempts || 1} attempt${attempts === 1 ? '' : 's'} (${notifications.webhookLastErrorCode}). Check the endpoint and try again.`;
+    wrap.className = 'opt-callout opt-callout--warn';
+  } else if (notifications.webhookLastSuccessISO) {
+    wrap.textContent = `Webhook delivery is active with redacted payloads by default. Last delivered ${formatAgo(notifications.webhookLastSuccessISO)}.`;
+    wrap.className = 'opt-callout opt-callout--good';
+  } else {
+    wrap.textContent = 'Webhook delivery is enabled. The next matching rule will send a redacted event.';
+    wrap.className = 'opt-callout opt-callout--good';
+  }
 }
 
 function applyTheme(settings = {}) {
@@ -496,6 +531,29 @@ function bindHandlers() {
       s.thresholds = readThresholdControls(t.id);
     } else if (t.id === 'anomalyThresholdPercent') {
       s.anomalyThresholdPercent = parseInt(t.value, 10) || 20;
+    } else if (t.id === 'webhookEnabled') {
+      let enabled = t.checked;
+      if (enabled) {
+        const permission = await requestWebhookHostPermission(s.notifications.webhookURL);
+        if (!permission.ok) {
+          enabled = false;
+          flash('Webhook needs a valid endpoint origin and permission', 'bad');
+        }
+      }
+      s.notifications = { ...s.notifications, webhookEnabled: enabled };
+    } else if (t.id === 'webhookURL') {
+      const webhookURL = normalizeWebhookURL(t.value);
+      let enabled = s.notifications.webhookEnabled === true;
+      if (s.notifications.webhookEnabled === true && webhookURL) {
+        const permission = await requestWebhookHostPermission(webhookURL);
+        if (!permission.ok) {
+          enabled = false;
+          flash('Webhook endpoint permission was not granted', 'bad');
+        }
+      }
+      s.notifications = { ...s.notifications, webhookURL, webhookEnabled: enabled };
+    } else if (t.id === 'webhookIncludeDetails') {
+      s.notifications = { ...s.notifications, webhookIncludeDetails: t.checked };
     } else {
       return;
     }
@@ -505,6 +563,7 @@ function bindHandlers() {
     await renderHistoryStatus();
     await renderDiagnostics();
     renderSnoozeStatus(s);
+    renderWebhookStatus(s);
     flash('Saved just now');
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
@@ -632,6 +691,55 @@ function bindHandlers() {
       await renderNotificationPermission();
     } catch {
       flash('Test notification failed', 'bad');
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById('testWebhook')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const state = await loadState();
+      const settings = normalizeSettings(state.settings);
+      const url = normalizeWebhookURL(document.getElementById('webhookURL')?.value);
+      if (!url) {
+        flash('Enter a valid HTTP(S) webhook URL first', 'bad');
+        return;
+      }
+      const now = new Date();
+      const permission = await requestWebhookHostPermission(url);
+      if (!permission.ok) {
+        flash('Webhook endpoint permission was not granted', 'bad');
+        return;
+      }
+      const result = await deliverWebhook({
+        url,
+        payload: buildWebhookPayload({
+          ruleId: 'test',
+          tone: 'info',
+          title: 'AI Usage Tracker webhook test',
+          body: 'Webhook delivery is configured.',
+        }, {
+          includeDetails: settings.notifications.webhookIncludeDetails === true,
+          now,
+        }),
+      });
+      const notifications = {
+        ...settings.notifications,
+        webhookURL: url,
+        webhookLastAttemptISO: now.toISOString(),
+        webhookLastAttempts: Number(result.attempts) || 0,
+        webhookLastSuccessISO: result.ok ? now.toISOString() : settings.notifications.webhookLastSuccessISO || null,
+        webhookLastErrorCode: result.ok ? null : result.errorCode || 'webhook.delivery-failed',
+      };
+      state.settings = { ...settings, notifications };
+      await saveState(state);
+      renderWebhookStatus(state.settings);
+      await renderDiagnostics();
+      flash(result.ok ? 'Redacted webhook test delivered' : `Webhook test failed: ${result.errorCode || 'delivery failed'}`, result.ok ? 'good' : 'bad');
+    } catch {
+      flash('Webhook test failed: delivery unavailable', 'bad');
     } finally {
       button.disabled = false;
     }
@@ -909,14 +1017,25 @@ export function buildDiagnosticsBundle(state, usage = {}) {
 }
 
 function notificationDiagnostic(settings = {}) {
-  const until = settings.notifications?.snoozedUntilISO || '';
+  const notifications = settings.notifications || {};
+  const until = notifications.snoozedUntilISO || '';
   const ts = until ? new Date(until).getTime() : 0;
   const snoozed = Number.isFinite(ts) && ts > Date.now();
+  let summary = snoozed
+    ? `Snoozed until ${new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    : 'Active';
+  if (notifications.webhookEnabled === true) {
+    if (notifications.webhookLastErrorCode) {
+      summary += `; webhook failed (${notifications.webhookLastErrorCode})`;
+    } else if (notifications.webhookLastSuccessISO) {
+      summary += `; webhook delivered ${formatAgo(notifications.webhookLastSuccessISO)}`;
+    } else {
+      summary += '; webhook enabled with redacted payloads';
+    }
+  }
   return {
     snoozed,
-    summary: snoozed
-      ? `Snoozed until ${new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-      : 'Active',
+    summary,
   };
 }
 

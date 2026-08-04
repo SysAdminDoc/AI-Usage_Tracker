@@ -15,7 +15,12 @@ import { fetchClaude, parseClaudeUsageApi, clearClaudeOrgCache } from './scraper
 import { fetchCodex }  from './scrapers/codex.js';
 import { isIncognitoContext, loadState, saveState, defaultState } from './lib/storage.js';
 import { recordSnapshot } from './lib/history.js';
-import { deriveNextNotificationAlarm, evaluateRules } from './lib/notify.js';
+import {
+  buildWebhookPayload,
+  deliverWebhook,
+  deriveNextNotificationAlarm,
+  evaluateRules,
+} from './lib/notify.js';
 import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
@@ -291,13 +296,38 @@ async function fireNotifications(state, now) {
     firedRules: state.firedRules || {},
     now,
   });
+  state.firedRules = state.firedRules || {};
   for (const n of toFire) {
     const ok = await notify({ id: n.fireKey, title: n.title, body: n.body, tone: n.tone });
-    if (ok) state.firedRules[n.fireKey] = Date.now();
+    let webhook = { ok: false, skipped: true };
+    if (state.settings?.notifications?.webhookEnabled === true) {
+      webhook = await deliverWebhook({
+        url: state.settings.notifications.webhookURL,
+        payload: buildWebhookPayload(n, {
+          includeDetails: state.settings.notifications.webhookIncludeDetails === true,
+          now,
+        }),
+      });
+      recordWebhookStatus(state, webhook, now);
+    }
+    if (ok || webhook.ok) state.firedRules[n.fireKey] = Date.now();
   }
   state.firedRules = pruneFired(state.firedRules, now);
   await saveState(state);
   await scheduleNotificationAlarm(state, now);
+}
+
+function recordWebhookStatus(state, result, now) {
+  const notifications = { ...(state.settings?.notifications || {}) };
+  notifications.webhookLastAttemptISO = now.toISOString();
+  notifications.webhookLastAttempts = Number(result.attempts) || 0;
+  if (result.ok) {
+    notifications.webhookLastSuccessISO = now.toISOString();
+    notifications.webhookLastErrorCode = null;
+  } else {
+    notifications.webhookLastErrorCode = result.errorCode || 'webhook.delivery-failed';
+  }
+  state.settings = { ...(state.settings || {}), notifications };
 }
 
 async function scheduleNotificationAlarm(state, now) {

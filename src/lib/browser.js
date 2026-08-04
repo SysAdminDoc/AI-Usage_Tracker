@@ -103,6 +103,39 @@ export function getNotificationPermission() {
   };
 }
 
+/**
+ * Request only the configured webhook origin. Optional host permissions are
+ * declared in the manifests but never requested for the default-disabled
+ * feature; userscript contexts simply use their page/fetch capability.
+ */
+export async function requestWebhookHostPermission(url) {
+  let parsed;
+  try { parsed = new URL(String(url || '').trim()); } catch {
+    return { ok: false, supported: true, errorCode: 'webhook.url-invalid' };
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+    return { ok: false, supported: true, errorCode: 'webhook.url-invalid' };
+  }
+  const permissions = (typeof browser !== 'undefined' && browser.permissions)
+    || (typeof chrome !== 'undefined' && chrome.permissions)
+    || null;
+  if (!permissions?.request) return { ok: true, supported: false, granted: true };
+
+  const originPattern = `${parsed.origin}/*`;
+  try {
+    if (permissions.contains) {
+      const alreadyGranted = await invokeWebExtension(permissions, 'contains', [{ origins: [originPattern] }]);
+      if (alreadyGranted === true) return { ok: true, supported: true, granted: true, alreadyGranted: true };
+    }
+    const granted = await invokeWebExtension(permissions, 'request', [{ origins: [originPattern] }]);
+    return granted === true
+      ? { ok: true, supported: true, granted: true }
+      : { ok: false, supported: true, granted: false, errorCode: 'webhook.permission-denied' };
+  } catch {
+    return { ok: false, supported: true, granted: false, errorCode: 'webhook.permission-failed' };
+  }
+}
+
 export async function requestNotificationPermission() {
   const current = getNotificationPermission();
   if (current.source !== 'web' || current.state !== 'default') return current;
