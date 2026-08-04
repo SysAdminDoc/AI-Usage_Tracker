@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Webhook on notification rule fire
-  Why: Power users may want Slack, Discord, or generic POST alerts when quota thresholds trip.
-  Evidence: Existing Later item; commercial tools emphasize proactive alerts.
-  Touches: `src/lib/notify.js`, `src/ui/options.js`, `src/background.js`
-  Acceptance: Optional webhook delivery is disabled by default, redacts provider data by default, and is tested for retries/failure copy.
-  Complexity: M
-
 - [ ] P3 — Month-end bill prediction
   Why: Run-rate prediction turns raw API usage into a planning signal.
   Evidence: Tokens 4 Breakfast and CostGoat emphasize monthly spend forecasting.
