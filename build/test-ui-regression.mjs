@@ -196,6 +196,7 @@ try {
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
+  assert.ok(document.querySelector('#exportMcpState'), 'options should expose an explicit MCP state export');
   assert.ok(document.querySelector('#profileList'), 'options should expose local profile management');
   assert.ok(document.querySelector('#forecastStatus'), 'options should expose month-end forecast status');
   assert.ok(document.querySelector('#forecastBreakdown'), 'options should expose per-provider forecast details');

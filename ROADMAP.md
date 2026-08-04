@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — MCP usage server
-  Why: Claude Code and other agents could query remaining usage without a browser context switch.
-  Evidence: Existing Later item; adjacent statusline and local-monitor tools show demand.
-  Touches: native bridge, separate MCP package, storage export boundary
-  Acceptance: A local-only MCP tool exposes `get_usage`, `forecast`, and `time_to_reset` from explicit exported state.
-  Complexity: XL
-
 - [ ] P3 — Team or collaboration dashboard
   Why: Teams need aggregate cost visibility, but this changes privacy and infrastructure assumptions.
   Evidence: WakaTime AI and TokenWatch team/client attribution models.

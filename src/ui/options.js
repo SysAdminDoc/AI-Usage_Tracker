@@ -44,6 +44,7 @@ import { normalizeBudgetCap, resetSessionBudget } from '../lib/budget.js';
 import { forecastMonthEnd } from '../lib/forecast.js';
 import { buildPlanRecommendations } from '../lib/optimization.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
+import { exportMcpState } from '../lib/mcp-state.js';
 import { apiBreakdownToCSV, buildApiBreakdown } from '../lib/api-breakdown.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
@@ -1068,6 +1069,12 @@ function bindHandlers() {
     downloadDiagnostics(buildDiagnosticsBundle(state, usage));
     flash('Redacted diagnostics download started');
   });
+
+  document.getElementById('exportMcpState')?.addEventListener('click', async () => {
+    const state = await loadState();
+    downloadMcpState(exportMcpState(state));
+    flash('Redacted MCP state download started');
+  });
 }
 
 export async function renderDiagnostics() {
@@ -1174,6 +1181,23 @@ function downloadDiagnostics(bundle) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-diagnostics-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadMcpState(payload) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-mcp-state-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.hidden = true;
   document.body.appendChild(anchor);
   anchor.click();

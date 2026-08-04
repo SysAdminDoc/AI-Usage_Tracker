@@ -1,0 +1,9 @@
+{
+  "name": "ai-usage-tracker-mcp",
+  "version": "0.2.2",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "ai-usage-tracker-mcp": "./server.mjs"
+  }
+}

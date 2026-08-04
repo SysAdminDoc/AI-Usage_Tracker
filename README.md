@@ -44,6 +44,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Claude cache timer** — starts a five-minute follow-up countdown from streamed `message_limit` events, with explicit cache expiry support if Claude publishes it.
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **Redacted support bundle** — export version, channel, permission, freshness, source, error-code, and storage evidence without history, raw errors, cookies, prompts, or full identifiers.
+- **Local MCP usage server** — export an explicit redacted state file, then let a local stdio MCP process answer `get_usage`, `forecast`, and `time_to_reset` without browser storage or network access.
 - **Premium settings controls** — compact section navigation, theme selection, configurable warn/danger visual thresholds, notification snooze, and local diagnostics.
 - **Locale-aware dashboard** — English, Spanish, French, and German labels plus `Intl` percent, date, and relative-time formatting; add another locale in the string table without changing render logic.
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
@@ -167,6 +168,16 @@ API-key providers are registered in `src/providers/registry.js` through the vers
 
 The host matrix is checked at test and build time: wildcard content scripts cover `claude.ai` and `chatgpt.com` subdomains, while host permissions and web-accessible resources remain apex-only. The userscript metadata and runtime predicates use the same two-provider contract. The DOM safety audit rejects direct HTML sinks in UI modules and only permits reviewed static icon markup through the guarded helper.
 
+### Local MCP server
+
+Use Settings → Status → **Export MCP state** to create an explicit, redacted JSON snapshot. Start the separate dependency-free server with:
+
+```powershell
+node mcp/server.mjs --state C:\path\to\ai-usage-tracker-mcp-state-2026-08-03.json
+```
+
+Configure an MCP client to launch that command over stdio. The server exposes `get_usage`, `forecast`, and `time_to_reset`; it reads only the supplied file and never opens browser storage, calls a provider, or receives API credentials. Re-export the state when a fresh reading is needed.
+
 ## Comparison and FAQ
 
 | Product | Strong fit | Honest tradeoff |
@@ -187,6 +198,8 @@ The host matrix is checked at test and build time: wildcard content scripts cove
 **What does the API analytics section show?** Anthropic shows month-to-date token totals grouped by model/workspace plus official model-aware Cost Report totals when the admin key can read them. OpenAI shows completion token totals grouped by model/project/API-key ID, a versioned local pricing estimate beside each known model, and the official Costs response grouped by project/API-key ID for reconciliation. Unknown models stay token-only rather than receiving a guessed price. GitHub Copilot shows the configured organization member's official seat plan and most recent activity. Cursor shows official team daily request totals and current-cycle spend. Gemini shows month-to-date output-token and request-quota usage from Google Cloud Monitoring for the configured project. Gemini API keys alone do not expose historical usage through the public API, so Gemini uses a monitoring OAuth token for this view. OpenRouter shows the configured key's monthly usage/limit plus account credits when the key has management access. These are provider metrics, not the flat subscription quota rings for Claude Web or Codex Web.
 
 **How is the API breakdown kept safe?** The provider APIs group rows by workspace, project, and API-key ID where available. Settings shows shortened identifiers and the CSV export uses the same redaction; credential values are stored separately and never enter the snapshot, UI, diagnostics, or export.
+
+**How does the local MCP server get data?** Export MCP state from Settings → Status, then pass that file explicitly to `node mcp/server.mjs --state <file>`. The server is a local stdio process over a static redacted snapshot; it does not read extension storage, access the network, or reconstruct missed refreshes. Re-export after refreshing the extension.
 
 **How does the month-end cost forecast work?** The popup and Settings → Forecast project each cost-bearing API provider's month-to-date total through the end of the current UTC month using a straight-line daily run rate. Official provider totals receive higher confidence than pricing-table estimates; stale snapshots and short coverage are explicitly downgraded, and the UI lists the assumptions. A provider needs more than one full day of observed cost coverage before it receives a numeric projection. The forecast is local and does not reconstruct spend during missed refreshes.
 
