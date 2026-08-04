@@ -197,6 +197,23 @@ try {
   assert.ok(document.querySelector('#profileList'), 'options should expose local profile management');
   assert.ok(document.querySelector('#forecastStatus'), 'options should expose month-end forecast status');
   assert.ok(document.querySelector('#forecastBreakdown'), 'options should expose per-provider forecast details');
+  assert.ok(document.querySelector('#optimizationStatus'), 'options should expose plan guidance status');
+  assert.ok(document.querySelector('#optimizationBreakdown'), 'options should expose plan guidance details');
+  options.renderOptimizationStatus({
+    status: 'ready',
+    assumptions: ['Verify provider pricing.'],
+    recommendations: [{
+      type: 'higher-cap',
+      title: 'OpenRouter: review a higher-cap plan or limit',
+      confidence: 'medium',
+      confidenceLabel: 'Medium',
+      detail: 'Projected month-end spend is $95 against the reported $100 limit.',
+      reason: 'The current run rate is close to the reported provider limit.',
+      uncertainty: 'Plan names and prices are not available in this local usage payload.',
+    }],
+  });
+  assert.match(document.querySelector('#optimizationBreakdown').textContent, /higher-cap|OpenRouter/i,
+    'options should render an evidence-based plan recommendation');
   assert.ok(document.querySelector('[data-notif="U3"]'), 'options should expose the anomaly alert toggle');
   assert.ok(document.querySelector('#anomalyThresholdPercent'), 'options should expose the anomaly threshold control');
   assert.equal(document.querySelector('#anomalyThresholdPercent').value, '20', 'options should render the default anomaly threshold');
@@ -213,6 +230,7 @@ try {
   assert.match(themeCSS, /prefers-reduced-motion:\s*reduce/, 'reduced-motion media query must be present');
   assert.match(popupCSS, /\.popup-bucket__main\s*\{\s*min-width:\s*0/s, 'popup bucket text must be allowed to shrink');
   assert.match(popupCSS, /\.popup-bucket__pace-marker\s*\{/, 'popup pace marker should be styled inside the ring');
+  assert.match(popupCSS, /\.popup-optimization\s*\{/, 'popup should style plan guidance separately from provider rows');
   assert.match(optionsCSS, /word-break:\s*break-word/, 'options diagnostics must wrap long values');
   assert.match(widgetCSS, /overflow:\s*auto/, 'widget body must contain long state without page overflow');
   assert.match(widgetCSS, /\.aut-ring__pace-marker\s*\{/, 'widget pace marker should be styled inside the ring');

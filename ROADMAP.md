@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Plan optimization recommendations
-  Why: Users need plan guidance only after usage history is accurate and exportable.
-  Evidence: Tokens 4 Breakfast plan optimization; current history and forecast primitives.
-  Touches: `src/lib/history.js`, popup analytics, options copy
-  Acceptance: The app suggests cheaper or higher-cap plans only when data coverage is sufficient and labels uncertainty.
-  Complexity: L
-
 - [ ] P3 — Per-API-key and workspace breakdown
   Why: Official API usage endpoints support higher-resolution cost attribution.
   Evidence: OpenAI Usage API and Anthropic analytics docs.

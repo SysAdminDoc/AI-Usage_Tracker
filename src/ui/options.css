@@ -190,6 +190,12 @@ html, body {
   color: var(--aut-overlay1) !important;
   font-size: 10px !important;
 }
+.optimization-recommendation--higher-cap {
+  border-color: rgba(249, 226, 175, 0.28);
+}
+.optimization-recommendation--lower-cost {
+  border-color: rgba(166, 227, 161, 0.24);
+}
 
 .profile-list {
   display: grid;

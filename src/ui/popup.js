@@ -11,6 +11,7 @@ import {
 import { createI18n } from '../lib/i18n.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 import { forecastMonthEnd } from '../lib/forecast.js';
+import { buildPlanRecommendations } from '../lib/optimization.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
@@ -76,6 +77,8 @@ export async function render() {
   if (overview) dashboard.appendChild(renderOverview(overview, i18n));
   const forecast = forecastMonthEnd(snapshot);
   if (forecast.providers.length) dashboard.appendChild(renderForecast(forecast, i18n));
+  const optimization = buildPlanRecommendations(snapshot, forecast);
+  if (optimization.recommendations.length) dashboard.appendChild(renderOptimization(optimization));
 
   let drew = false;
   for (const provider of providerKeys(snapshot)) {
@@ -198,6 +201,35 @@ function renderForecast(forecast, i18n) {
     className: 'popup-forecast__assumptions',
     text: i18n.t('forecast.assumptions', { text: assumptionText }),
   }));
+  return wrap;
+}
+
+function renderOptimization(optimization) {
+  const wrap = createElement('section', {
+    className: 'popup-optimization',
+    attrs: { 'aria-label': 'Plan guidance' },
+  });
+  appendChildren(wrap, [
+    createElement('div', { className: 'popup-optimization__label', text: 'Plan guidance' }),
+    createElement('p', {
+      className: 'popup-optimization__hint',
+      text: 'Review prompts use provider-reported limits or seat mix; they do not name or price plans for you.',
+    }),
+  ]);
+  for (const recommendation of optimization.recommendations) {
+    const row = createElement('div', { className: 'popup-optimization__row' });
+    const head = createElement('div', { className: 'popup-optimization__head' });
+    appendChildren(head, [
+      createElement('strong', { text: recommendation.title }),
+      createElement('span', { text: `${recommendation.confidenceLabel} confidence` }),
+    ]);
+    appendChildren(row, [
+      head,
+      createElement('p', { text: recommendation.detail }),
+      createElement('p', { className: 'popup-optimization__uncertainty', text: recommendation.uncertainty }),
+    ]);
+    wrap.appendChild(row);
+  }
   return wrap;
 }
 

@@ -42,6 +42,7 @@ import {
 } from '../lib/browser.js';
 import { normalizeBudgetCap, resetSessionBudget } from '../lib/budget.js';
 import { forecastMonthEnd } from '../lib/forecast.js';
+import { buildPlanRecommendations } from '../lib/optimization.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
@@ -468,6 +469,7 @@ export async function renderForecastStatus() {
   if (!status || !breakdown) return;
   const state = await loadState();
   const forecast = forecastMonthEnd(state.snapshot);
+  renderOptimizationStatus(buildPlanRecommendations(state.snapshot, forecast));
   clearChildren(breakdown);
 
   if (!forecast.providers.length) {
@@ -507,6 +509,53 @@ export async function renderForecastStatus() {
     breakdown.appendChild(card);
   }
   return forecast;
+}
+
+export function renderOptimizationStatus(optimization = {}) {
+  const status = document.getElementById('optimizationStatus');
+  const breakdown = document.getElementById('optimizationBreakdown');
+  if (!status || !breakdown) return;
+  clearChildren(breakdown);
+
+  if (optimization.status === 'no-data') {
+    status.textContent = 'No plan guidance yet. Connect a cost-bearing API provider first.';
+    status.className = 'opt-callout';
+    return;
+  }
+  if (optimization.status === 'insufficient-coverage') {
+    status.textContent = `No plan recommendation yet. Keep at least ${optimization.requiredDays} days of fresh cost coverage before changing a plan or routing policy.`;
+    status.className = 'opt-callout opt-callout--warn';
+    return;
+  }
+  if (!optimization.recommendations?.length) {
+    status.textContent = 'No provider limit or seat-mix signal supports a plan review from the current data.';
+    status.className = 'opt-callout opt-callout--good';
+    return;
+  }
+
+  status.textContent = `${optimization.recommendations.length} evidence-based plan review${optimization.recommendations.length === 1 ? '' : 's'} available. Verify current provider pricing and entitlements before acting. ${optimization.assumptions?.join(' ') || ''}`;
+  status.className = 'opt-callout opt-callout--warn';
+  for (const recommendation of optimization.recommendations) {
+    const card = document.createElement('article');
+    card.className = `forecast-provider optimization-recommendation optimization-recommendation--${recommendation.type}`;
+    const head = document.createElement('div');
+    head.className = 'forecast-provider__head';
+    const title = document.createElement('strong');
+    title.textContent = recommendation.title;
+    const confidence = document.createElement('span');
+    confidence.className = `forecast-provider__confidence forecast-provider__confidence--${recommendation.confidence}`;
+    confidence.textContent = `${recommendation.confidenceLabel} confidence`;
+    head.append(title, confidence);
+    const detail = document.createElement('p');
+    detail.textContent = recommendation.detail;
+    const reason = document.createElement('p');
+    reason.textContent = recommendation.reason;
+    const uncertainty = document.createElement('p');
+    uncertainty.className = 'forecast-provider__assumptions';
+    uncertainty.textContent = recommendation.uncertainty;
+    card.append(head, detail, reason, uncertainty);
+    breakdown.appendChild(card);
+  }
 }
 
 function formatForecastDate(iso) {
