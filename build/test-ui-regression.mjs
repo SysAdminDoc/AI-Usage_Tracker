@@ -88,6 +88,11 @@ try {
   assert.match(document.querySelector('.popup-provider').textContent, /Cursor|requests|spend/i,
     'popup should render Cursor request and spend metrics');
 
+  await saveState(makeState({ gemini: geminiProvider() }));
+  await popup.render();
+  assert.match(document.querySelector('.popup-provider').textContent, /Gemini|tokens/i,
+    'popup should render Gemini token metrics');
+
   const disabled = makeState({ claude: provider({ percentUsed: 50 }) });
   disabled.settings.showProviders = { claude: false, codex: false };
   await saveState(disabled);
@@ -146,9 +151,10 @@ try {
   const optionsWindow = installDocument(optionsMarkup, { patchForms: true });
   const options = await import('../src/ui/options.js?ui-regression');
   await options.ready;
-  assert.equal(document.querySelectorAll('[data-provider]').length, 6, 'options should render web and official API provider toggles');
+  assert.equal(document.querySelectorAll('[data-provider]').length, 7, 'options should render web and official API provider toggles');
   assert.ok(document.querySelector('[data-api-config="githubCopilotOrganization"]'), 'options should expose Copilot organization configuration');
   assert.ok(document.querySelector('[data-api-provider="cursor"]'), 'options should expose Cursor API credentials');
+  assert.ok(document.querySelector('[data-api-config="geminiProjectId"]'), 'options should expose Gemini project configuration');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
@@ -206,11 +212,11 @@ function installDocument(markup, { patchForms = false } = {}) {
   return parsed.window;
 }
 
-function makeState({ claude = null, codex = null, githubCopilot = null, cursor = null } = {}) {
+function makeState({ claude = null, codex = null, githubCopilot = null, cursor = null, gemini = null } = {}) {
   const state = defaultState();
   state.snapshot = {
     fetchedAtISO: new Date(Date.now() - 60_000).toISOString(),
-    providers: { claude, codex, 'github-copilot': githubCopilot, cursor },
+    providers: { claude, codex, 'github-copilot': githubCopilot, cursor, gemini },
   };
   return state;
 }
@@ -267,6 +273,24 @@ function cursorProvider() {
       percentUsed: 0,
       resetISO: null,
       metric: { kind: 'currency', costUSD: 24.5, requests: 4, memberCount: 1 },
+    }],
+  };
+}
+
+function geminiProvider() {
+  return {
+    ok: true,
+    provider: 'gemini',
+    source: 'api-key',
+    plan: 'Gemini API',
+    buckets: [{
+      id: 'gemini-token-usage',
+      label: 'Gemini token usage',
+      kind: 'api',
+      model: null,
+      percentUsed: 0,
+      resetISO: null,
+      metric: { kind: 'tokens', outputTokens: 800, totalTokens: 800, requests: 5 },
     }],
   };
 }

@@ -19,7 +19,7 @@ export const SYNC_SETTINGS_SCHEMA = 'ai-usage-tracker.sync-settings';
 export const SYNC_SETTINGS_VERSION = 1;
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
-export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor']);
+export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini']);
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
 
@@ -360,6 +360,7 @@ const MIGRATIONS = [
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'openai-api')) next.snapshot.providers['openai-api'] = null;
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'github-copilot')) next.snapshot.providers['github-copilot'] = null;
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'cursor')) next.snapshot.providers.cursor = null;
+    if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'gemini')) next.snapshot.providers.gemini = null;
     if (!Array.isArray(next.history)) next.history = [];
     if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
     if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
@@ -826,6 +827,7 @@ function sanitizeImportedSettings(input) {
   settings.syncSettings = settings.syncSettings === true;
   settings.githubCopilotOrganization = sanitizeOptionalIdentifier(settings.githubCopilotOrganization);
   settings.githubCopilotUsername = sanitizeOptionalIdentifier(settings.githubCopilotUsername);
+  settings.geminiProjectId = sanitizeProjectIdentifier(settings.geminiProjectId);
   settings.theme = ['mocha', 'latte', 'system'].includes(settings.theme) ? settings.theme : 'mocha';
   settings.showProviders = {
     ...settings.showProviders,
@@ -835,6 +837,7 @@ function sanitizeImportedSettings(input) {
     'openai-api': settings.showProviders?.['openai-api'] !== false,
     'github-copilot': settings.showProviders?.['github-copilot'] !== false,
     cursor: settings.showProviders?.cursor !== false,
+    gemini: settings.showProviders?.gemini !== false,
   };
   settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
   settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
@@ -881,6 +884,11 @@ function sanitizeOptionalIdentifier(value) {
   return String(value || '').trim().replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 100);
 }
 
+function sanitizeProjectIdentifier(value) {
+  const project = String(value || '').trim().toLowerCase();
+  return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) ? project : '';
+}
+
 function cloneJSON(value) {
   if (typeof structuredClone === 'function') return structuredClone(value);
   return JSON.parse(JSON.stringify(value));
@@ -898,6 +906,7 @@ export function defaultState() {
         'openai-api': null,
         'github-copilot': null,
         cursor: null,
+        gemini: null,
       },
     },
     history: [],          // [{ ts, bucketId, percentUsed }]
@@ -921,9 +930,11 @@ export function defaultSettings() {
       codex: true,
       'anthropic-api': true,
       'openai-api': true,
-        'github-copilot': true,
-        cursor: true,
+      'github-copilot': true,
+      cursor: true,
+      gemini: true,
     },
+    geminiProjectId: '',
     showRows: {     // headline buckets default ON; per-model rows default OFF
       'claude-session': true,
       'claude-weekly-all': true,

@@ -27,6 +27,7 @@
 - Settings now offer an explicit browser-sync opt-in with a versioned allowlist limited to non-sensitive preferences; history, provider snapshots, credentials, and bridge data stay local.
 - Optional GitHub Copilot provider support now stores a token locally and shows official organization-member seat activity with an explicit organization/username configuration.
 - Optional Cursor provider support now stores a team admin API key locally and shows official daily request totals, current-cycle spend, and source/freshness diagnostics.
+- Optional Gemini provider support now stores a local Google Cloud monitoring OAuth token and project ID, then shows official output-token and request-quota usage without relaying prompts or generated content.
 - README now includes current widget, popup, settings, first-run, degraded-state, and animated product captures.
 
 ### Fixed

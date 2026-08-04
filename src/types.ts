@@ -1,4 +1,4 @@
-export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot' | 'cursor';
+export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot' | 'cursor' | 'gemini';
 
 export type UsageSource = 'api' | 'dom' | 'html' | 'live' | 'fetch' | 'stream' | 'headers' | string;
 
@@ -89,6 +89,7 @@ export interface TrackerSettings {
   syncSettings?: boolean;
   githubCopilotOrganization?: string;
   githubCopilotUsername?: string;
+  geminiProjectId?: string;
 }
 
 export interface WidgetState {

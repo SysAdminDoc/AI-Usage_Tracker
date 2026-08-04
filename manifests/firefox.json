@@ -96,7 +96,8 @@
     "https://api.anthropic.com/*",
     "https://api.openai.com/*",
     "https://api.github.com/*",
-    "https://api.cursor.com/*"
+    "https://api.cursor.com/*",
+    "https://monitoring.googleapis.com/*"
   ],
 
   "web_accessible_resources": [

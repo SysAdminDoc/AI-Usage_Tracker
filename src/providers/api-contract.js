@@ -2,7 +2,7 @@
 // snapshot shape as the web providers, but use `kind: 'api'` buckets with a
 // metric payload instead of pretending token counts are quota percentages.
 
-export const API_PROVIDER_IDS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor']);
+export const API_PROVIDER_IDS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini']);
 
 export const API_PROVIDER_META = Object.freeze({
   'anthropic-api': Object.freeze({
@@ -32,6 +32,13 @@ export const API_PROVIDER_META = Object.freeze({
     placeholder: 'key_...',
     hint: 'Requires a Cursor team administrator API key for read-only team usage and spend data.',
     docsUrl: 'https://docs.cursor.com/en/account/teams/admin-api',
+  }),
+  gemini: Object.freeze({
+    label: 'Gemini',
+    credentialLabel: 'Google Cloud monitoring token',
+    placeholder: 'ya29....',
+    hint: 'Requires a local Google Cloud OAuth token with monitoring.read access and the Gemini project ID below.',
+    docsUrl: 'https://docs.cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list',
   }),
 });
 

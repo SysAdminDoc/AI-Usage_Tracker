@@ -195,7 +195,7 @@ async function renderApiCredentials() {
     input.placeholder = meta.placeholder;
     input.dataset.apiProvider = id;
     input.setAttribute('aria-label', `${meta.credentialLabel} value`);
-    let copilotConfig = null;
+    let providerConfig = null;
     if (id === 'github-copilot') {
       const config = document.createElement('div');
       config.className = 'opt-grid';
@@ -222,7 +222,23 @@ async function renderApiCredentials() {
       username.setAttribute('aria-label', 'GitHub Copilot username');
       usernameLabel.appendChild(username);
       config.append(organizationLabel, usernameLabel);
-      copilotConfig = config;
+      providerConfig = config;
+    } else if (id === 'gemini') {
+      const config = document.createElement('div');
+      config.className = 'opt-grid';
+      const projectLabel = document.createElement('label');
+      projectLabel.textContent = 'Google Cloud project ID';
+      const project = document.createElement('input');
+      project.type = 'text';
+      project.autocomplete = 'off';
+      project.spellcheck = false;
+      project.placeholder = 'my-gemini-project';
+      project.value = settings.geminiProjectId || '';
+      project.dataset.apiConfig = 'geminiProjectId';
+      project.setAttribute('aria-label', 'Gemini Google Cloud project ID');
+      projectLabel.appendChild(project);
+      config.appendChild(projectLabel);
+      providerConfig = config;
     }
     const actions = document.createElement('div');
     actions.className = 'api-credential__actions';
@@ -238,7 +254,7 @@ async function renderApiCredentials() {
       : 'Not configured.';
     credentialStatus.dataset.apiStatus = id;
     card.append(head, hint, input);
-    if (copilotConfig) card.appendChild(copilotConfig);
+    if (providerConfig) card.appendChild(providerConfig);
     card.append(actions, credentialStatus);
     wrap.appendChild(card);
   }
@@ -520,8 +536,17 @@ function bindHandlers() {
           state.settings.githubCopilotOrganization = organization;
           state.settings.githubCopilotUsername = username;
         }
+        if (provider === 'gemini') {
+          const projectId = document.querySelector('[data-api-config="geminiProjectId"]')?.value?.trim() || '';
+          if (!projectId) {
+            flash('Enter the Google Cloud project ID first', 'bad');
+            return;
+          }
+          state.settings = normalizeSettings(state.settings);
+          state.settings.geminiProjectId = projectId;
+        }
         await saveApiCredential(provider, value);
-        if (provider === 'github-copilot') await saveState(state);
+        if (provider === 'github-copilot' || provider === 'gemini') await saveState(state);
         if (input) input.value = '';
         await renderApiCredentials();
         if (action === 'refresh') await refreshApiProviderData();
@@ -533,6 +558,10 @@ function bindHandlers() {
           state.settings = normalizeSettings(state.settings);
           state.settings.githubCopilotOrganization = '';
           state.settings.githubCopilotUsername = '';
+        }
+        if (provider === 'gemini') {
+          state.settings = normalizeSettings(state.settings);
+          state.settings.geminiProjectId = '';
         }
         await saveState(state);
         await renderApiCredentials();

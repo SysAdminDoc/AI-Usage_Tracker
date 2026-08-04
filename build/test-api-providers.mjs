@@ -80,10 +80,31 @@ const cursorSpendFixture = {
   totalPages: 1,
 };
 
+const geminiOutputFixture = {
+  timeSeries: [{
+    metric: { labels: { model: 'gemini-3.5-flash' } },
+    points: [{
+      interval: { endTime: '2026-08-02T12:00:00Z' },
+      value: { int64Value: '800' },
+    }],
+  }],
+};
+
+const geminiRequestFixture = {
+  timeSeries: [{
+    metric: { labels: { model: 'gemini-3.5-flash' } },
+    points: [{
+      interval: { endTime: '2026-08-02T12:00:00Z' },
+      value: { int64Value: '5' },
+    }],
+  }],
+};
+
 const { fetchAnthropicUsage, parseAnthropicUsage } = await import('../src/providers/anthropic.js');
 const { fetchOpenAIUsage, parseOpenAIUsage } = await import('../src/providers/openai.js');
 const { fetchGitHubCopilotUsage, parseGitHubCopilotUsage } = await import('../src/providers/github-copilot.js');
 const { fetchCursorUsage, parseCursorUsage } = await import('../src/providers/cursor.js');
+const { fetchGeminiUsage, parseGeminiUsage } = await import('../src/providers/gemini.js');
 const {
   exportSettings,
   defaultState,
@@ -195,6 +216,34 @@ assert.ok(cursorRequests.some(({ url }) => url.endsWith('/teams/daily-usage-data
 assert.ok(cursorRequests.some(({ url }) => url.endsWith('/teams/spend')));
 assert.equal(parseCursorUsage({ daily: {}, spend: {} }).ok, false);
 assert.equal((await getApiCredentialStatus()).cursor.configured, false);
+
+let geminiRequests = [];
+const gemini = await fetchGeminiUsage({
+  apiKey: 'ya29-gemini-test-token',
+  projectId: 'my-gemini-project',
+  now: fixedNow,
+  fetchImpl: async (url, options) => {
+    geminiRequests.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => url.includes('generate_requests_per_model') ? geminiRequestFixture : geminiOutputFixture,
+    };
+  },
+});
+assert.equal(gemini.ok, true);
+assert.equal(gemini.provider, 'gemini');
+assert.equal(gemini.plan, 'Gemini API');
+assert.equal(gemini.totals.outputTokens, 800);
+assert.equal(gemini.totals.requests, 5);
+assert.equal(gemini.buckets[0].metric.totalTokens, 800);
+assert.equal(gemini.buckets[0].metric.requests, 5);
+assert.equal(gemini.buckets[0].dimensions.projectId, 'my-gemini-project');
+assert.equal(geminiRequests.length, 2);
+assert.ok(geminiRequests.every(({ options }) => options.headers.Authorization === 'Bearer ya29-gemini-test-token'));
+assert.ok(geminiRequests.every(({ url }) => url.includes('/v3/projects/my-gemini-project/timeSeries')));
+assert.equal(parseGeminiUsage({ output: {}, requests: {} }).ok, false);
+assert.equal((await getApiCredentialStatus()).gemini.configured, false);
 
 globalThis.__AUT_ALLOW_LOCALSTORAGE__ = true;
 const backing = new Map();

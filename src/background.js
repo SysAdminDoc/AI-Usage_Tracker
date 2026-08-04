@@ -25,6 +25,7 @@ import { fetchAnthropicUsage } from './providers/anthropic.js';
 import { fetchOpenAIUsage } from './providers/openai.js';
 import { fetchGitHubCopilotUsage } from './providers/github-copilot.js';
 import { fetchCursorUsage } from './providers/cursor.js';
+import { fetchGeminiUsage } from './providers/gemini.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -108,15 +109,16 @@ async function reschedule() {
 async function refreshNow({ allowSilentTab = false } = {}) {
   const now = new Date();
   let state = (await loadState()) || defaultState();
-  const [anthropicKey, openAIKey, githubCopilotKey, cursorKey] = await Promise.all([
+  const [anthropicKey, openAIKey, githubCopilotKey, cursorKey, geminiKey] = await Promise.all([
     loadApiCredential('anthropic-api'),
     loadApiCredential('openai-api'),
     loadApiCredential('github-copilot'),
     loadApiCredential('cursor'),
+    loadApiCredential('gemini'),
   ]);
 
   // 1) Best-effort direct fetch. If either side is SSR'd we get a free win.
-  const [claude, codex, anthropic, openAI, githubCopilot, cursor] = await Promise.all([
+  const [claude, codex, anthropic, openAI, githubCopilot, cursor, gemini] = await Promise.all([
     fetchClaude({ now }).catch((e) => ({ ok: false, provider: 'claude', error: String(e) })),
     fetchCodex({ now }).catch((e) =>  ({ ok: false, provider: 'codex',  error: String(e) })),
     anthropicKey ? fetchAnthropicUsage({ apiKey: anthropicKey, now }).catch((e) => ({
@@ -136,6 +138,13 @@ async function refreshNow({ allowSilentTab = false } = {}) {
     cursorKey ? fetchCursorUsage({ apiKey: cursorKey, now }).catch((e) => ({
       ok: false, provider: 'cursor', error: 'api-refresh-failed', errorCode: 'cursor.refresh.failed',
     })) : null,
+    geminiKey ? fetchGeminiUsage({
+      apiKey: geminiKey,
+      projectId: state.settings?.geminiProjectId,
+      now,
+    }).catch((e) => ({
+      ok: false, provider: 'gemini', error: 'api-refresh-failed', errorCode: 'gemini.refresh.failed',
+    })) : null,
   ]);
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
@@ -147,6 +156,8 @@ async function refreshNow({ allowSilentTab = false } = {}) {
   else state = await mergeSnapshot(state, githubCopilot, { source: 'api-key', now });
   if (!cursorKey) state.snapshot.providers.cursor = null;
   else state = await mergeSnapshot(state, cursor, { source: 'api-key', now });
+  if (!geminiKey) state.snapshot.providers.gemini = null;
+  else state = await mergeSnapshot(state, gemini, { source: 'api-key', now });
 
   // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
   if (allowSilentTab && state.settings?.silentTabRefresh === true) {

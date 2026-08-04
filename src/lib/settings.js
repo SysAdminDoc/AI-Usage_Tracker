@@ -30,6 +30,7 @@ export function normalizeSettings(input = {}) {
   next.syncSettings = next.syncSettings === true;
   next.githubCopilotOrganization = sanitizeIdentifier(next.githubCopilotOrganization);
   next.githubCopilotUsername = sanitizeIdentifier(next.githubCopilotUsername);
+  next.geminiProjectId = sanitizeProjectIdentifier(next.geminiProjectId);
   next.locale = resolveLocale(next.locale);
   next.showProviders = {
     claude: next.showProviders?.claude !== false,
@@ -38,6 +39,7 @@ export function normalizeSettings(input = {}) {
     'openai-api': next.showProviders?.['openai-api'] !== false,
     'github-copilot': next.showProviders?.['github-copilot'] !== false,
     cursor: next.showProviders?.cursor !== false,
+    gemini: next.showProviders?.gemini !== false,
   };
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
@@ -78,6 +80,7 @@ function providerLabel(provider) {
   if (provider === 'openai-api') return 'OpenAI API';
   if (provider === 'github-copilot') return 'GitHub Copilot';
   if (provider === 'cursor') return 'Cursor';
+  if (provider === 'gemini') return 'Gemini';
   return String(provider);
 }
 
@@ -89,6 +92,11 @@ function clampInteger(value, min, max, fallback) {
 
 function sanitizeIdentifier(value) {
   return String(value || '').trim().replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 100);
+}
+
+function sanitizeProjectIdentifier(value) {
+  const project = String(value || '').trim().toLowerCase();
+  return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project) ? project : '';
 }
 
 function mergeDefaults(current, defaults) {

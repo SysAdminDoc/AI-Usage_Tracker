@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Gemini provider
-  Why: Gemini is part of the multi-provider developer spend set.
-  Evidence: OpenUsage, CodexBar, Tokens 4 Breakfast.
-  Touches: provider modules, auth settings, popup/options rows
-  Acceptance: Gemini usage appears as a separate provider with local auth and no cloud relay.
-  Complexity: L
-
 - [ ] P3 — OpenRouter provider
   Why: OpenRouter is a lower-effort API-key provider that adds model-routing cost visibility.
   Evidence: OpenUsage and Tokens 4 Breakfast include OpenRouter coverage.
