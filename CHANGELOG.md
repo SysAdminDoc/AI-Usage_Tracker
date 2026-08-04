@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.3 - 2026-08-03 - Roadmap drain
 
 ### Added
 - Claude cache analytics now retain bounded local stream observations and show inferred 24-hour/7-day cache reuse ratios in the popup and widget, with explicit non-billing and missed-refresh limitations.

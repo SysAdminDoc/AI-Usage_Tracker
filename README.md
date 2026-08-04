@@ -1,6 +1,6 @@
 # AI Usage Tracker
 
-[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases)
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-MV3-yellow.svg)](#install)
 [![Firefox](https://img.shields.io/badge/Firefox-MV3-orange.svg)](#install)
@@ -80,7 +80,7 @@ The widget, popup, options page, and userscript settings support keyboard focus,
 
 ### Chrome / Edge / Brave / any Chromium 114+
 
-1. Download `AI-Usage-Tracker-chrome-v0.2.2.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
+1. Download `AI-Usage-Tracker-chrome-v0.2.3.zip` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Unzip it anywhere.
 3. Open `chrome://extensions`.
 4. Toggle **Developer mode** on (top-right).
@@ -91,7 +91,7 @@ The widget, popup, options page, and userscript settings support keyboard focus,
 
 ### Firefox Developer Edition / Nightly
 
-1. Download `ai-usage-tracker-firefox-v0.2.2.xpi` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
+1. Download `ai-usage-tracker-firefox-v0.2.3.xpi` from the [Releases page](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/latest).
 2. Open `about:config` → set `xpinstall.signatures.required` to `false` (DevEd/Nightly only).
 3. Open `about:addons` → gear icon → **Install Add-on From File** → pick the `.xpi`.
 
@@ -115,7 +115,7 @@ Userscript caveats vs. extension:
 
 Release downloads include `SHA256SUMS.txt` for verifying the Chrome ZIP, Firefox XPI, and userscript assets.
 
-Default extension packages do not request the optional `nativeMessaging` permission. QuotaGlass users who want the local desktop mirror can build the explicitly separated bridge channel with `npm run build:bridge`; it produces `AI-Usage-Tracker-chrome-bridge-v0.2.2.zip`, `ai-usage-tracker-firefox-bridge-v0.2.2.xpi`, and `AI-Usage-Tracker-native-scheduler-v0.2.2.zip` with the companion permission and no other tracking behavior changes.
+Default extension packages do not request the optional `nativeMessaging` permission. QuotaGlass users who want the local desktop mirror can build the explicitly separated bridge channel with `npm run build:bridge`; it produces `AI-Usage-Tracker-chrome-bridge-v0.2.3.zip`, `ai-usage-tracker-firefox-bridge-v0.2.3.xpi`, and `AI-Usage-Tracker-native-scheduler-v0.2.3.zip` with the companion permission and no other tracking behavior changes.
 
 ### Optional native scheduler helper
 
@@ -124,7 +124,7 @@ MV3 service workers and browser alarms can be delayed while a browser is asleep.
 To install it for the stable Chrome extension ID and the bundled Firefox ID:
 
 ```bash
-unzip AI-Usage-Tracker-native-scheduler-v0.2.2.zip -d ai-usage-tracker-native-scheduler
+unzip AI-Usage-Tracker-native-scheduler-v0.2.3.zip -d ai-usage-tracker-native-scheduler
 cd ai-usage-tracker-native-scheduler
 python register_scheduler_host.py --host-path /absolute/path/to/ai_usage_tracker_scheduler.py --browser all
 ```

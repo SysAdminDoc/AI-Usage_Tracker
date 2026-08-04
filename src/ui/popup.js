@@ -16,7 +16,7 @@ import { buildPlanRecommendations } from '../lib/optimization.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 
 const dashboard = document.getElementById('dashboard');
 const updatedEl = document.getElementById('updated');

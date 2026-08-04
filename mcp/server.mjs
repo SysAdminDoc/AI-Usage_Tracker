@@ -5,7 +5,7 @@ import readline from 'node:readline';
 import { forecastMonthEnd } from '../src/lib/forecast.js';
 import { normalizeMcpState } from '../src/lib/mcp-state.js';
 
-const SERVER_VERSION = '0.2.2';
+const SERVER_VERSION = '0.2.3';
 const args = parseArgs(process.argv.slice(2));
 
 if (!args.state) {

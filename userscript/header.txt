@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AI Usage Tracker
 // @namespace    https://github.com/SysAdminDoc/AI-Usage_Tracker
-// @version      0.2.2
+// @version      0.2.3
 // @description  Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget while you work.
 // @author       SysAdminDoc
 // @homepageURL  https://github.com/SysAdminDoc/AI-Usage_Tracker

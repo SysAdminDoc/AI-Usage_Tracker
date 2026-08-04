@@ -1,6 +1,6 @@
 {
   "name": "ai-usage-tracker",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "Premium countdown timer + notifications for Claude and Codex usage limits.",

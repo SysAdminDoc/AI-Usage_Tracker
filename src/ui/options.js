@@ -58,7 +58,7 @@ import { apiBreakdownToCSV, buildApiBreakdown } from '../lib/api-breakdown.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
 
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 
 const saveStatus = document.getElementById('saveStatus');
 

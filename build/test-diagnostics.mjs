@@ -30,7 +30,7 @@ const state = {
 const bundle = buildSupportBundle({
   state,
   usage: { bytes: 321, quotaBytes: 5000, source: 'webext' },
-  version: '0.2.2',
+  version: '0.2.3',
   channel: 'extension',
   manifest: { permissions: ['storage', 'notifications'], host_permissions: ['https://claude.ai/*'] },
 });
