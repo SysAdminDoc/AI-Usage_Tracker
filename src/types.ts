@@ -121,6 +121,13 @@ export interface CollaborationProviderTotal {
   activeDays: number | null;
 }
 
+export interface CollaborationAttribution {
+  enabled: boolean;
+  clientName: string;
+  projectName: string;
+  branchName: string;
+}
+
 export interface CollaborationContribution {
   id: string;
   memberLabel: string;
@@ -128,6 +135,7 @@ export interface CollaborationContribution {
   periodStartISO: string | null;
   periodEndISO: string | null;
   providers: CollaborationProviderTotal[];
+  attribution: CollaborationAttribution | null;
 }
 
 export interface CollaborationLedger {
@@ -144,6 +152,7 @@ export interface CollaborationState {
   enabled: boolean;
   teamName: string;
   memberName: string;
+  attribution: CollaborationAttribution;
   ledger: CollaborationLedger;
 }
 

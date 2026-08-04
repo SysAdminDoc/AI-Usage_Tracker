@@ -16,6 +16,7 @@ export function defaultCollaborationState() {
     enabled: false,
     teamName: '',
     memberName: '',
+    attribution: defaultAttribution(),
     ledger: emptyLedger(),
   };
 }
@@ -27,6 +28,7 @@ export function normalizeCollaborationState(input = {}) {
     enabled: source.enabled === true,
     teamName: safeLabel(source.teamName),
     memberName: safeLabel(source.memberName),
+    attribution: normalizeAttribution(source.attribution),
     ledger,
   };
 }
@@ -34,6 +36,7 @@ export function normalizeCollaborationState(input = {}) {
 export function buildCollaborationContribution(snapshot = {}, {
   teamName = '',
   memberName = '',
+  attribution = null,
   now = new Date(),
 } = {}) {
   const nowISO = asISO(now) || new Date().toISOString();
@@ -74,13 +77,16 @@ export function buildCollaborationContribution(snapshot = {}, {
 
   const periodStartISO = minISO(rangeStarts) || monthStartISO(nowISO);
   const periodEndISO = maxISO(rangeEnds) || nowISO;
-  const contribution = normalizeContribution({
+  const normalizedAttribution = normalizeAttribution(attribution);
+  const contributionInput = {
     memberLabel: memberName || 'Local member',
     exportedAtISO: nowISO,
     periodStartISO,
     periodEndISO,
     providers,
-  });
+  };
+  if (hasAttribution(normalizedAttribution)) contributionInput.attribution = normalizedAttribution;
+  const contribution = normalizeContribution(contributionInput);
 
   return {
     schema: COLLABORATION_SCHEMA,
@@ -146,6 +152,54 @@ export function buildCollaborationLedger(collaboration = {}) {
   };
 }
 
+export function buildCollaborationInvoiceRows(collaboration = {}) {
+  const state = normalizeCollaborationState(collaboration);
+  const rows = [];
+  for (const contribution of state.ledger.contributions) {
+    if (!hasAttribution(contribution.attribution)) continue;
+    const attribution = normalizeAttribution(contribution.attribution);
+    for (const provider of contribution.providers) {
+      rows.push({
+        clientName: attribution.clientName,
+        projectName: attribution.projectName,
+        branchName: attribution.branchName,
+        memberLabel: contribution.memberLabel,
+        provider: provider.provider,
+        providerLabel: provider.providerLabel,
+        costUSD: provider.costUSD,
+        totalTokens: provider.totalTokens,
+        requests: provider.requests,
+        costSource: provider.costSource,
+        periodStartISO: contribution.periodStartISO,
+        periodEndISO: contribution.periodEndISO,
+      });
+    }
+  }
+  return rows;
+}
+
+export function collaborationToCSV(collaboration = {}) {
+  const rows = buildCollaborationInvoiceRows(collaboration);
+  const output = ['client,project,branch,member,provider,providerLabel,costUSD,totalTokens,requests,costSource,periodStartISO,periodEndISO'];
+  for (const row of rows) {
+    output.push([
+      row.clientName,
+      row.projectName,
+      row.branchName,
+      row.memberLabel,
+      row.provider,
+      row.providerLabel,
+      row.costUSD == null ? '' : row.costUSD,
+      row.totalTokens == null ? '' : row.totalTokens,
+      row.requests == null ? '' : row.requests,
+      row.costSource || '',
+      row.periodStartISO || '',
+      row.periodEndISO || '',
+    ].map(csvCell).join(','));
+  }
+  return `${output.join('\r\n')}\r\n`;
+}
+
 export function buildCollaborationDashboard(collaboration = {}) {
   const state = normalizeCollaborationState(collaboration);
   const contributions = state.ledger.contributions;
@@ -154,6 +208,7 @@ export function buildCollaborationDashboard(collaboration = {}) {
 
   const members = new Map();
   const providers = new Map();
+  const attribution = new Map();
   for (const contribution of contributions) {
     const member = members.get(contribution.memberLabel) || emptyAggregate(contribution.memberLabel);
     member.contributionCount += 1;
@@ -164,6 +219,21 @@ export function buildCollaborationDashboard(collaboration = {}) {
       provider.contributorCount += 1;
       addAggregate(provider, row);
       providers.set(row.provider, provider);
+    }
+    if (hasAttribution(contribution.attribution)) {
+      const details = normalizeAttribution(contribution.attribution);
+      const key = `${details.clientName}\u0000${details.projectName}\u0000${details.branchName}`;
+      const attributed = attribution.get(key) || {
+        ...emptyAggregate(''),
+        clientName: details.clientName,
+        projectName: details.projectName,
+        branchName: details.branchName,
+        members: new Set(),
+      };
+      attributed.contributionCount += 1;
+      attributed.members.add(contribution.memberLabel);
+      for (const row of contribution.providers) addAggregate(attributed, row);
+      attribution.set(key, attributed);
     }
     members.set(contribution.memberLabel, member);
   }
@@ -185,6 +255,7 @@ export function buildCollaborationDashboard(collaboration = {}) {
     providers: [...providers.entries()]
       .map(([provider, aggregate]) => ({ provider, ...finalizeAggregate(aggregate) }))
       .sort(sortAggregate),
+    attributionRows: [...attribution.values()].map(finalizeAttributionAggregate).sort(sortAttribution),
   };
 }
 
@@ -200,6 +271,7 @@ function emptyDashboard(status, state) {
     total: finalizeAggregate(emptyAggregate('Team total')),
     members: [],
     providers: [],
+    attributionRows: [],
   };
 }
 
@@ -251,6 +323,7 @@ function normalizeContribution(input) {
     periodStartISO: asISO(input.periodStartISO),
     periodEndISO: asISO(input.periodEndISO),
     providers,
+    attribution: hasAttribution(input.attribution) ? normalizeAttribution(input.attribution) : null,
   };
   contribution.id = stableContributionId(contribution);
   return contribution;
@@ -309,6 +382,16 @@ function finalizeAggregate(aggregate) {
   };
 }
 
+function finalizeAttributionAggregate(aggregate) {
+  return {
+    clientName: aggregate.clientName,
+    projectName: aggregate.projectName,
+    branchName: aggregate.branchName,
+    memberCount: aggregate.members.size,
+    ...finalizeAggregate(aggregate),
+  };
+}
+
 function dedupeContributions(contributions) {
   const byId = new Map();
   for (const contribution of contributions) {
@@ -322,6 +405,7 @@ function stableContributionId(contribution) {
     memberLabel: contribution.memberLabel,
     periodStartISO: contribution.periodStartISO,
     periodEndISO: contribution.periodEndISO,
+    attribution: contribution.attribution,
     providers: contribution.providers,
   });
   let hash = 2166136261;
@@ -336,15 +420,53 @@ function sortAggregate(a, b) {
   return b.costUSD - a.costUSD || b.requests - a.requests || a.label.localeCompare(b.label);
 }
 
+function sortAttribution(a, b) {
+  return b.costUSD - a.costUSD
+    || a.clientName.localeCompare(b.clientName)
+    || a.projectName.localeCompare(b.projectName)
+    || a.branchName.localeCompare(b.branchName);
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
 function redactionContract() {
   return {
     prompts: 'omitted',
     code: 'omitted',
     credentials: 'omitted',
     projectPaths: 'omitted',
-    branchNames: 'omitted',
+    branchNames: 'opt-in labels only',
+    clientNames: 'opt-in labels only',
     transport: 'local-file-only',
   };
+}
+
+function defaultAttribution() {
+  return {
+    enabled: false,
+    clientName: '',
+    projectName: '',
+    branchName: '',
+  };
+}
+
+function normalizeAttribution(input) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  return {
+    enabled: source.enabled === true,
+    clientName: safeLabel(source.clientName),
+    projectName: safeLabel(source.projectName),
+    branchName: safeLabel(source.branchName),
+  };
+}
+
+function hasAttribution(input) {
+  const attribution = normalizeAttribution(input);
+  return attribution.enabled
+    && !!(attribution.clientName || attribution.projectName || attribution.branchName);
 }
 
 function safeLabel(value) {

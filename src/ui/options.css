@@ -244,6 +244,10 @@ html, body {
   color: var(--aut-subtext1);
   font-size: 12px;
 }
+.collaboration-attribution-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
 .collaboration-breakdown {
   display: grid;
   gap: 8px;
@@ -280,6 +284,9 @@ html, body {
   font-size: 10px !important;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+.collaboration-row--attribution {
+  border-color: rgba(137, 180, 250, 0.26);
 }
 
 .profile-list {

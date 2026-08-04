@@ -24,6 +24,7 @@ assert.ok(fresh.snapshot, 'defaultState() should have snapshot');
 assert.ok(fresh.settings, 'defaultState() should have settings');
 assert.equal(fresh.collaboration.enabled, false, 'collaboration dashboard should be opt-in by default');
 assert.deepEqual(fresh.collaboration.ledger.contributions, [], 'collaboration ledger should start empty');
+assert.equal(fresh.collaboration.attribution.enabled, false, 'attribution should be opt-in by default');
 assert.equal(fresh.settings.historyRetentionDays, 30, 'history retention should default to 30 days');
 assert.equal(fresh.settings.anomalyThresholdPercent, 20, 'anomaly threshold should default to 20 percentage points');
 assert.equal(fresh.settings.notifications.U3, false, 'anomaly alerts should be opt-in');

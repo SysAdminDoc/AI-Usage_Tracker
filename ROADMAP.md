@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Per-client, project, and git-branch attribution
-  Why: Agencies need billable AI spend attribution, but it belongs after cost/API foundations.
-  Evidence: TokenWatch captures cost, model, developer, project, and branch without prompt/code content.
-  Touches: API provider modules, optional local Git metadata bridge, exports
-  Acceptance: Attribution metadata is opt-in, redacted in diagnostics, and exportable for invoicing.
-  Complexity: XL
-
 - [ ] P3 — Native messaging companion for schedule reliability
   Why: MV3 service workers can sleep through exact notification windows.
   Evidence: Chrome service worker lifecycle docs; existing QuotaGlass bridge capability.

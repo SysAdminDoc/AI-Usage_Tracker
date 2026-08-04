@@ -200,6 +200,9 @@ try {
   assert.ok(document.querySelector('#collaborationEnabled'), 'options should expose the collaboration opt-in');
   assert.ok(document.querySelector('#collaborationStatus'), 'options should expose collaboration status');
   assert.ok(document.querySelector('#exportCollaborationContribution'), 'options should expose contribution export');
+  assert.ok(document.querySelector('#collaborationAttributionEnabled'), 'options should expose opt-in attribution');
+  assert.ok(document.querySelector('#collaborationBranchName'), 'options should expose manual Git branch attribution');
+  assert.ok(document.querySelector('#exportCollaborationInvoice'), 'options should expose invoicing CSV export');
   assert.match(document.querySelector('#collaborationStatus').textContent, /Off|Enabled|no contribution/i,
     'options should explain the local collaboration state');
   assert.ok(document.querySelector('#profileList'), 'options should expose local profile management');

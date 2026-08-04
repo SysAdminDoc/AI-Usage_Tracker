@@ -49,6 +49,8 @@ import {
   buildCollaborationContribution,
   buildCollaborationDashboard,
   buildCollaborationLedger,
+  buildCollaborationInvoiceRows,
+  collaborationToCSV,
   mergeCollaborationImport,
   normalizeCollaborationState,
 } from '../lib/collaboration.js';
@@ -574,16 +576,31 @@ export async function renderCollaboration() {
   const enabled = document.getElementById('collaborationEnabled');
   const teamName = document.getElementById('collaborationTeamName');
   const memberName = document.getElementById('collaborationMemberName');
+  const attributionEnabled = document.getElementById('collaborationAttributionEnabled');
+  const clientName = document.getElementById('collaborationClientName');
+  const projectName = document.getElementById('collaborationProjectName');
+  const branchName = document.getElementById('collaborationBranchName');
   if (enabled) enabled.checked = collaboration.enabled;
   if (teamName && document.activeElement !== teamName) teamName.value = collaboration.teamName;
   if (memberName && document.activeElement !== memberName) memberName.value = collaboration.memberName;
+  if (attributionEnabled) {
+    attributionEnabled.checked = collaboration.attribution.enabled;
+    attributionEnabled.disabled = !collaboration.enabled;
+  }
+  for (const [input, value] of [[clientName, collaboration.attribution.clientName], [projectName, collaboration.attribution.projectName], [branchName, collaboration.attribution.branchName]]) {
+    if (input && document.activeElement !== input) input.value = value;
+    if (input) input.disabled = !collaboration.enabled || !collaboration.attribution.enabled;
+  }
   const importButton = document.getElementById('importCollaboration');
   const exportContributionButton = document.getElementById('exportCollaborationContribution');
   const exportLedgerButton = document.getElementById('exportCollaborationLedger');
+  const exportInvoiceButton = document.getElementById('exportCollaborationInvoice');
   const clearButton = document.getElementById('clearCollaboration');
+  const invoiceRows = buildCollaborationInvoiceRows(collaboration);
   if (importButton) importButton.disabled = !collaboration.enabled;
   if (exportContributionButton) exportContributionButton.disabled = !collaboration.enabled;
   if (exportLedgerButton) exportLedgerButton.disabled = !collaboration.enabled || dashboard.contributionCount === 0;
+  if (exportInvoiceButton) exportInvoiceButton.disabled = !collaboration.enabled || invoiceRows.length === 0;
   if (clearButton) clearButton.disabled = dashboard.contributionCount === 0;
   clearChildren(breakdown);
 
@@ -615,6 +632,9 @@ export async function renderCollaboration() {
   for (const provider of dashboard.providers) {
     appendCollaborationAggregate(breakdown, 'Provider', provider);
   }
+  for (const row of dashboard.attributionRows) {
+    appendCollaborationAttribution(breakdown, row);
+  }
   return dashboard;
 }
 
@@ -644,6 +664,23 @@ function formatCollaborationAggregate(aggregate) {
   if (aggregate.totalTokens) parts.push(`${formatCount(aggregate.totalTokens)} tokens`);
   if (aggregate.requests) parts.push(`${formatCount(aggregate.requests)} requests`);
   return parts.join(' · ');
+}
+
+function appendCollaborationAttribution(wrap, row) {
+  const item = document.createElement('article');
+  item.className = 'collaboration-row collaboration-row--attribution';
+  const head = document.createElement('div');
+  head.className = 'collaboration-row__head';
+  const label = document.createElement('strong');
+  label.textContent = [row.clientName, row.projectName, row.branchName].filter(Boolean).join(' · ') || 'Unlabelled attribution';
+  const value = document.createElement('span');
+  value.textContent = formatUSD(row.costUSD);
+  head.append(label, value);
+  const meta = document.createElement('span');
+  meta.className = 'collaboration-row__meta';
+  meta.textContent = `Invoice attribution · ${row.memberCount} member${row.memberCount === 1 ? '' : 's'} · ${formatCollaborationAggregate(row)}`;
+  item.append(head, meta);
+  wrap.appendChild(item);
 }
 
 function apiMetricSummary(row) {
@@ -842,6 +879,14 @@ function bindHandlers() {
       collaborationChanged = true;
     } else if (t.id === 'collaborationMemberName') {
       collaboration.memberName = t.value;
+      collaborationChanged = true;
+    } else if (t.id === 'collaborationAttributionEnabled') {
+      collaboration.attribution = { ...collaboration.attribution, enabled: t.checked };
+      collaborationChanged = true;
+    } else if (t.id === 'collaborationClientName' || t.id === 'collaborationProjectName' || t.id === 'collaborationBranchName') {
+      const key = t.id === 'collaborationClientName' ? 'clientName'
+        : t.id === 'collaborationProjectName' ? 'projectName' : 'branchName';
+      collaboration.attribution = { ...collaboration.attribution, [key]: t.value };
       collaborationChanged = true;
     } else {
       return;
@@ -1189,6 +1234,12 @@ function bindHandlers() {
     const payload = buildCollaborationContribution(state.snapshot, {
       teamName: document.getElementById('collaborationTeamName')?.value || collaboration.teamName,
       memberName: document.getElementById('collaborationMemberName')?.value || collaboration.memberName,
+      attribution: {
+        enabled: document.getElementById('collaborationAttributionEnabled')?.checked === true,
+        clientName: document.getElementById('collaborationClientName')?.value || collaboration.attribution.clientName,
+        projectName: document.getElementById('collaborationProjectName')?.value || collaboration.attribution.projectName,
+        branchName: document.getElementById('collaborationBranchName')?.value || collaboration.attribution.branchName,
+      },
       now: new Date(),
     });
     if (!payload.contribution.providers.length) {
@@ -1210,6 +1261,17 @@ function bindHandlers() {
     flash('Local team ledger download started');
   });
 
+  document.getElementById('exportCollaborationInvoice')?.addEventListener('click', async () => {
+    const state = await loadState();
+    const collaboration = normalizeCollaborationState(state.collaboration);
+    if (!buildCollaborationInvoiceRows(collaboration).length) {
+      flash('No opt-in attribution rows are available yet', 'bad');
+      return;
+    }
+    downloadCollaborationCSV(collaboration);
+    flash('Invoicing CSV download started');
+  });
+
   document.getElementById('clearCollaboration')?.addEventListener('click', async () => {
     if (!confirmAction('Clear all locally imported team contributions? This does not affect personal usage history or provider data.')) return;
     const state = await loadState();
@@ -1218,6 +1280,7 @@ function bindHandlers() {
       enabled: collaboration.enabled,
       teamName: collaboration.teamName,
       memberName: collaboration.memberName,
+      attribution: collaboration.attribution,
     });
     await saveState(state);
     await renderCollaboration();
@@ -1381,6 +1444,23 @@ function downloadCollaboration(payload, kind) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-team-${kind}-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadCollaborationCSV(collaboration) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([collaborationToCSV(collaboration)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-invoicing-${new Date().toISOString().slice(0, 10)}.csv`;
   anchor.hidden = true;
   document.body.appendChild(anchor);
   anchor.click();

@@ -3,6 +3,8 @@ import {
   buildCollaborationContribution,
   buildCollaborationDashboard,
   buildCollaborationLedger,
+  buildCollaborationInvoiceRows,
+  collaborationToCSV,
   defaultCollaborationState,
   mergeCollaborationImport,
   normalizeCollaborationImport,
@@ -42,6 +44,7 @@ assert.equal(contribution.teamName, 'Privacy Team');
 assert.equal(contribution.contribution.memberLabel, 'Ada');
 assert.equal(contribution.contribution.providers.length, 2);
 assert.equal(contribution.contribution.providers[0].costUSD, 12.5);
+assert.equal(contribution.contribution.attribution, null, 'attribution should be absent unless explicitly enabled');
 assert.doesNotMatch(JSON.stringify(contribution), /never-export-this-prompt|never-export-this-code/);
 assert.equal(contribution.contribution.prompt, undefined);
 assert.equal(contribution.contribution.code, undefined);
@@ -49,6 +52,7 @@ assert.equal(contribution.contribution.code, undefined);
 const secondContribution = buildCollaborationContribution(snapshot, {
   teamName: 'Privacy Team',
   memberName: 'Grace',
+  attribution: { enabled: true, clientName: 'Acme, Inc.', projectName: 'tracker-app', branchName: 'billing/main' },
   now: new Date('2026-08-16T00:00:00.000Z'),
 });
 const merged = mergeCollaborationImport(
@@ -69,10 +73,18 @@ assert.equal(dashboard.providers.length, 2);
 assert.equal(dashboard.providers[0].label, 'Anthropic API');
 assert.equal(dashboard.providers[0].costUSD, 25);
 assert.equal(dashboard.members[0].label, 'Ada');
+assert.equal(dashboard.attributionRows.length, 1);
+assert.equal(dashboard.attributionRows[0].clientName, 'Acme, Inc.');
+assert.equal(dashboard.attributionRows[0].branchName, 'billing/main');
+assert.equal(dashboard.attributionRows[0].costUSD, 19.75);
 
 const ledger = buildCollaborationLedger(merged);
 assert.equal(ledger.kind, 'ledger');
 assert.equal(normalizeCollaborationImport(ledger).contributions.length, 2);
+const invoiceRows = buildCollaborationInvoiceRows(merged);
+assert.equal(invoiceRows.length, 2);
+assert.match(collaborationToCSV(merged), /"Acme, Inc\.",tracker-app,billing\/main,Grace/);
+assert.doesNotMatch(collaborationToCSV(merged), /never-export-this-prompt|never-export-this-code/);
 assert.equal(buildCollaborationDashboard(defaultCollaborationState()).status, 'disabled');
 assert.throws(() => normalizeCollaborationImport({ schema: 'wrong', version: 1, kind: 'ledger' }), /Unsupported collaboration schema/);
 assert.throws(() => normalizeCollaborationImport({
