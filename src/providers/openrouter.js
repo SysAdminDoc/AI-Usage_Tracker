@@ -81,6 +81,7 @@ export function parseOpenRouterUsage({ key = null, credits = null } = {}, { now 
       metric: {
         kind: 'currency',
         costUSD: monthlyUsage,
+        costSource: 'official',
         limitUSD,
         remainingUSD,
         usageDailyUSD: finiteOrNull(keyData?.usage_daily),
@@ -105,6 +106,7 @@ export function parseOpenRouterUsage({ key = null, credits = null } = {}, { now 
       metric: {
         kind: 'currency',
         costUSD: totalUsageUSD,
+        costSource: 'official',
         totalCreditsUSD,
         remainingCreditsUSD: Math.max(0, totalCreditsUSD - totalUsageUSD),
       },

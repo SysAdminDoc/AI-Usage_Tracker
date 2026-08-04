@@ -131,11 +131,16 @@ html, body {
   font-size: 11px;
 }
 .api-credential__hint,
+.api-credential__cost-hint,
 .api-credential__status {
   margin: 0;
   color: var(--aut-subtext0);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.api-credential__cost-hint {
+  color: var(--aut-subtext1);
 }
 
 .profile-list {

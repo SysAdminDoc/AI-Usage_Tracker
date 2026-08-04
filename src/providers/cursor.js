@@ -158,6 +158,7 @@ export function parseCursorUsage({ daily = null, spend = null } = {}, { range = 
       metric: {
         kind: 'currency',
         costUSD: spendCents / 100,
+        costSource: 'official',
         requests: premiumRequests,
         memberCount: spendRows.length,
       },

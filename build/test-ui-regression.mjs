@@ -114,6 +114,11 @@ try {
   assert.match(document.querySelector('.popup-provider').textContent, /OpenRouter|remaining|credits/i,
     'popup should render OpenRouter credit metrics');
 
+  await saveState(makeState({ anthropicApi: costProvider() }));
+  await popup.render();
+  assert.match(document.querySelector('.popup-provider').textContent, /reported|estimated/,
+    'popup should label API cost provenance beside per-model metrics');
+
   const disabled = makeState({ claude: provider({ percentUsed: 50 }) });
   disabled.settings.showProviders = { claude: false, codex: false };
   await saveState(disabled);
@@ -177,6 +182,8 @@ try {
   assert.ok(document.querySelector('[data-api-provider="cursor"]'), 'options should expose Cursor API credentials');
   assert.ok(document.querySelector('[data-api-config="geminiProjectId"]'), 'options should expose Gemini project configuration');
   assert.ok(document.querySelector('[data-api-provider="openrouter"]'), 'options should expose OpenRouter API credentials');
+  assert.match(document.querySelector('.api-credential__cost-hint').textContent, /cost|usage/i,
+    'options should explain API cost coverage');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
@@ -239,11 +246,20 @@ function installDocument(markup, { patchForms = false } = {}) {
   return parsed.window;
 }
 
-function makeState({ claude = null, codex = null, githubCopilot = null, cursor = null, gemini = null, openrouter = null } = {}) {
+function makeState({ claude = null, codex = null, anthropicApi = null, openaiApi = null, githubCopilot = null, cursor = null, gemini = null, openrouter = null } = {}) {
   const state = defaultState();
   state.snapshot = {
     fetchedAtISO: new Date(Date.now() - 60_000).toISOString(),
-    providers: { claude, codex, 'github-copilot': githubCopilot, cursor, gemini, openrouter },
+    providers: {
+      claude,
+      codex,
+      'anthropic-api': anthropicApi,
+      'openai-api': openaiApi,
+      'github-copilot': githubCopilot,
+      cursor,
+      gemini,
+      openrouter,
+    },
   };
   return state;
 }
@@ -346,6 +362,30 @@ function openRouterProvider() {
       percentUsed: 25.6,
       resetISO: null,
       metric: { kind: 'currency', costUSD: 25.75, totalCreditsUSD: 100.5, remainingCreditsUSD: 74.75 },
+    }],
+  };
+}
+
+function costProvider() {
+  return {
+    ok: true,
+    provider: 'anthropic-api',
+    source: 'api-key',
+    buckets: [{
+      id: 'anthropic-api-claude-sonnet-4-6',
+      label: 'claude-sonnet-4-6',
+      kind: 'api',
+      model: 'claude-sonnet-4-6',
+      percentUsed: 0,
+      resetISO: null,
+      metric: {
+        kind: 'tokens',
+        totalTokens: 1000,
+        inputTokens: 700,
+        outputTokens: 300,
+        costUSD: 1.2345,
+        costSource: 'official',
+      },
     }],
   };
 }

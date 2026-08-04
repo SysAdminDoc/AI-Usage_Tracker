@@ -521,6 +521,7 @@ function formatMetricDetail(metric, i18n) {
     if (metric.usageWeeklyUSD != null) parts.push(`${currency(metric.usageWeeklyUSD, locale)} this week`);
     if (metric.totalCreditsUSD != null) parts.push(`${currency(metric.totalCreditsUSD, locale)} purchased`);
     if (metric.remainingCreditsUSD != null) parts.push(`${currency(metric.remainingCreditsUSD, locale)} remaining`);
+    if (metric.costSource === 'official') parts.push('Official provider cost');
     return parts.join(' · ') || 'Usage and credits';
   }
   if (metric.inputTokens != null) parts.push(`${number(metric.inputTokens)} in`);
@@ -528,8 +529,9 @@ function formatMetricDetail(metric, i18n) {
   if (metric.cachedInputTokens != null) parts.push(`${number(metric.cachedInputTokens)} cached`);
   if (metric.requests != null) parts.push(`${number(metric.requests)} requests`);
   if (metric.costUSD != null && metric.kind !== 'currency') {
-    parts.push(new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
-      .format(Number(metric.costUSD) || 0));
+    const label = metric.costSource === 'pricing-table' ? 'estimated' : 'reported';
+    parts.push(`${new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
+      .format(Number(metric.costUSD) || 0)} ${label}`);
   }
   if (metric.webSearchRequests != null && Number(metric.webSearchRequests) > 0) {
     parts.push(`${number(metric.webSearchRequests)} web searches`);

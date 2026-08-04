@@ -83,6 +83,12 @@ function sanitizeMetric(metric) {
   ]) {
     if (Number.isFinite(Number(metric[key]))) safe[key] = Number(metric[key]);
   }
+  if (metric.costSource === 'official' || metric.costSource === 'pricing-table') {
+    safe.costSource = metric.costSource;
+  }
+  if (typeof metric.pricingVersion === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(metric.pricingVersion)) {
+    safe.pricingVersion = metric.pricingVersion;
+  }
   return safe;
 }
 

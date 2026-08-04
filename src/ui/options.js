@@ -188,6 +188,9 @@ async function renderApiCredentials() {
     const hint = document.createElement('p');
     hint.className = 'api-credential__hint';
     hint.textContent = meta.hint;
+    const costHint = document.createElement('p');
+    costHint.className = 'api-credential__cost-hint';
+    costHint.textContent = meta.costHint || '';
     const input = document.createElement('input');
     input.type = 'password';
     input.autocomplete = 'off';
@@ -253,7 +256,7 @@ async function renderApiCredentials() {
       ? 'Configured locally. The key value is never shown again.'
       : 'Not configured.';
     credentialStatus.dataset.apiStatus = id;
-    card.append(head, hint, input);
+    card.append(head, hint, costHint, input);
     if (providerConfig) card.appendChild(providerConfig);
     card.append(actions, credentialStatus);
     wrap.appendChild(card);

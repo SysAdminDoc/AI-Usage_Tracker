@@ -20,6 +20,8 @@ export interface QuotaBucket {
     cacheCreationTokens?: number;
     requests?: number;
     costUSD?: number;
+    costSource?: 'official' | 'pricing-table' | string;
+    pricingVersion?: string;
     activeDays?: number;
     subscriptionIncludedReqs?: number;
     usageBasedReqs?: number;

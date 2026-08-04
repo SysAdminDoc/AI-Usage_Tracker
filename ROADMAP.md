@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — API-path cost computation
-  Why: Cost totals are meaningful for API-key providers but misleading for flat subscription windows.
-  Evidence: OpenAI Usage/Costs API, Tokens 4 Breakfast, CostGoat, OpenUsage.
-  Touches: provider modules, pricing data, `src/ui/popup.js`, `src/ui/options.js`
-  Acceptance: API providers show per-model cost totals from official usage/cost endpoints or a versioned local pricing table.
-  Complexity: L
-
 - [ ] P3 — Mobile-friendly userscript build
   Why: Android userscript browsers need a lower-motion, non-drag-first layout.
   Evidence: Existing Later item; current widget is optimized for desktop pointer use.

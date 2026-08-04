@@ -3,10 +3,11 @@ import {
   apiFailure,
   currentMonthRange,
   numberValue,
-  readJSONResponse,
+  readJSONPages,
   resolveFetch,
   slug,
 } from './api-contract.js';
+import { estimateTokenCost } from '../lib/pricing.js';
 
 export const OPENAI_USAGE_URL = 'https://api.openai.com/v1/organization/usage/completions';
 export const OPENAI_COSTS_URL = 'https://api.openai.com/v1/organization/costs';
@@ -33,8 +34,8 @@ export async function fetchOpenAIUsage({ apiKey, now = new Date(), fetchImpl = n
   ]);
 
   const [usage, costs] = await Promise.all([
-    readJSONResponse(doFetch, usageUrl, { headers }, 'openai-api', 'usage'),
-    readJSONResponse(doFetch, costsUrl, { headers }, 'openai-api', 'costs'),
+    readJSONPages(doFetch, usageUrl, { headers }, 'openai-api', 'usage'),
+    readJSONPages(doFetch, costsUrl, { headers }, 'openai-api', 'costs'),
   ]);
 
   if (!usage.ok && !costs.ok) {
@@ -57,6 +58,13 @@ export async function fetchOpenAIUsage({ apiKey, now = new Date(), fetchImpl = n
   };
   if (!usage.ok) parsed.warningCode = usage.errorCode || 'openai-api.usage.failed';
   if (!costs.ok) parsed.warningCode = costs.errorCode || 'openai-api.costs.failed';
+  const paginationWarnings = [];
+  if (usage.truncated) paginationWarnings.push('openai-api.usage.pagination-truncated');
+  if (costs.truncated) paginationWarnings.push('openai-api.costs.pagination-truncated');
+  if (paginationWarnings.length) {
+    parsed.warningCode = parsed.warningCode || paginationWarnings[0];
+    parsed.warningCodes = [...(parsed.warningCodes || []), ...paginationWarnings];
+  }
   return parsed;
 }
 
@@ -108,6 +116,20 @@ function buildOpenAISnapshot(groups, { range, costs }) {
     if (group.apiKeyId) parts.push(`key ${shortIdentifier(group.apiKeyId)}`);
     const label = parts.join(' · ') || 'All API usage';
     const totalTokens = group.inputTokens + group.outputTokens;
+    const estimate = estimateTokenCost('openai-api', group.model, {
+      inputTokens: group.inputTokens,
+      outputTokens: group.outputTokens,
+      cachedInputTokens: group.cachedInputTokens,
+    });
+    const metric = {
+      kind: 'tokens',
+      inputTokens: group.inputTokens,
+      outputTokens: group.outputTokens,
+      cachedInputTokens: group.cachedInputTokens,
+      totalTokens,
+      requests: group.requests,
+    };
+    if (estimate) Object.assign(metric, estimate);
     return {
       id: `openai-api-${slug(group.model)}-${slug(group.projectId || 'all')}-${slug(group.apiKeyId || 'all')}`,
       label,
@@ -116,15 +138,7 @@ function buildOpenAISnapshot(groups, { range, costs }) {
       percentUsed: 0,
       resetISO: null,
       rawResetText: `Month to date · ${formatCount(totalTokens)} tokens`,
-      metric: {
-        kind: 'tokens',
-        inputTokens: group.inputTokens,
-        outputTokens: group.outputTokens,
-        cachedInputTokens: group.cachedInputTokens,
-        totalTokens,
-        requests: group.requests,
-        costUSD: 0,
-      },
+      metric,
       dimensions: {
         model: group.model,
         projectId: group.projectId,
@@ -145,17 +159,26 @@ function buildOpenAISnapshot(groups, { range, costs }) {
       percentUsed: 0,
       resetISO: null,
       rawResetText: `Month to date · ${formatCurrency(group.costUSD)}`,
-      metric: { kind: 'currency', costUSD: group.costUSD },
+      metric: { kind: 'currency', costUSD: group.costUSD, costSource: 'official' },
       dimensions: { projectId: group.projectId, apiKeyId: group.apiKeyId, lineItem: group.lineItem },
     };
   });
   const buckets = [...usageBuckets, ...costBuckets];
+  const estimatedCostUSD = usageBuckets.reduce((sum, bucket) => (
+    bucket.metric.costSource === 'pricing-table' ? sum + numberValue(bucket.metric.costUSD) : sum
+  ), 0);
   return {
     ok: true,
     provider: 'openai-api',
     source: 'api-key',
     range: { startISO: range.startISO, endISO: range.endISO },
-    totals: { costUSD: numberValue(costs?.total) },
+    totals: {
+      costUSD: costs?.hasData ? numberValue(costs.total) : estimatedCostUSD,
+      officialCostUSD: costs?.hasData ? numberValue(costs.total) : null,
+      estimatedCostUSD,
+      pricedModelCount: usageBuckets.filter((bucket) => bucket.metric.costSource === 'pricing-table').length,
+      unpricedModelCount: usageBuckets.filter((bucket) => !bucket.metric.costSource).length,
+    },
     buckets: buckets.sort((a, b) => (b.metric.costUSD || 0) - (a.metric.costUSD || 0)
       || (b.metric.totalTokens || 0) - (a.metric.totalTokens || 0)),
   };
@@ -168,11 +191,12 @@ function parseCostGroups(data) {
     for (const result of Array.isArray(bucket?.results) ? bucket.results : []) {
       const value = numberValue(result?.amount?.value ?? result?.amount);
       total += value;
-      const key = `${result?.project_id || ''}\u0000${result?.api_key_id || ''}`;
+      const lineItem = result?.line_item || null;
+      const key = `${result?.project_id || ''}\u0000${result?.api_key_id || ''}\u0000${lineItem || ''}`;
       const existing = groups.get(key) || {
         projectId: result?.project_id || null,
         apiKeyId: result?.api_key_id || null,
-        lineItem: result?.line_item || null,
+        lineItem,
         costUSD: 0,
       };
       if (!existing.lineItem && result?.line_item) existing.lineItem = result.line_item;
@@ -180,7 +204,7 @@ function parseCostGroups(data) {
       groups.set(key, existing);
     }
   }
-  return { groups, total };
+  return { groups, total, hasData: groups.size > 0 };
 }
 
 function buildOpenAIUrl(endpoint, range, extra = []) {

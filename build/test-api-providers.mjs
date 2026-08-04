@@ -16,6 +16,21 @@ const anthroFixture = {
   }],
 };
 
+const anthroCostFixture = {
+  data: [{
+    starting_at: '2026-08-01T00:00:00Z',
+    ending_at: '2026-08-02T00:00:00Z',
+    results: [{
+      amount: '123.45',
+      currency: 'USD',
+      cost_type: 'tokens',
+      description: 'claude-sonnet-4-6 tokens',
+      model: 'claude-sonnet-4-6',
+      workspace_id: 'wrkspc_1234567890',
+    }],
+  }],
+};
+
 const openAIUsageFixture = {
   data: [{
     start_time: 1785542400,
@@ -126,6 +141,7 @@ const { fetchGitHubCopilotUsage, parseGitHubCopilotUsage } = await import('../sr
 const { fetchCursorUsage, parseCursorUsage } = await import('../src/providers/cursor.js');
 const { fetchGeminiUsage, parseGeminiUsage } = await import('../src/providers/gemini.js');
 const { fetchOpenRouterUsage, parseOpenRouterUsage } = await import('../src/providers/openrouter.js');
+const { readJSONPages } = await import('../src/providers/api-contract.js?pagination-test');
 const {
   exportSettings,
   defaultState,
@@ -136,21 +152,26 @@ const {
 } = await import('../src/lib/storage.js?api-provider-test');
 
 const fixedNow = new Date('2026-08-03T12:00:00.000Z');
-let anthropicRequest;
+let anthropicRequests = [];
 const anthropic = await fetchAnthropicUsage({
   apiKey: 'sk-ant-test-secret',
   now: fixedNow,
   fetchImpl: async (url, options) => {
-    anthropicRequest = { url, options };
-    return { ok: true, status: 200, json: async () => anthroFixture };
+    anthropicRequests.push({ url, options });
+    return { ok: true, status: 200, json: async () => url.includes('/cost_report') ? anthroCostFixture : anthroFixture };
   },
 });
 assert.equal(anthropic.ok, true);
 assert.equal(anthropic.provider, 'anthropic-api');
 assert.equal(anthropic.buckets[0].metric.totalTokens, 1775);
-assert.equal(anthropicRequest.options.headers['x-api-key'], 'sk-ant-test-secret');
-assert.match(anthropicRequest.url, /usage_report\/messages/);
-assert.match(anthropicRequest.url, /group_by%5B%5D=model/);
+assert.equal(anthropic.buckets[0].metric.costUSD, 1.2345);
+assert.equal(anthropic.buckets[0].metric.costSource, 'official');
+assert.equal(anthropic.totals.costUSD, 1.2345);
+assert.equal(anthropicRequests.length, 2);
+assert.ok(anthropicRequests.every(({ options }) => options.headers['x-api-key'] === 'sk-ant-test-secret'));
+assert.ok(anthropicRequests.some(({ url }) => /usage_report\/messages/.test(url)));
+assert.ok(anthropicRequests.some(({ url }) => /cost_report/.test(url)));
+assert.ok(anthropicRequests.some(({ url }) => url.includes('group_by%5B%5D=description')));
 
 let openAIRequests = [];
 const openAI = await fetchOpenAIUsage({
@@ -172,7 +193,11 @@ const openAICostBucket = openAI.buckets.find((bucket) => bucket.metric.kind === 
 assert.ok(openAIUsageBucket);
 assert.ok(openAICostBucket);
 assert.equal(openAIUsageBucket.metric.requests, 7);
+assert.equal(openAIUsageBucket.metric.costUSD, 0.01535);
+assert.equal(openAIUsageBucket.metric.costSource, 'pricing-table');
+assert.equal(openAIUsageBucket.metric.pricingVersion, '2026-08-03');
 assert.equal(openAICostBucket.metric.costUSD, 1.25);
+assert.equal(openAICostBucket.metric.costSource, 'official');
 assert.equal(openAI.totals.costUSD, 1.25);
 assert.equal(openAIRequests.length, 2);
 assert.ok(openAIRequests.every(({ options }) => options.headers.Authorization === 'Bearer sk-admin-test-secret'));
@@ -187,6 +212,25 @@ const parsedUsageBucket = parsed.buckets.find((bucket) => bucket.metric.totalTok
 assert.equal(parsedUsageBucket.dimensions.projectId, 'proj_1234567890');
 assert.equal(parsedUsageBucket.dimensions.apiKeyId, 'key_1234567890');
 assert.equal(parseAnthropicUsage({ data: [] }).ok, false);
+const anthropicFallback = parseAnthropicUsage(anthroFixture);
+assert.equal(anthropicFallback.buckets[0].metric.costSource, 'pricing-table');
+assert.equal(anthropicFallback.buckets[0].metric.pricingVersion, '2026-08-03');
+
+let paginationRequests = [];
+const paged = await readJSONPages(async (url) => {
+  paginationRequests.push(url);
+  const page = new URL(url).searchParams.get('page');
+  return {
+    ok: true,
+    status: 200,
+    json: async () => page ? { data: [{ id: 'second' }] } : {
+      data: [{ id: 'first' }], has_more: true, next_page: 'opaque-next-token',
+    },
+  };
+}, 'https://example.test/report?limit=1', {}, 'test-provider', 'report');
+assert.deepEqual(paged.data.data.map((row) => row.id), ['first', 'second']);
+assert.equal(paginationRequests.length, 2);
+assert.match(paginationRequests[1], /page=opaque-next-token/);
 
 let copilotRequest;
 const copilot = await fetchGitHubCopilotUsage({
