@@ -10,7 +10,7 @@ export const CURSOR_API_BASE_URL = 'https://api.cursor.com';
 export const CURSOR_DAILY_USAGE_URL = `${CURSOR_API_BASE_URL}/teams/daily-usage-data`;
 export const CURSOR_SPEND_URL = `${CURSOR_API_BASE_URL}/teams/spend`;
 
-export async function fetchCursorUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+export async function fetchCursorData({ apiKey, now = new Date(), fetchImpl = null } = {}) {
   const token = String(apiKey || '').trim();
   if (!token) return apiFailure('cursor', 'credentials.missing', 'credential-not-configured');
   const doFetch = resolveFetch(fetchImpl);
@@ -46,19 +46,41 @@ export async function fetchCursorUsage({ apiKey, now = new Date(), fetchImpl = n
     });
   }
 
-  const parsed = parseCursorUsage({
-    daily: dailyUsage.ok ? dailyUsage.data : null,
-    spend: spend.ok ? spend.data : null,
-  }, { range });
+  return {
+    ok: true,
+    provider: 'cursor',
+    data: {
+      daily: dailyUsage.ok ? dailyUsage.data : null,
+      spend: spend.ok ? spend.data : null,
+    },
+    meta: {
+      range,
+      dailyOk: dailyUsage.ok,
+      spendOk: spend.ok,
+      dailyErrorCode: dailyUsage.errorCode || null,
+      spendErrorCode: spend.errorCode || null,
+    },
+  };
+}
+
+export function parseCursorResponse(data, { range = currentMonthRange(), dailyOk = true, spendOk = true,
+  dailyErrorCode = null, spendErrorCode = null } = {}) {
+  const parsed = parseCursorUsage(data || {}, { range });
   if (!parsed.ok) return parsed;
   const warnings = [];
-  if (!dailyUsage.ok) warnings.push(dailyUsage.errorCode || 'cursor.daily-usage.failed');
-  if (!spend.ok) warnings.push(spend.errorCode || 'cursor.spend.failed');
+  if (!dailyOk) warnings.push(dailyErrorCode || 'cursor.daily-usage.failed');
+  if (!spendOk) warnings.push(spendErrorCode || 'cursor.spend.failed');
   if (warnings.length) {
     parsed.warningCode = warnings[0];
     parsed.warningCodes = warnings;
   }
   return parsed;
+}
+
+export async function fetchCursorUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+  const fetched = await fetchCursorData({ apiKey, now, fetchImpl });
+  if (!fetched.ok) return fetched;
+  return parseCursorResponse(fetched.data, fetched.meta);
 }
 
 export function parseCursorUsage({ daily = null, spend = null } = {}, { range = currentMonthRange() } = {}) {

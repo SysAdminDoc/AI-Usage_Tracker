@@ -12,7 +12,7 @@ import { estimateTokenCost } from '../lib/pricing.js';
 export const ANTHROPIC_API_USAGE_URL = 'https://api.anthropic.com/v1/organizations/usage_report/messages';
 export const ANTHROPIC_API_COST_URL = 'https://api.anthropic.com/v1/organizations/cost_report';
 
-export async function fetchAnthropicUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+export async function fetchAnthropicData({ apiKey, now = new Date(), fetchImpl = null } = {}) {
   if (!String(apiKey || '').trim()) return apiFailure('anthropic-api', 'credentials.missing', 'credential-not-configured');
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return apiFailure('anthropic-api', 'fetch.unavailable', 'fetch-unavailable');
@@ -52,29 +52,56 @@ export async function fetchAnthropicUsage({ apiKey, now = new Date(), fetchImpl 
     });
   }
 
-  let parsed = parseAnthropicUsage(usage.ok ? usage.data : { data: [] }, {
-    costs: costs.ok ? costs.data : null,
+  return {
+    ok: true,
+    provider: 'anthropic-api',
+    data: {
+      usage: usage.ok ? usage.data : { data: [] },
+      costs: costs.ok ? costs.data : null,
+    },
+    meta: {
+      range,
+      usageOk: usage.ok,
+      costsOk: costs.ok,
+      usageErrorCode: usage.errorCode || null,
+      costsErrorCode: costs.errorCode || null,
+      usageTruncated: usage.truncated === true,
+      costsTruncated: costs.truncated === true,
+    },
+  };
+}
+
+export function parseAnthropicResponse(data, { range = currentMonthRange(), usageOk = true, costsOk = true,
+  usageErrorCode = null, costsErrorCode = null, usageTruncated = false, costsTruncated = false } = {}) {
+  let parsed = parseAnthropicUsage(data?.usage || { data: [] }, {
+    costs: data?.costs || null,
     range,
   });
-  if (!parsed.ok && costs.ok) parsed = parseAnthropicCostsOnly(costs.data, { range });
+  if (!parsed.ok && data?.costs) parsed = parseAnthropicCostsOnly(data.costs, { range });
   if (!parsed.ok) {
     return {
       ...parsed,
-      usageErrorCode: usage.errorCode || null,
-      costsErrorCode: costs.errorCode || null,
+      usageErrorCode,
+      costsErrorCode,
     };
   }
 
   const warnings = [];
-  if (!usage.ok) warnings.push(usage.errorCode || 'anthropic-api.usage.failed');
-  if (!costs.ok) warnings.push(costs.errorCode || 'anthropic-api.costs.failed');
-  if (usage.truncated) warnings.push('anthropic-api.usage.pagination-truncated');
-  if (costs.truncated) warnings.push('anthropic-api.costs.pagination-truncated');
+  if (!usageOk) warnings.push(usageErrorCode || 'anthropic-api.usage.failed');
+  if (!costsOk) warnings.push(costsErrorCode || 'anthropic-api.costs.failed');
+  if (usageTruncated) warnings.push('anthropic-api.usage.pagination-truncated');
+  if (costsTruncated) warnings.push('anthropic-api.costs.pagination-truncated');
   if (warnings.length) {
     parsed.warningCode = warnings[0];
     parsed.warningCodes = warnings;
   }
   return parsed;
+}
+
+export async function fetchAnthropicUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+  const fetched = await fetchAnthropicData({ apiKey, now, fetchImpl });
+  if (!fetched.ok) return fetched;
+  return parseAnthropicResponse(fetched.data, fetched.meta);
 }
 
 export function parseAnthropicUsage(data, {

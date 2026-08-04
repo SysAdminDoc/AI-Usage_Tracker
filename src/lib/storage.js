@@ -5,6 +5,7 @@
 import { SUPPORTED_HOSTS } from './hosts.js';
 import { invokeWebExtension } from './browser.js';
 import { isTrackerState } from './type-guards.js';
+import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 
 const LEGACY_STORE_KEY = 'aut.state.v1';
 export const PROFILE_REGISTRY_KEY = 'aut.profiles.v1';
@@ -19,7 +20,7 @@ export const SYNC_SETTINGS_SCHEMA = 'ai-usage-tracker.sync-settings';
 export const SYNC_SETTINGS_VERSION = 1;
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
-export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini', 'openrouter']);
+export const API_CREDENTIAL_PROVIDERS = API_PROVIDER_IDS;
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
 

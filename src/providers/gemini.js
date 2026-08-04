@@ -10,7 +10,7 @@ export const GEMINI_MONITORING_BASE_URL = 'https://monitoring.googleapis.com/v3/
 export const GEMINI_OUTPUT_TOKEN_METRIC = 'generativelanguage.googleapis.com/generate_content_usage_output_token_count';
 export const GEMINI_REQUEST_USAGE_METRIC = 'generativelanguage.googleapis.com/quota/generate_requests_per_model/usage';
 
-export async function fetchGeminiUsage({ apiKey, projectId, now = new Date(), fetchImpl = null } = {}) {
+export async function fetchGeminiData({ apiKey, projectId, now = new Date(), fetchImpl = null } = {}) {
   const token = String(apiKey || '').trim();
   if (!token) return apiFailure('gemini', 'credentials.missing', 'credential-not-configured');
   const project = normalizeProjectId(projectId);
@@ -35,19 +35,42 @@ export async function fetchGeminiUsage({ apiKey, projectId, now = new Date(), fe
     });
   }
 
-  const parsed = parseGeminiUsage({
-    output: output.ok ? output.data : null,
-    requests: requests.ok ? requests.data : null,
-  }, { range, projectId: project });
+  return {
+    ok: true,
+    provider: 'gemini',
+    data: {
+      output: output.ok ? output.data : null,
+      requests: requests.ok ? requests.data : null,
+    },
+    meta: {
+      range,
+      projectId: project,
+      outputOk: output.ok,
+      requestsOk: requests.ok,
+      outputErrorCode: output.errorCode || null,
+      requestsErrorCode: requests.errorCode || null,
+    },
+  };
+}
+
+export function parseGeminiResponse(data, { range = currentMonthRange(), projectId = '', outputOk = true,
+  requestsOk = true, outputErrorCode = null, requestsErrorCode = null } = {}) {
+  const parsed = parseGeminiUsage(data || {}, { range, projectId });
   if (!parsed.ok) return parsed;
   const warnings = [];
-  if (!output.ok) warnings.push(output.errorCode || 'gemini.output.failed');
-  if (!requests.ok) warnings.push(requests.errorCode || 'gemini.requests.failed');
+  if (!outputOk) warnings.push(outputErrorCode || 'gemini.output.failed');
+  if (!requestsOk) warnings.push(requestsErrorCode || 'gemini.requests.failed');
   if (warnings.length) {
     parsed.warningCode = warnings[0];
     parsed.warningCodes = warnings;
   }
   return parsed;
+}
+
+export async function fetchGeminiUsage({ apiKey, projectId, now = new Date(), fetchImpl = null } = {}) {
+  const fetched = await fetchGeminiData({ apiKey, projectId, now, fetchImpl });
+  if (!fetched.ok) return fetched;
+  return parseGeminiResponse(fetched.data, fetched.meta);
 }
 
 export function parseGeminiUsage({ output = null, requests = null } = {}, {

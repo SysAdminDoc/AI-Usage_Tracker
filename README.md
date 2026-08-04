@@ -34,6 +34,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Cursor team analytics** — optionally store a Cursor team admin API key locally to show official daily request totals and current-cycle spend with provider freshness diagnostics.
 - **Gemini token analytics** — optionally store a Google Cloud monitoring OAuth token and project ID locally to show official Gemini output-token and request usage without a cloud relay.
 - **OpenRouter credits and usage** — optionally store an OpenRouter key locally to show official key limits, monthly usage, remaining credits, and refresh diagnostics.
+- **Provider plugin contract** — API providers use a versioned `auth` → `fetch` → `parse` → `normalize` registry seam, so new integrations can add fixture-backed adapters without expanding the service worker's dispatch table.
 - **Claude context counter** — estimates the visible conversation plus draft prompt against the 200k context window and shows a compact progress bar in the widget.
 - **Claude cache timer** — starts a five-minute follow-up countdown from streamed `message_limit` events, with explicit cache expiry support if Claude publishes it.
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
@@ -153,6 +154,10 @@ npm test
 Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency. `npm test` runs isolated linkedom UI permutations plus Chrome callback/Firefox promise WebExtension contract fixtures, so UI and runtime compatibility checks do not open a browser window.
 
 The model boundary is also checked with TypeScript 7 in strict mode: provider snapshots, settings, history samples, and tracker-state guards compile before tests and release packaging.
+
+### API provider plugins
+
+API-key providers are registered in `src/providers/registry.js` through the versioned contract in `src/providers/plugin-api.js`. A plugin's `auth({ credential, settings, now })` phase validates local configuration and creates a request-only auth context; `fetch({ auth, settings, now, fetchImpl })` returns `{ ok, data, meta }`; `parse(data, context)` turns provider payloads into a snapshot candidate; and `normalize(snapshot, context)` enforces the shared bucket shape before storage. The credential is withheld from parse and normalize contexts, and fixture tests exercise all built-in registrations plus a secret-boundary plugin.
 
 The host matrix is checked at test and build time: wildcard content scripts cover `claude.ai` and `chatgpt.com` subdomains, while host permissions and web-accessible resources remain apex-only. The userscript metadata and runtime predicates use the same two-provider contract. The DOM safety audit rejects direct HTML sinks in UI modules and only permits reviewed static icon markup through the guarded helper.
 

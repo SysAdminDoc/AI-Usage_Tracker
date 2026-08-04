@@ -7,7 +7,7 @@ import {
 export const GITHUB_COPILOT_API_VERSION = '2026-03-10';
 export const GITHUB_COPILOT_SEAT_URL = 'https://api.github.com/orgs';
 
-export async function fetchGitHubCopilotUsage({
+export async function fetchGitHubCopilotData({
   apiKey,
   organization,
   username,
@@ -33,7 +33,23 @@ export async function fetchGitHubCopilotUsage({
     },
   }, 'github-copilot', 'seat');
   if (!response.ok) return response;
-  return parseGitHubCopilotUsage(response.data, { organization: org, username: user });
+  return {
+    ok: true,
+    provider: 'github-copilot',
+    data: response.data,
+    meta: { organization: org, username: user },
+  };
+}
+
+export async function fetchGitHubCopilotUsage({
+  apiKey,
+  organization,
+  username,
+  fetchImpl = null,
+} = {}) {
+  const fetched = await fetchGitHubCopilotData({ apiKey, organization, username, fetchImpl });
+  if (!fetched.ok) return fetched;
+  return parseGitHubCopilotUsage(fetched.data, fetched.meta);
 }
 
 export function parseGitHubCopilotUsage(data, { organization = '', username = '' } = {}) {

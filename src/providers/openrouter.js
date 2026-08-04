@@ -8,7 +8,7 @@ import {
 export const OPENROUTER_KEY_URL = 'https://openrouter.ai/api/v1/key';
 export const OPENROUTER_CREDITS_URL = 'https://openrouter.ai/api/v1/credits';
 
-export async function fetchOpenRouterUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+export async function fetchOpenRouterData({ apiKey, now = new Date(), fetchImpl = null } = {}) {
   const token = String(apiKey || '').trim();
   if (!token) return apiFailure('openrouter', 'credentials.missing', 'credential-not-configured');
   const doFetch = resolveFetch(fetchImpl);
@@ -30,19 +30,41 @@ export async function fetchOpenRouterUsage({ apiKey, now = new Date(), fetchImpl
     });
   }
 
-  const parsed = parseOpenRouterUsage({
-    key: key.ok ? key.data : null,
-    credits: credits.ok ? credits.data : null,
-  }, { now });
+  return {
+    ok: true,
+    provider: 'openrouter',
+    data: {
+      key: key.ok ? key.data : null,
+      credits: credits.ok ? credits.data : null,
+    },
+    meta: {
+      keyOk: key.ok,
+      creditsOk: credits.ok,
+      keyErrorCode: key.errorCode || null,
+      creditsErrorCode: credits.errorCode || null,
+      now,
+    },
+  };
+}
+
+export function parseOpenRouterResponse(data, { now = new Date(), keyOk = true, creditsOk = true,
+  keyErrorCode = null, creditsErrorCode = null } = {}) {
+  const parsed = parseOpenRouterUsage(data || {}, { now });
   if (!parsed.ok) return parsed;
   const warnings = [];
-  if (!key.ok) warnings.push(key.errorCode || 'openrouter.key.failed');
-  if (!credits.ok) warnings.push(credits.errorCode || 'openrouter.credits.failed');
+  if (!keyOk) warnings.push(keyErrorCode || 'openrouter.key.failed');
+  if (!creditsOk) warnings.push(creditsErrorCode || 'openrouter.credits.failed');
   if (warnings.length) {
     parsed.warningCode = warnings[0];
     parsed.warningCodes = warnings;
   }
   return parsed;
+}
+
+export async function fetchOpenRouterUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+  const fetched = await fetchOpenRouterData({ apiKey, now, fetchImpl });
+  if (!fetched.ok) return fetched;
+  return parseOpenRouterResponse(fetched.data, fetched.meta);
 }
 
 export function parseOpenRouterUsage({ key = null, credits = null } = {}, { now = new Date() } = {}) {

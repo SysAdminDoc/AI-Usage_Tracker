@@ -21,12 +21,8 @@ import { pushSnapshot } from './lib/bridge.js';
 import { updateToolbarBadge } from './lib/badge.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
 import { loadApiCredential } from './lib/storage.js';
-import { fetchAnthropicUsage } from './providers/anthropic.js';
-import { fetchOpenAIUsage } from './providers/openai.js';
-import { fetchGitHubCopilotUsage } from './providers/github-copilot.js';
-import { fetchCursorUsage } from './providers/cursor.js';
-import { fetchGeminiUsage } from './providers/gemini.js';
-import { fetchOpenRouterUsage } from './providers/openrouter.js';
+import { API_PROVIDER_IDS } from './providers/api-contract.js';
+import { fetchProviderUsage } from './providers/registry.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -110,61 +106,33 @@ async function reschedule() {
 async function refreshNow({ allowSilentTab = false } = {}) {
   const now = new Date();
   let state = (await loadState()) || defaultState();
-  const [anthropicKey, openAIKey, githubCopilotKey, cursorKey, geminiKey, openRouterKey] = await Promise.all([
-    loadApiCredential('anthropic-api'),
-    loadApiCredential('openai-api'),
-    loadApiCredential('github-copilot'),
-    loadApiCredential('cursor'),
-    loadApiCredential('gemini'),
-    loadApiCredential('openrouter'),
-  ]);
+  const apiCredentials = await Promise.all(API_PROVIDER_IDS.map((provider) => loadApiCredential(provider)));
 
   // 1) Best-effort direct fetch. If either side is SSR'd we get a free win.
-  const [claude, codex, anthropic, openAI, githubCopilot, cursor, gemini, openRouter] = await Promise.all([
+  const [claude, codex] = await Promise.all([
     fetchClaude({ now }).catch((e) => ({ ok: false, provider: 'claude', error: String(e) })),
     fetchCodex({ now }).catch((e) =>  ({ ok: false, provider: 'codex',  error: String(e) })),
-    anthropicKey ? fetchAnthropicUsage({ apiKey: anthropicKey, now }).catch((e) => ({
-      ok: false, provider: 'anthropic-api', error: 'api-refresh-failed', errorCode: 'anthropic-api.refresh.failed',
-    })) : null,
-    openAIKey ? fetchOpenAIUsage({ apiKey: openAIKey, now }).catch((e) => ({
-      ok: false, provider: 'openai-api', error: 'api-refresh-failed', errorCode: 'openai-api.refresh.failed',
-    })) : null,
-    githubCopilotKey ? fetchGitHubCopilotUsage({
-      apiKey: githubCopilotKey,
-      organization: state.settings?.githubCopilotOrganization,
-      username: state.settings?.githubCopilotUsername,
-      now,
-    }).catch((e) => ({
-      ok: false, provider: 'github-copilot', error: 'api-refresh-failed', errorCode: 'github-copilot.refresh.failed',
-    })) : null,
-    cursorKey ? fetchCursorUsage({ apiKey: cursorKey, now }).catch((e) => ({
-      ok: false, provider: 'cursor', error: 'api-refresh-failed', errorCode: 'cursor.refresh.failed',
-    })) : null,
-    geminiKey ? fetchGeminiUsage({
-      apiKey: geminiKey,
-      projectId: state.settings?.geminiProjectId,
-      now,
-    }).catch((e) => ({
-      ok: false, provider: 'gemini', error: 'api-refresh-failed', errorCode: 'gemini.refresh.failed',
-    })) : null,
-    openRouterKey ? fetchOpenRouterUsage({ apiKey: openRouterKey, now }).catch((e) => ({
-      ok: false, provider: 'openrouter', error: 'api-refresh-failed', errorCode: 'openrouter.refresh.failed',
-    })) : null,
   ]);
+  const apiSnapshots = await Promise.all(API_PROVIDER_IDS.map((provider, index) => {
+    const credential = apiCredentials[index];
+    if (!credential) return null;
+    return fetchProviderUsage(provider, {
+      credential,
+      settings: state.settings,
+      now,
+    }).catch(() => ({
+      ok: false,
+      provider,
+      error: 'api-refresh-failed',
+      errorCode: `${provider}.refresh.failed`,
+    }));
+  }));
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
-  if (!anthropicKey) state.snapshot.providers['anthropic-api'] = null;
-  else state = await mergeSnapshot(state, anthropic, { source: 'api-key', now });
-  if (!openAIKey) state.snapshot.providers['openai-api'] = null;
-  else state = await mergeSnapshot(state, openAI, { source: 'api-key', now });
-  if (!githubCopilotKey) state.snapshot.providers['github-copilot'] = null;
-  else state = await mergeSnapshot(state, githubCopilot, { source: 'api-key', now });
-  if (!cursorKey) state.snapshot.providers.cursor = null;
-  else state = await mergeSnapshot(state, cursor, { source: 'api-key', now });
-  if (!geminiKey) state.snapshot.providers.gemini = null;
-  else state = await mergeSnapshot(state, gemini, { source: 'api-key', now });
-  if (!openRouterKey) state.snapshot.providers.openrouter = null;
-  else state = await mergeSnapshot(state, openRouter, { source: 'api-key', now });
+  for (const [index, provider] of API_PROVIDER_IDS.entries()) {
+    if (!apiCredentials[index]) state.snapshot.providers[provider] = null;
+    else state = await mergeSnapshot(state, apiSnapshots[index], { source: 'api-key', now });
+  }
 
   // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
   if (allowSilentTab && state.settings?.silentTabRefresh === true) {

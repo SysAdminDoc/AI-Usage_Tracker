@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Provider plugin API
-  Why: Provider count will grow faster than core maintainers can safely ship if every provider is hard-coded.
-  Evidence: CodexBar and OpenUsage provider breadth; current provider logic is centralized.
-  Touches: `src/providers`, `src/background.js`, `src/lib/storage.js`, tests
-  Acceptance: Providers expose documented `auth`, `fetch`, `parse`, and `normalize` contracts with fixture tests.
-  Complexity: XL
-
 - [ ] P3 — Webhook on notification rule fire
   Why: Power users may want Slack, Discord, or generic POST alerts when quota thresholds trip.
   Evidence: Existing Later item; commercial tools emphasize proactive alerts.

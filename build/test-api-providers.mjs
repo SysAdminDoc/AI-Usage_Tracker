@@ -135,13 +135,23 @@ const openRouterCreditsFixture = {
   },
 };
 
-const { fetchAnthropicUsage, parseAnthropicUsage } = await import('../src/providers/anthropic.js');
-const { fetchOpenAIUsage, parseOpenAIUsage } = await import('../src/providers/openai.js');
-const { fetchGitHubCopilotUsage, parseGitHubCopilotUsage } = await import('../src/providers/github-copilot.js');
-const { fetchCursorUsage, parseCursorUsage } = await import('../src/providers/cursor.js');
-const { fetchGeminiUsage, parseGeminiUsage } = await import('../src/providers/gemini.js');
-const { fetchOpenRouterUsage, parseOpenRouterUsage } = await import('../src/providers/openrouter.js');
-const { readJSONPages } = await import('../src/providers/api-contract.js?pagination-test');
+const { parseAnthropicUsage } = await import('../src/providers/anthropic.js');
+const { parseOpenAIUsage } = await import('../src/providers/openai.js');
+const { parseGitHubCopilotUsage } = await import('../src/providers/github-copilot.js');
+const { parseCursorUsage } = await import('../src/providers/cursor.js');
+const { parseGeminiUsage } = await import('../src/providers/gemini.js');
+const { parseOpenRouterUsage } = await import('../src/providers/openrouter.js');
+const { API_PROVIDER_IDS, readJSONPages } = await import('../src/providers/api-contract.js?pagination-test');
+const {
+  fetchProviderUsage,
+  getProviderPlugin,
+  listProviderPlugins,
+} = await import('../src/providers/registry.js?plugin-contract-test');
+const {
+  defineProviderPlugin,
+  normalizeProviderSnapshot,
+  runProviderPlugin,
+} = await import('../src/providers/plugin-api.js?plugin-contract-test');
 const {
   exportSettings,
   defaultState,
@@ -152,9 +162,41 @@ const {
 } = await import('../src/lib/storage.js?api-provider-test');
 
 const fixedNow = new Date('2026-08-03T12:00:00.000Z');
+assert.deepEqual(listProviderPlugins().map((plugin) => plugin.id), API_PROVIDER_IDS);
+for (const plugin of listProviderPlugins()) {
+  assert.equal(typeof plugin.auth, 'function');
+  assert.equal(typeof plugin.fetch, 'function');
+  assert.equal(typeof plugin.parse, 'function');
+  assert.equal(typeof plugin.normalize, 'function');
+  assert.equal(getProviderPlugin(plugin.id), plugin);
+}
+let fixtureParseSawSecret = false;
+const fixturePlugin = defineProviderPlugin({
+  id: 'fixture-provider',
+  meta: { label: 'Fixture provider' },
+  auth: ({ credential }) => ({ ok: true, provider: 'fixture-provider', apiKey: credential, scope: 'fixture' }),
+  fetch: ({ auth }) => ({ ok: true, provider: 'fixture-provider', data: { value: 3 }, meta: { source: 'fixture' } }),
+  parse: (data, context) => {
+    fixtureParseSawSecret = context.auth?.apiKey != null;
+    return {
+      ok: true,
+      provider: 'fixture-provider',
+      source: 'api-key',
+      buckets: [{
+        id: 'fixture-row', label: `Value ${data.value}`, kind: 'api', model: null,
+        percentUsed: data.value, resetISO: null, metric: { kind: 'requests', requests: data.value },
+      }],
+    };
+  },
+  normalize: (snapshot) => normalizeProviderSnapshot(snapshot, 'fixture-provider'),
+});
+const fixtureResult = await runProviderPlugin(fixturePlugin, { credential: 'fixture-secret' });
+assert.equal(fixtureResult.ok, true);
+assert.equal(fixtureResult.buckets[0].metric.requests, 3);
+assert.equal(fixtureParseSawSecret, false);
 let anthropicRequests = [];
-const anthropic = await fetchAnthropicUsage({
-  apiKey: 'sk-ant-test-secret',
+const anthropic = await fetchProviderUsage('anthropic-api', {
+  credential: 'sk-ant-test-secret',
   now: fixedNow,
   fetchImpl: async (url, options) => {
     anthropicRequests.push({ url, options });
@@ -174,8 +216,8 @@ assert.ok(anthropicRequests.some(({ url }) => /cost_report/.test(url)));
 assert.ok(anthropicRequests.some(({ url }) => url.includes('group_by%5B%5D=description')));
 
 let openAIRequests = [];
-const openAI = await fetchOpenAIUsage({
-  apiKey: 'sk-admin-test-secret',
+const openAI = await fetchProviderUsage('openai-api', {
+  credential: 'sk-admin-test-secret',
   now: fixedNow,
   fetchImpl: async (url, options) => {
     openAIRequests.push({ url, options });
@@ -233,10 +275,9 @@ assert.equal(paginationRequests.length, 2);
 assert.match(paginationRequests[1], /page=opaque-next-token/);
 
 let copilotRequest;
-const copilot = await fetchGitHubCopilotUsage({
-  apiKey: 'github-token-never-export-this',
-  organization: 'acme-tools',
-  username: 'octocat',
+const copilot = await fetchProviderUsage('github-copilot', {
+  credential: 'github-token-never-export-this',
+  settings: { githubCopilotOrganization: 'acme-tools', githubCopilotUsername: 'octocat' },
   fetchImpl: async (url, options) => {
     copilotRequest = { url, options };
     return { ok: true, status: 200, json: async () => copilotSeatFixture };
@@ -254,8 +295,8 @@ assert.equal(parseGitHubCopilotUsage({}, { organization: 'acme', username: 'user
 assert.equal((await getApiCredentialStatus())['github-copilot'].configured, false);
 
 let cursorRequests = [];
-const cursor = await fetchCursorUsage({
-  apiKey: 'key_cursor-test-secret',
+const cursor = await fetchProviderUsage('cursor', {
+  credential: 'key_cursor-test-secret',
   now: fixedNow,
   fetchImpl: async (url, options) => {
     cursorRequests.push({ url, options });
@@ -283,9 +324,9 @@ assert.equal(parseCursorUsage({ daily: {}, spend: {} }).ok, false);
 assert.equal((await getApiCredentialStatus()).cursor.configured, false);
 
 let geminiRequests = [];
-const gemini = await fetchGeminiUsage({
-  apiKey: 'ya29-gemini-test-token',
-  projectId: 'my-gemini-project',
+const gemini = await fetchProviderUsage('gemini', {
+  credential: 'ya29-gemini-test-token',
+  settings: { geminiProjectId: 'my-gemini-project' },
   now: fixedNow,
   fetchImpl: async (url, options) => {
     geminiRequests.push({ url, options });
@@ -311,8 +352,8 @@ assert.equal(parseGeminiUsage({ output: {}, requests: {} }).ok, false);
 assert.equal((await getApiCredentialStatus()).gemini.configured, false);
 
 let openRouterRequests = [];
-const openRouter = await fetchOpenRouterUsage({
-  apiKey: 'sk-or-v1-test-secret',
+const openRouter = await fetchProviderUsage('openrouter', {
+  credential: 'sk-or-v1-test-secret',
   now: fixedNow,
   fetchImpl: async (url, options) => {
     openRouterRequests.push({ url, options });

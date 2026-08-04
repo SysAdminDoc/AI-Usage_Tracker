@@ -12,7 +12,7 @@ import { estimateTokenCost } from '../lib/pricing.js';
 export const OPENAI_USAGE_URL = 'https://api.openai.com/v1/organization/usage/completions';
 export const OPENAI_COSTS_URL = 'https://api.openai.com/v1/organization/costs';
 
-export async function fetchOpenAIUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+export async function fetchOpenAIData({ apiKey, now = new Date(), fetchImpl = null } = {}) {
   if (!String(apiKey || '').trim()) return apiFailure('openai-api', 'credentials.missing', 'credential-not-configured');
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return apiFailure('openai-api', 'fetch.unavailable', 'fetch-unavailable');
@@ -46,26 +46,53 @@ export async function fetchOpenAIUsage({ apiKey, now = new Date(), fetchImpl = n
     });
   }
 
-  const parsed = parseOpenAIUsage(usage.ok ? usage.data : { data: [] }, {
-    costs: costs.ok ? costs.data : null,
+  return {
+    ok: true,
+    provider: 'openai-api',
+    data: {
+      usage: usage.ok ? usage.data : { data: [] },
+      costs: costs.ok ? costs.data : null,
+    },
+    meta: {
+      range,
+      usageOk: usage.ok,
+      costsOk: costs.ok,
+      usageErrorCode: usage.errorCode || null,
+      costsErrorCode: costs.errorCode || null,
+      usageTruncated: usage.truncated === true,
+      costsTruncated: costs.truncated === true,
+    },
+  };
+}
+
+export function parseOpenAIResponse(data, { range = currentMonthRange(), usageOk = true, costsOk = true,
+  usageErrorCode = null, costsErrorCode = null, usageTruncated = false, costsTruncated = false } = {}) {
+  const parsed = parseOpenAIUsage(data?.usage || { data: [] }, {
+    costs: data?.costs || null,
     range,
   });
-  if (!parsed.ok && costs.ok) return parseOpenAICostsOnly(costs.data, { range });
+  if (!parsed.ok && data?.costs) return parseOpenAICostsOnly(data.costs, { range });
   if (!parsed.ok) return {
     ...parsed,
-    usageErrorCode: usage.errorCode || null,
-    costsErrorCode: costs.errorCode || null,
+    usageErrorCode,
+    costsErrorCode,
   };
-  if (!usage.ok) parsed.warningCode = usage.errorCode || 'openai-api.usage.failed';
-  if (!costs.ok) parsed.warningCode = costs.errorCode || 'openai-api.costs.failed';
+  if (!usageOk) parsed.warningCode = usageErrorCode || 'openai-api.usage.failed';
+  if (!costsOk) parsed.warningCode = costsErrorCode || 'openai-api.costs.failed';
   const paginationWarnings = [];
-  if (usage.truncated) paginationWarnings.push('openai-api.usage.pagination-truncated');
-  if (costs.truncated) paginationWarnings.push('openai-api.costs.pagination-truncated');
+  if (usageTruncated) paginationWarnings.push('openai-api.usage.pagination-truncated');
+  if (costsTruncated) paginationWarnings.push('openai-api.costs.pagination-truncated');
   if (paginationWarnings.length) {
     parsed.warningCode = parsed.warningCode || paginationWarnings[0];
     parsed.warningCodes = [...(parsed.warningCodes || []), ...paginationWarnings];
   }
   return parsed;
+}
+
+export async function fetchOpenAIUsage({ apiKey, now = new Date(), fetchImpl = null } = {}) {
+  const fetched = await fetchOpenAIData({ apiKey, now, fetchImpl });
+  if (!fetched.ok) return fetched;
+  return parseOpenAIResponse(fetched.data, fetched.meta);
 }
 
 export function parseOpenAIUsage(data, { costs = null, range = currentMonthRange() } = {}) {
