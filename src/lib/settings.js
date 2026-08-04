@@ -37,6 +37,7 @@ export function normalizeSettings(input = {}) {
     'anthropic-api': next.showProviders?.['anthropic-api'] !== false,
     'openai-api': next.showProviders?.['openai-api'] !== false,
     'github-copilot': next.showProviders?.['github-copilot'] !== false,
+    cursor: next.showProviders?.cursor !== false,
   };
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
@@ -76,6 +77,7 @@ function providerLabel(provider) {
   if (provider === 'anthropic-api') return 'Anthropic API';
   if (provider === 'openai-api') return 'OpenAI API';
   if (provider === 'github-copilot') return 'GitHub Copilot';
+  if (provider === 'cursor') return 'Cursor';
   return String(provider);
 }
 

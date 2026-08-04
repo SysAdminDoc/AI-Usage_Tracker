@@ -1,4 +1,4 @@
-export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot';
+export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot' | 'cursor';
 
 export type UsageSource = 'api' | 'dom' | 'html' | 'live' | 'fetch' | 'stream' | 'headers' | string;
 
@@ -11,7 +11,7 @@ export interface QuotaBucket {
   resetISO: string | null;
   rawResetText?: string | null;
   metric?: {
-    kind: 'tokens' | 'currency' | string;
+    kind: 'tokens' | 'currency' | 'requests' | string;
     totalTokens?: number;
     inputTokens?: number;
     outputTokens?: number;
@@ -20,7 +20,13 @@ export interface QuotaBucket {
     cacheCreationTokens?: number;
     requests?: number;
     costUSD?: number;
-    [key: string]: number | string | undefined;
+    activeDays?: number;
+    subscriptionIncludedReqs?: number;
+    usageBasedReqs?: number;
+    apiKeyReqs?: number;
+    memberCount?: number;
+    lastActivityISO?: string | null;
+    [key: string]: number | string | null | undefined;
   };
   dimensions?: Record<string, string | null>;
 }

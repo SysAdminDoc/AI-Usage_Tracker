@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Cursor provider
-  Why: Cursor usage and cost visibility appears repeatedly in adjacent commercial trackers.
-  Evidence: OpenUsage, CodexBar, Tokens 4 Breakfast, TokenWatch.
-  Touches: provider modules, auth settings, popup/options rows
-  Acceptance: Cursor usage appears as a separate provider with source/freshness diagnostics and opt-in auth.
-  Complexity: L
-
 - [ ] P3 — Gemini provider
   Why: Gemini is part of the multi-provider developer spend set.
   Evidence: OpenUsage, CodexBar, Tokens 4 Breakfast.

@@ -32,6 +32,7 @@ export async function validateHostMatrix() {
     'https://api.anthropic.com/*',
     'https://api.openai.com/*',
     'https://api.github.com/*',
+    'https://api.cursor.com/*',
   ];
 
   for (const [target, manifest] of [['chrome', chrome], ['firefox', firefox]]) {

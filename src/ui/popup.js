@@ -460,6 +460,9 @@ function renderMetric(metric, i18n) {
 function formatMetricValue(metric, i18n) {
   const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
   if (metric.kind === 'activity') return metric.active ? 'Active' : 'No activity';
+  if (metric.kind === 'requests') {
+    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(metric.requests) || 0)} requests`;
+  }
   if (metric.kind === 'currency') {
     return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
       .format(Number(metric.costUSD) || 0);
@@ -475,6 +478,14 @@ function formatMetricDetail(metric, i18n) {
     if (metric.lastActivityISO) parts.push(`Last activity ${i18n.formatDateTime(metric.lastActivityISO)}`);
     if (metric.lastActivityEditor) parts.push(metric.lastActivityEditor);
     return parts.join(' · ') || 'No Copilot activity reported';
+  }
+  if (metric.kind === 'requests') {
+    if (metric.subscriptionIncludedReqs != null) parts.push(`${number(metric.subscriptionIncludedReqs)} included`);
+    if (metric.usageBasedReqs != null) parts.push(`${number(metric.usageBasedReqs)} usage-based`);
+    if (metric.apiKeyReqs != null) parts.push(`${number(metric.apiKeyReqs)} API key`);
+    if (metric.activeDays != null) parts.push(`${number(metric.activeDays)} active days`);
+    if (metric.lastActivityISO) parts.push(`Last activity ${i18n.formatDateTime(metric.lastActivityISO)}`);
+    return parts.join(' · ') || `${number(metric.requests)} requests`;
   }
   if (metric.inputTokens != null) parts.push(`${number(metric.inputTokens)} in`);
   if (metric.outputTokens != null) parts.push(`${number(metric.outputTokens)} out`);

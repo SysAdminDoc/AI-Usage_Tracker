@@ -79,6 +79,7 @@ function sanitizeMetric(metric) {
   for (const key of [
     'totalTokens', 'inputTokens', 'outputTokens', 'cachedInputTokens',
     'cacheReadTokens', 'cacheCreationTokens', 'requests', 'webSearchRequests', 'costUSD',
+    'activeDays', 'subscriptionIncludedReqs', 'usageBasedReqs', 'apiKeyReqs', 'memberCount',
   ]) {
     if (Number.isFinite(Number(metric[key]))) safe[key] = Number(metric[key]);
   }

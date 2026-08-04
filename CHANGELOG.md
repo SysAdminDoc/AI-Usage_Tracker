@@ -26,6 +26,7 @@
 - Chromium split-incognito windows now use separate prefixed profile/state/credential keys and expose an Incognito marker; the Firefox package fails closed with private-window access disabled.
 - Settings now offer an explicit browser-sync opt-in with a versioned allowlist limited to non-sensitive preferences; history, provider snapshots, credentials, and bridge data stay local.
 - Optional GitHub Copilot provider support now stores a token locally and shows official organization-member seat activity with an explicit organization/username configuration.
+- Optional Cursor provider support now stores a team admin API key locally and shows official daily request totals, current-cycle spend, and source/freshness diagnostics.
 - README now includes current widget, popup, settings, first-run, degraded-state, and animated product captures.
 
 ### Fixed

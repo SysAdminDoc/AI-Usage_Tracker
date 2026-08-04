@@ -53,9 +53,37 @@ const copilotSeatFixture = {
   assignee: { login: 'octocat' },
 };
 
+const cursorDailyFixture = {
+  data: [{
+    date: 1785758400000,
+    isActive: true,
+    subscriptionIncludedReqs: 12,
+    apiKeyReqs: 1,
+    usageBasedReqs: 3,
+    agentRequests: 10,
+    mostUsedModel: 'composer-2',
+  }],
+  period: { startDate: 1785542400000, endDate: 1785782400000 },
+};
+
+const cursorSpendFixture = {
+  teamMemberSpend: [{
+    spendCents: 2450,
+    fastPremiumRequests: 4,
+    name: 'Alex',
+    email: 'alex@example.com',
+    role: 'owner',
+    hardLimitOverrideDollars: 100,
+  }],
+  subscriptionCycleStart: 1785542400000,
+  totalMembers: 1,
+  totalPages: 1,
+};
+
 const { fetchAnthropicUsage, parseAnthropicUsage } = await import('../src/providers/anthropic.js');
 const { fetchOpenAIUsage, parseOpenAIUsage } = await import('../src/providers/openai.js');
 const { fetchGitHubCopilotUsage, parseGitHubCopilotUsage } = await import('../src/providers/github-copilot.js');
+const { fetchCursorUsage, parseCursorUsage } = await import('../src/providers/cursor.js');
 const {
   exportSettings,
   defaultState,
@@ -138,6 +166,35 @@ assert.equal(copilotRequest.options.headers.Authorization, 'Bearer github-token-
 assert.equal(copilotRequest.options.headers['X-GitHub-Api-Version'], '2026-03-10');
 assert.equal(parseGitHubCopilotUsage({}, { organization: 'acme', username: 'user' }).ok, false);
 assert.equal((await getApiCredentialStatus())['github-copilot'].configured, false);
+
+let cursorRequests = [];
+const cursor = await fetchCursorUsage({
+  apiKey: 'key_cursor-test-secret',
+  now: fixedNow,
+  fetchImpl: async (url, options) => {
+    cursorRequests.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => url.includes('/teams/spend') ? cursorSpendFixture : cursorDailyFixture,
+    };
+  },
+});
+assert.equal(cursor.ok, true);
+assert.equal(cursor.provider, 'cursor');
+assert.equal(cursor.plan, 'Cursor team');
+assert.equal(cursor.totals.spendUSD, 24.5);
+assert.equal(cursor.totals.premiumRequests, 4);
+assert.equal(cursor.buckets.find((bucket) => bucket.id === 'cursor-requests').metric.requests, 16);
+assert.equal(cursor.buckets.find((bucket) => bucket.id === 'cursor-spend').metric.costUSD, 24.5);
+assert.match(cursor.buckets[0].resetISO, /^2026-09-01/);
+assert.equal(cursorRequests.length, 2);
+assert.ok(cursorRequests.every(({ options }) => options.method === 'POST'));
+assert.ok(cursorRequests.every(({ options }) => options.headers.Authorization === `Basic ${Buffer.from('key_cursor-test-secret:').toString('base64')}`));
+assert.ok(cursorRequests.some(({ url }) => url.endsWith('/teams/daily-usage-data')));
+assert.ok(cursorRequests.some(({ url }) => url.endsWith('/teams/spend')));
+assert.equal(parseCursorUsage({ daily: {}, spend: {} }).ok, false);
+assert.equal((await getApiCredentialStatus()).cursor.configured, false);
 
 globalThis.__AUT_ALLOW_LOCALSTORAGE__ = true;
 const backing = new Map();

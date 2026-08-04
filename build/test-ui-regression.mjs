@@ -83,6 +83,11 @@ try {
   assert.match(document.querySelector('.popup-provider').textContent, /Active|Last activity/,
     'popup should render Copilot seat activity metrics');
 
+  await saveState(makeState({ cursor: cursorProvider() }));
+  await popup.render();
+  assert.match(document.querySelector('.popup-provider').textContent, /Cursor|requests|spend/i,
+    'popup should render Cursor request and spend metrics');
+
   const disabled = makeState({ claude: provider({ percentUsed: 50 }) });
   disabled.settings.showProviders = { claude: false, codex: false };
   await saveState(disabled);
@@ -141,8 +146,9 @@ try {
   const optionsWindow = installDocument(optionsMarkup, { patchForms: true });
   const options = await import('../src/ui/options.js?ui-regression');
   await options.ready;
-  assert.equal(document.querySelectorAll('[data-provider]').length, 5, 'options should render web and official API provider toggles');
+  assert.equal(document.querySelectorAll('[data-provider]').length, 6, 'options should render web and official API provider toggles');
   assert.ok(document.querySelector('[data-api-config="githubCopilotOrganization"]'), 'options should expose Copilot organization configuration');
+  assert.ok(document.querySelector('[data-api-provider="cursor"]'), 'options should expose Cursor API credentials');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
@@ -200,11 +206,11 @@ function installDocument(markup, { patchForms = false } = {}) {
   return parsed.window;
 }
 
-function makeState({ claude = null, codex = null, githubCopilot = null } = {}) {
+function makeState({ claude = null, codex = null, githubCopilot = null, cursor = null } = {}) {
   const state = defaultState();
   state.snapshot = {
     fetchedAtISO: new Date(Date.now() - 60_000).toISOString(),
-    providers: { claude, codex, 'github-copilot': githubCopilot },
+    providers: { claude, codex, 'github-copilot': githubCopilot, cursor },
   };
   return state;
 }
@@ -228,6 +234,39 @@ function copilotProvider() {
         lastActivityISO: new Date(Date.now() - 30_000).toISOString(),
         lastActivityEditor: 'vscode/copilot',
       },
+    }],
+  };
+}
+
+function cursorProvider() {
+  return {
+    ok: true,
+    provider: 'cursor',
+    source: 'api-key',
+    plan: 'Cursor team',
+    buckets: [{
+      id: 'cursor-requests',
+      label: 'Team usage requests',
+      kind: 'api',
+      model: null,
+      percentUsed: 0,
+      resetISO: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      metric: {
+        kind: 'requests',
+        requests: 16,
+        subscriptionIncludedReqs: 12,
+        usageBasedReqs: 3,
+        apiKeyReqs: 1,
+        activeDays: 1,
+      },
+    }, {
+      id: 'cursor-spend',
+      label: 'Team spend',
+      kind: 'api',
+      model: null,
+      percentUsed: 0,
+      resetISO: null,
+      metric: { kind: 'currency', costUSD: 24.5, requests: 4, memberCount: 1 },
     }],
   };
 }
