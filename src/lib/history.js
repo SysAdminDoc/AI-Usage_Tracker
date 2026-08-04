@@ -25,6 +25,52 @@ export function recordSnapshot(history, snapshot, {
   return next;
 }
 
+// Compare the newest ingest sample with a short moving average. A detector
+// only considers a sample when its timestamp is the current ingest time, so
+// an old snapshot cannot trigger a spike alert after a later settings change.
+export function detectAnomaly(history, bucketId, {
+  now = new Date(),
+  thresholdPercent = 20,
+  minSamples = 3,
+  maxSamples = 5,
+  windowMs = 48 * 60 * 60 * 1000,
+} = {}) {
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const nowTs = nowDate.getTime();
+  const sampleWindow = Math.max(1, Number(windowMs) || 48 * 60 * 60 * 1000);
+  const samples = (history || [])
+    .filter((sample) => sample?.bucketId === bucketId
+      && Number.isFinite(sample?.ts)
+      && sample.ts <= nowTs
+      && nowTs - sample.ts <= sampleWindow)
+    .sort((a, b) => a.ts - b.ts);
+
+  const latest = samples.at(-1);
+  if (!latest || latest.ts !== nowTs) return null;
+
+  const baselineLimit = Math.max(1, Math.floor(Number(maxSamples) || 5));
+  const baseline = samples
+    .filter((sample) => sample.ts < latest.ts)
+    .slice(-baselineLimit);
+  const required = Math.max(1, Math.floor(Number(minSamples) || 3));
+  if (baseline.length < required) return null;
+
+  const baselineAverage = baseline.reduce((sum, sample) => sum + clampPercent(sample.percentUsed), 0) / baseline.length;
+  const currentPercent = clampPercent(latest.percentUsed);
+  const jumpPercent = currentPercent - baselineAverage;
+  const threshold = Math.max(1, Number(thresholdPercent) || 20);
+  if (jumpPercent < threshold) return null;
+
+  return {
+    sampleTs: latest.ts,
+    currentPercent,
+    baselineAverage,
+    jumpPercent,
+    baselineSampleCount: baseline.length,
+    thresholdPercent: threshold,
+  };
+}
+
 export function pruneHistory(history = [], { now = new Date(), retentionDays = DEFAULT_RETENTION_DAYS } = {}) {
   const ts = now.getTime();
   const cutoff = ts - retentionMs(retentionDays);

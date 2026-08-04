@@ -23,6 +23,8 @@ assert.equal(fresh.stateVersion, 2, 'defaultState() should have stateVersion 2')
 assert.ok(fresh.snapshot, 'defaultState() should have snapshot');
 assert.ok(fresh.settings, 'defaultState() should have settings');
 assert.equal(fresh.settings.historyRetentionDays, 30, 'history retention should default to 30 days');
+assert.equal(fresh.settings.anomalyThresholdPercent, 20, 'anomaly threshold should default to 20 percentage points');
+assert.equal(fresh.settings.notifications.U3, false, 'anomaly alerts should be opt-in');
 
 // --- Test: migrate v1 (unversioned) state to v2 ---
 const v1State = {
@@ -215,6 +217,8 @@ const syncCandidate = {
 await syncStorage.saveSyncedSettings(syncCandidate, 'default');
 const rawSyncRecord = syncStore.get('aut.sync.settings.v1');
 assert.equal(rawSyncRecord.settings.theme, 'latte');
+assert.equal(rawSyncRecord.settings.anomalyThresholdPercent, 20);
+assert.equal(rawSyncRecord.settings.notifications.U3, false);
 assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'history'), false);
 assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'apiKey'), false);
 assert.equal((await syncStorage.loadSyncedSettings('default')).theme, 'latte');

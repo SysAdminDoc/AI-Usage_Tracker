@@ -23,6 +23,8 @@ assert.equal(normalized.showProviders.claude, false, 'provider override should p
 assert.equal(normalized.showProviders.codex, true, 'missing provider should use its default');
 assert.equal(normalized.showRows.custom, true, 'dynamic row override should persist');
 assert.equal(normalized.notifications['R1-60'], false, 'notification override should persist');
+assert.equal(normalized.notifications.U3, false, 'anomaly alerts should remain opt-in by default');
+assert.equal(normalized.anomalyThresholdPercent, 20, 'anomaly threshold should use its safe default');
 assert.equal(normalized.notifications.dailyBriefingHour, 23, 'briefing hour should be clamped');
 assert.equal(normalized.theme, 'latte', 'legacy light theme should normalize');
 assert.deepEqual(normalized.thresholds, { warnAt: 90, dangerAt: 91 }, 'danger threshold should stay above warn');

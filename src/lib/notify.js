@@ -2,7 +2,7 @@
 // user's enabled rules and returns a list of notifications to fire. Each
 // notification has an idempotent `fireKey`; caller persists fired keys.
 
-import { forecastExhaustion } from './history.js';
+import { detectAnomaly, forecastExhaustion } from './history.js';
 
 const LEAD_MS = {
   'R1-60': 60 * 60 * 1000,
@@ -115,6 +115,28 @@ export function evaluateRules({ snapshot, history, settings, firedRules, now = n
               title: `${humanProvider(provider)} weekly forecast — pace too fast`,
               body:  `At current burn rate you'll hit the cap ${hoursEarly}h before reset (${humanReset(bucket)}).`,
               tone:  'warn',
+            });
+          }
+        }
+      }
+
+      // U3 sudden-spike detection. This is ingest-scoped: the history helper
+      // ignores old samples, while the sample timestamp makes the alert key
+      // idempotent across repeated notification passes.
+      if (settings.notifications['U3'] && bucket.kind !== 'api' && !bucket.metric) {
+        const anomaly = detectAnomaly(history, bucket.id, {
+          now,
+          thresholdPercent: settings.anomalyThresholdPercent,
+        });
+        if (anomaly) {
+          const key = `${provider}-${bucket.id}-U3-${anomaly.sampleTs}`;
+          if (!firedRules[key]) {
+            out.push({
+              fireKey: key,
+              ruleId: 'U3',
+              title: `${humanProvider(provider)} ${humanBucket(bucket)} usage spike detected`,
+              body: `Usage jumped ${anomaly.jumpPercent.toFixed(0)} points above the recent ${anomaly.baselineSampleCount}-sample average (${anomaly.baselineAverage.toFixed(0)}%); now ${anomaly.currentPercent.toFixed(0)}%.`,
+              tone: 'warn',
             });
           }
         }

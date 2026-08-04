@@ -181,6 +181,9 @@ try {
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
   assert.ok(document.querySelector('#profileList'), 'options should expose local profile management');
+  assert.ok(document.querySelector('[data-notif="U3"]'), 'options should expose the anomaly alert toggle');
+  assert.ok(document.querySelector('#anomalyThresholdPercent'), 'options should expose the anomaly threshold control');
+  assert.equal(document.querySelector('#anomalyThresholdPercent').value, '20', 'options should render the default anomaly threshold');
   assert.ok(document.querySelector('#createProfile'), 'options should expose profile creation');
   assert.match(document.querySelector('#profileStatus').textContent, /Default is active/);
   assert.ok(document.querySelector('#syncSettings'), 'options should expose the sync opt-in');

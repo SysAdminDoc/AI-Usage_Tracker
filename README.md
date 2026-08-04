@@ -18,11 +18,12 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Toolbar badge + popup dashboard** — rolled-up most-constrained usage percent on the extension icon, plus both providers side-by-side with recent-usage sparklines.
 - **Inspectable sparklines** — hover or focus a popup sparkline to see the exact usage value and sample timestamp.
 - **Pace markers** — quota rings place a secondary projected-use marker when recent history predicts the window will be exhausted, with the forecast exposed to assistive technology.
-- **OS notifications** — five trigger types, each toggleable:
+- **OS notifications** — six trigger types, each toggleable:
   - **R1 Renewal-imminent** — fires 60 min / 15 min / at-reset.
   - **R2 Renewal-arrived** — "Fresh quota — go!" the moment a bucket resets.
   - **U1 Usage-threshold** — 75% / 90% / 95% used.
   - **U2 Burn-rate forecast** — "At this pace you'll hit weekly Tuesday — 18 hrs early."
+  - **U3 Spike detection** — alerts when a new sample exceeds the configurable moving-average threshold.
 - **Notification preflight** — Settings shows the active notification capability and can request permission plus send a test alert before a real quota rule fires.
 - **D1 Daily briefing** — one calm summary at 08:00.
 - Missed renewal/reset and daily-briefing alerts recover during a bounded late-refresh grace period, and the extension schedules the next exact notification deadline when one is known.

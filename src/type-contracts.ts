@@ -19,6 +19,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   'U1-90': true,
   'U1-95': true,
   U2: true,
+  U3: false,
   D1: true,
   dailyBriefingHour: 8,
 };
@@ -32,6 +33,7 @@ export const DEFAULT_TRACKER_SETTINGS: TrackerSettings = {
   notifications: DEFAULT_NOTIFICATION_SETTINGS,
   theme: 'mocha',
   thresholds: { warnAt: 50, dangerAt: 80 },
+  anomalyThresholdPercent: 20,
   historyRetentionDays: 30,
 };
 

@@ -45,6 +45,7 @@ export function normalizeSettings(input = {}) {
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
   next.notifications.dailyBriefingHour = clampInteger(next.notifications.dailyBriefingHour, 0, 23, 8);
+  next.anomalyThresholdPercent = clampInteger(next.anomalyThresholdPercent, 10, 50, 20);
   next.theme = normalizeThemeValue(next.theme);
   next.thresholds = normalizeThresholds(next.thresholds);
   next.historyRetentionDays = RETENTION_DAYS.includes(Number(next.historyRetentionDays))

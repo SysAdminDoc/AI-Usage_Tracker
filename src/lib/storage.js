@@ -175,7 +175,7 @@ export function syncSettingsAvailable() {
 export function pickSyncSettings(settings = {}) {
   const safe = sanitizeImportedSettings(settings);
   const notifications = Object.fromEntries([
-    'R1-60', 'R1-15', 'R1-0', 'R2', 'U1-75', 'U1-90', 'U1-95', 'U2', 'D1',
+    'R1-60', 'R1-15', 'R1-0', 'R2', 'U1-75', 'U1-90', 'U1-95', 'U2', 'U3', 'D1',
     'dailyBriefingHour',
   ].map((key) => [key, safe.notifications[key]]));
   const showRows = Object.fromEntries(Object.entries(safe.showRows || {})
@@ -191,6 +191,7 @@ export function pickSyncSettings(settings = {}) {
     notifications,
     theme: safe.theme,
     thresholds: { ...safe.thresholds },
+    anomalyThresholdPercent: safe.anomalyThresholdPercent,
     historyRetentionDays: safe.historyRetentionDays,
   };
 }
@@ -843,6 +844,7 @@ function sanitizeImportedSettings(input) {
   };
   settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
   settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
+  settings.anomalyThresholdPercent = clampNumber(settings.anomalyThresholdPercent, 10, 50, 20);
   const warnAt = clampNumber(settings.thresholds?.warnAt, 25, 85, 50);
   let dangerAt = clampNumber(settings.thresholds?.dangerAt, 55, 95, 80);
   if (warnAt >= dangerAt) dangerAt = Math.min(95, warnAt + 5);
@@ -956,6 +958,7 @@ export function defaultSettings() {
       'U1-90': true,
       'U1-95': true,
       'U2':    true,
+      'U3':    false,
       'D1':    true,
       dailyBriefingHour: 8,    // 24h local
     },
@@ -964,6 +967,7 @@ export function defaultSettings() {
       warnAt: 50,
       dangerAt: 80,
     },
+    anomalyThresholdPercent: 20,
     historyRetentionDays: 30,
   };
 }

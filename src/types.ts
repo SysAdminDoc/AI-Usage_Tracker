@@ -70,6 +70,7 @@ export interface NotificationSettings {
   'U1-90': boolean;
   'U1-95': boolean;
   U2: boolean;
+  U3: boolean;
   D1: boolean;
   dailyBriefingHour: number;
   snoozedUntilISO?: string;
@@ -85,6 +86,7 @@ export interface TrackerSettings {
   notifications: NotificationSettings;
   theme: 'mocha' | 'latte' | 'system';
   thresholds: { warnAt: number; dangerAt: number };
+  anomalyThresholdPercent?: number;
   historyRetentionDays: 7 | 14 | 30 | 60 | 90;
   syncSettings?: boolean;
   githubCopilotOrganization?: string;

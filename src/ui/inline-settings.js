@@ -27,6 +27,7 @@ import { getNotificationPermission, notify, requestNotificationPermission } from
 import { SUPPORTED_LOCALES, localeLabel } from '../lib/i18n.js';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
+const ANOMALY_THRESHOLD_OPTIONS = [10, 15, 20, 25, 30, 40, 50];
 const NOTIFICATION_OPTIONS = [
   ['R1-60', 'Renewal - 60 min before reset'],
   ['R1-15', 'Renewal - 15 min before reset'],
@@ -36,6 +37,7 @@ const NOTIFICATION_OPTIONS = [
   ['U1-90', 'Threshold - 90% used'],
   ['U1-95', 'Threshold - 95% used'],
   ['U2', 'Burn-rate forecast - weekly'],
+  ['U3', 'Spike/anomaly - sudden usage jump'],
   ['D1', 'Daily briefing'],
 ];
 
@@ -391,6 +393,7 @@ function buildControls(body, state) {
   body.appendChild(buildSection('Notifications', 'Choose which alerts can fire while this tab is open.', (section) => {
     controls.notifications = addToggleGrid(section, NOTIFICATION_OPTIONS, 'notification');
     controls.notificationPermission = buildNotificationPermissionControls(section);
+    controls.anomalyThresholdPercent = addSelectRow(section, 'Spike threshold', ANOMALY_THRESHOLD_OPTIONS.map((n) => [n, `${n} percentage points`]), 'anomalyThresholdPercent');
     controls.dailyBriefingHour = addSelectRow(section, 'Daily briefing time', Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, '0')}:00`]), 'dailyBriefingHour');
   }));
   body.appendChild(buildSection('History', 'Export a CSV before compacting or clearing local samples. History never leaves your browser unless you download it.', (section) => {
@@ -814,6 +817,7 @@ function applyDraft(controls, settings) {
   controls.highContrast.checked = settings.highContrast === true;
   controls.theme.value = normalizeThemeValue(settings.theme);
   controls.locale.value = settings.locale || 'en';
+  controls.anomalyThresholdPercent.value = String(settings.anomalyThresholdPercent ?? 20);
   controls.dailyBriefingHour.value = String(settings.notifications.dailyBriefingHour);
   controls.history.retentionDays.value = String(settings.historyRetentionDays);
   controls.warnAt.value = String(settings.thresholds.warnAt);
@@ -831,6 +835,7 @@ function readDraft(controls, prior) {
   next.highContrast = controls.highContrast.checked;
   next.theme = controls.theme.value;
   next.locale = controls.locale.value;
+  next.anomalyThresholdPercent = Number(controls.anomalyThresholdPercent.value);
   next.notifications.dailyBriefingHour = Number(controls.dailyBriefingHour.value);
   next.historyRetentionDays = Number(controls.history.retentionDays.value);
   next.thresholds = {

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Optional U3 spike alerts now compare each new quota sample with the recent moving average, with configurable percentage-point thresholds in extension and userscript settings.
 - Quota rings now show a fixed-layout pace marker for projected usage at reset, with an accessible exhaustion forecast when recent history is sufficient.
 - A userscript in-page settings modal for provider and quota-row visibility, refresh fallback, theme, thresholds, notifications, and daily briefing time.
 - Pure settings normalization and dynamic quota-row catalog coverage for userscript controls.

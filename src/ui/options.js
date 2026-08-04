@@ -309,6 +309,7 @@ async function loadCurrent() {
   const thresholds = normalizeThresholds(s.thresholds);
   document.getElementById('warnAt').value = String(thresholds.warnAt);
   document.getElementById('dangerAt').value = String(thresholds.dangerAt);
+  document.getElementById('anomalyThresholdPercent').value = String(s.anomalyThresholdPercent ?? 20);
   document.getElementById('historyRetentionDays').value = String(s.historyRetentionDays);
   const syncCheckbox = document.getElementById('syncSettings');
   if (syncCheckbox) syncCheckbox.checked = s.syncSettings === true;
@@ -490,6 +491,8 @@ function bindHandlers() {
       s.syncSettings = t.checked;
     } else if (t.id === 'warnAt' || t.id === 'dangerAt') {
       s.thresholds = readThresholdControls(t.id);
+    } else if (t.id === 'anomalyThresholdPercent') {
+      s.anomalyThresholdPercent = parseInt(t.value, 10) || 20;
     } else {
       return;
     }

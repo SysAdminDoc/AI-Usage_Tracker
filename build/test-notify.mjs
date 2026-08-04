@@ -250,6 +250,57 @@ assert.ok(evaluateRules({ snapshot, history: [], settings: expired, firedRules: 
   assert.ok(rules.some((r) => r.ruleId === 'U1-75'), 'U1-75 should fire at exactly 75%');
 }
 
+// --- U3 anomaly alert fires for a configured moving-average spike ---
+{
+  const spikeSnapshot = {
+    providers: {
+      claude: {
+        ok: true,
+        buckets: [{
+          id: 'claude-session',
+          label: 'Current session',
+          kind: 'session',
+          model: 'all',
+          percentUsed: 70,
+          resetISO: '2026-06-16T17:00:00.000Z',
+        }],
+      },
+    },
+  };
+  const spikeHistory = [10, 12, 11, 13, 70].map((percentUsed, index) => ({
+    ts: now.getTime() - (4 - index) * 60 * 60 * 1000,
+    bucketId: 'claude-session',
+    percentUsed,
+  }));
+  const spikeSettings = {
+    showProviders: { claude: true },
+    showRows: { 'claude-session': true },
+    notifications: { U3: true },
+    anomalyThresholdPercent: 20,
+  };
+  const rules = evaluateRules({ snapshot: spikeSnapshot, history: spikeHistory, settings: spikeSettings, firedRules: {}, now });
+  const anomaly = rules.find((rule) => rule.ruleId === 'U3');
+  assert.ok(anomaly, 'U3 should fire for a current sample above the moving average');
+  assert.match(anomaly.title, /usage spike detected/);
+  assert.match(anomaly.body, /recent 4-sample average/);
+  const quiet = evaluateRules({
+    snapshot: spikeSnapshot,
+    history: spikeHistory,
+    settings: { ...spikeSettings, anomalyThresholdPercent: 60 },
+    firedRules: {},
+    now,
+  });
+  assert.equal(quiet.some((rule) => rule.ruleId === 'U3'), false, 'A higher configured threshold should suppress the alert');
+  const repeated = evaluateRules({
+    snapshot: spikeSnapshot,
+    history: spikeHistory,
+    settings: spikeSettings,
+    firedRules: { [anomaly.fireKey]: now.getTime() },
+    now,
+  });
+  assert.equal(repeated.some((rule) => rule.ruleId === 'U3'), false, 'The same ingest sample should not re-alert');
+}
+
 // --- D1 daily briefing fires at configured hour ---
 {
   const d1Now = new Date('2026-06-16T08:05:00.000Z');

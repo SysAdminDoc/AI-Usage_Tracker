@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Anomaly and spike detection
-  Why: Community reports show sudden quota jumps are a high-friction failure mode.
-  Evidence: Anthropic/Claude Code community complaints; existing history samples.
-  Touches: `src/lib/history.js`, `src/lib/notify.js`, `src/ui/options.js`
-  Acceptance: A configurable alert fires when a new sample jumps beyond a tested moving-average threshold.
-  Complexity: M
-
 - [ ] P3 — API-path cost computation
   Why: Cost totals are meaningful for API-key providers but misleading for flat subscription windows.
   Evidence: OpenAI Usage/Costs API, Tokens 4 Breakfast, CostGoat, OpenUsage.

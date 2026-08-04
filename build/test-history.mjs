@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   compactHistory,
+  detectAnomaly,
   forecastExhaustion,
   historyStats,
   historyToCSV,
@@ -108,6 +109,27 @@ assert.equal(sparklineSamplesFor(history, 'missing').length, 0);
   assert.equal(projection.reachesLimitBeforeReset, true);
   assert.equal(paceProjection(rising, { ...bucket, resetISO: null }, { now }), null, 'Missing reset should hide the marker');
   assert.deepEqual(paceMarkerPoint(0, { center: 22, radius: 18 }), { x: 22, y: 4 });
+}
+
+// --- detectAnomaly: current ingest versus recent moving average ---
+{
+  const now = new Date('2026-06-16T12:00:00Z');
+  const t = now.getTime();
+  const h = 60 * 60 * 1000;
+  const samples = [10, 12, 11, 13, 70].map((percentUsed, index) => ({
+    ts: t - (4 - index) * h,
+    bucketId: 'spike-test',
+    percentUsed,
+  }));
+  const anomaly = detectAnomaly(samples, 'spike-test', { now, thresholdPercent: 20 });
+  assert.ok(anomaly, 'A current upward jump should produce an anomaly');
+  assert.equal(anomaly.baselineSampleCount, 4);
+  assert.equal(anomaly.currentPercent, 70);
+  assert.ok(anomaly.jumpPercent > 50, 'Anomaly should report the jump above the moving average');
+  assert.equal(detectAnomaly(samples, 'spike-test', { now: new Date(t + h), thresholdPercent: 20 }), null,
+    'An old sample must not trigger a later notification pass');
+  assert.equal(detectAnomaly(samples.map((sample) => ({ ...sample, percentUsed: 8 })), 'spike-test', { now, thresholdPercent: 1 }), null,
+    'A downward change must not trigger a spike alert');
 }
 
 // --- forecastExhaustion: handles reset (usage drops) ---

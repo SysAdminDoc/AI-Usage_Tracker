@@ -145,8 +145,22 @@
         <label class="opt-toggle"><input type="checkbox" data-notif="U1-90"> Threshold - 90% used</label>
         <label class="opt-toggle"><input type="checkbox" data-notif="U1-95"> Threshold - 95% used</label>
         <label class="opt-toggle"><input type="checkbox" data-notif="U2">    Burn-rate forecast - weekly</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U3">    Spike/anomaly - sudden usage jump</label>
         <label class="opt-toggle"><input type="checkbox" data-notif="D1">    Daily briefing</label>
       </div>
+      <div class="opt-row">
+        <label for="anomalyThresholdPercent">Spike threshold</label>
+        <select id="anomalyThresholdPercent" class="opt-select aut-field">
+          <option value="10">10 percentage points</option>
+          <option value="15">15 percentage points</option>
+          <option value="20">20 percentage points</option>
+          <option value="25">25 percentage points</option>
+          <option value="30">30 percentage points</option>
+          <option value="40">40 percentage points</option>
+          <option value="50">50 percentage points</option>
+        </select>
+      </div>
+      <p class="opt-hint">Spike detection compares each new quota sample with the last five samples from the previous 48 hours.</p>
       <div class="opt-row">
         <label for="dailyBriefingHour">Daily briefing time</label>
         <select id="dailyBriefingHour" class="opt-select aut-field"></select>
