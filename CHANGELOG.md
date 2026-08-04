@@ -24,6 +24,7 @@
 - Optional official Anthropic and OpenAI API provider paths now keep admin keys in a separate local-only store, normalize token/cost reports into metric rows, and redact credentials from settings/diagnostics exports.
 - Local profile management now supports create, rename, switch, and delete flows with isolated settings, snapshots, history, and API credentials across the extension settings page and userscript modal.
 - Chromium split-incognito windows now use separate prefixed profile/state/credential keys and expose an Incognito marker; the Firefox package fails closed with private-window access disabled.
+- Settings now offer an explicit browser-sync opt-in with a versioned allowlist limited to non-sensitive preferences; history, provider snapshots, credentials, and bridge data stay local.
 - README now includes current widget, popup, settings, first-run, degraded-state, and animated product captures.
 
 ### Fixed

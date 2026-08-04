@@ -143,6 +143,8 @@ try {
   assert.ok(document.querySelector('#profileList'), 'options should expose local profile management');
   assert.ok(document.querySelector('#createProfile'), 'options should expose profile creation');
   assert.match(document.querySelector('#profileStatus').textContent, /Default is active/);
+  assert.ok(document.querySelector('#syncSettings'), 'options should expose the sync opt-in');
+  assert.match(document.querySelector('#syncStatus').textContent, /Unavailable|Off/);
   assert.ok(document.querySelector('#snoozeStatus').className.includes('warn'), 'options should render active snooze state');
   assert.match(document.querySelector('#diagnostics').textContent, /Claude/);
   assert.match(document.querySelector('#diagnostics').textContent, /claude\.html\.shell/, 'options diagnostics should expose provider error codes');

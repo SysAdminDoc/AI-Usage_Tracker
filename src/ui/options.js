@@ -1,6 +1,7 @@
 import {
   exportSettings,
   getStorageUsage,
+  getSyncSettingsStatus,
   importSettings,
   loadState,
   saveState,
@@ -16,6 +17,9 @@ import {
   getApiCredentialStatus,
   removeApiCredential,
   saveApiCredential,
+  clearSyncedSettings,
+  loadSyncedSettings,
+  mergeSyncedSettings,
 } from '../lib/storage.js';
 import {
   compactHistory,
@@ -58,6 +62,7 @@ export async function init() {
   await renderApiCredentials();
   await renderRows();
   await loadCurrent();
+  await renderSyncSettings();
   await renderNotificationPermission();
   await renderHistoryStatus();
   await renderDiagnostics();
@@ -126,6 +131,7 @@ async function refreshAfterProfileChange(message) {
   await renderApiCredentials();
   await renderRows();
   await loadCurrent();
+  await renderSyncSettings();
   await renderHistoryStatus();
   await renderDiagnostics();
   flash(message);
@@ -255,8 +261,35 @@ async function loadCurrent() {
   document.getElementById('warnAt').value = String(thresholds.warnAt);
   document.getElementById('dangerAt').value = String(thresholds.dangerAt);
   document.getElementById('historyRetentionDays').value = String(s.historyRetentionDays);
+  const syncCheckbox = document.getElementById('syncSettings');
+  if (syncCheckbox) syncCheckbox.checked = s.syncSettings === true;
   setThresholdLabels(thresholds);
   renderSnoozeStatus(s);
+}
+
+export async function renderSyncSettings(state = null) {
+  const checkbox = document.getElementById('syncSettings');
+  const status = document.getElementById('syncStatus');
+  const clearButton = document.getElementById('clearSyncedSettings');
+  if (!checkbox || !status) return;
+  const current = state || await loadState();
+  const result = await getSyncSettingsStatus(current.profileId);
+  checkbox.disabled = !result.supported;
+  if (!result.supported) {
+    status.textContent = 'Unavailable in this browser context. Settings remain local.';
+    status.className = 'opt-callout';
+  } else if (current.settings?.syncSettings === true) {
+    status.textContent = result.hasRemote
+      ? 'Enabled. Only non-sensitive display and alert settings are synced; history, provider data, API keys, and bridge data remain local.'
+      : 'Enabled. This profile will publish non-sensitive settings to browser sync.';
+    status.className = 'opt-callout opt-callout--good';
+  } else {
+    status.textContent = result.hasRemote
+      ? 'Available. A synced settings copy exists for this profile; enable sync to use it on this browser.'
+      : 'Off. Nothing is synced until you enable this option.';
+    status.className = 'opt-callout';
+  }
+  if (clearButton) clearButton.disabled = !result.supported || !result.hasRemote;
 }
 
 function readThresholdControls(changedId) {
@@ -363,10 +396,21 @@ function bindHandlers() {
     }
   });
 
+  document.getElementById('clearSyncedSettings')?.addEventListener('click', async () => {
+    if (!confirmAction('Clear the synced settings copy for this profile? Other browsers will keep their current local settings.')) return;
+    try {
+      await clearSyncedSettings();
+      await renderSyncSettings();
+      flash('Synced settings cleared');
+    } catch (error) {
+      flash(`Synced settings could not be cleared: ${error?.message || 'unknown error'}`, 'bad');
+    }
+  });
+
   document.body.addEventListener('change', async (e) => {
     const t = e.target;
     const state = await loadState();
-    const s = normalizeSettings(state.settings || defaultSettings());
+    let s = normalizeSettings(state.settings || defaultSettings());
     if (t.dataset.provider) {
       s.showProviders = { ...s.showProviders, [t.dataset.provider]: t.checked };
     } else if (t.dataset.row) {
@@ -389,6 +433,12 @@ function bindHandlers() {
       applyTheme(s);
     } else if (t.id === 'locale') {
       s.locale = t.value;
+    } else if (t.id === 'syncSettings') {
+      if (t.checked) {
+        const remote = await loadSyncedSettings(state.profileId);
+        if (remote) s = mergeSyncedSettings(s, remote);
+      }
+      s.syncSettings = t.checked;
     } else if (t.id === 'warnAt' || t.id === 'dangerAt') {
       s.thresholds = readThresholdControls(t.id);
     } else {
@@ -396,6 +446,7 @@ function bindHandlers() {
     }
     state.settings = s;
     await saveState(state);
+    await renderSyncSettings(state);
     await renderHistoryStatus();
     await renderDiagnostics();
     renderSnoozeStatus(s);

@@ -27,6 +27,7 @@ export function normalizeSettings(input = {}) {
     : 5;
   next.silentTabRefresh = next.silentTabRefresh === true;
   next.highContrast = next.highContrast === true;
+  next.syncSettings = next.syncSettings === true;
   next.locale = resolveLocale(next.locale);
   next.showProviders = {
     claude: next.showProviders?.claude !== false,

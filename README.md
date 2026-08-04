@@ -37,6 +37,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
 - **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
 - **Local profile manager** — create, rename, switch, and delete independent personal/work profiles with separate settings, snapshots, history, and API credentials.
+- **Optional settings sync** — opt in to browser sync for display and alert preferences only; history, provider snapshots, API keys, and bridge data remain local.
 - **Incognito-safe tracking** — Chromium split-incognito windows use separate local keys and show an Incognito marker; the Firefox package fails closed by keeping private windows disabled because Firefox does not support split mode.
 - **Dark by default** — Catppuccin Mocha + glassmorphism. No pill backdrops.
 
@@ -91,6 +92,7 @@ Userscript caveats vs. extension:
 - No silent background refresh — data only updates while you have a Claude or ChatGPT tab open.
 - No toolbar popup dashboard (open the in-page settings modal and history controls via the widget gear icon).
 - OS notifications use the userscript manager API when available, otherwise the web `Notification` API; either path requires a provider tab to be open.
+- The optional settings-sync control is extension-only; userscript data remains in the local userscript-manager store.
 - Settings can request notification permission and send a test alert before you rely on a quota rule.
 - Late-refresh catch-up is bounded by the open tab's next refresh; the extension's service-worker alarm path can schedule the next exact deadline.
 - History persists across restart via `GM.setValue`.
@@ -117,7 +119,7 @@ The default extension packages use this narrow, local-first permission boundary:
 
 | Surface | Why it is requested | What stays local |
 | --- | --- | --- |
-| `storage` | Save the current snapshot, settings, and rolling history | All tracker state remains in local extension storage; Chromium incognito state uses separate prefixed keys and nothing is put in sync storage. |
+| `storage` | Save the current snapshot, settings, and rolling history | Tracker state remains in local extension storage; an explicit opt-in syncs only the settings allowlist, while Chromium incognito state uses separate prefixed keys. |
 | `alarms` | Refresh the snapshot and recover notification deadlines after service-worker sleep | Alarm names and times are local browser scheduling metadata. |
 | `notifications` | Show the alert rules that you enable | Notification text is derived from local snapshot state. |
 | `tabs` | Open provider analytics pages and, only when explicitly enabled, a hidden fallback tab | The extension does not read arbitrary tabs or cookies. |
@@ -173,6 +175,8 @@ The host matrix is checked at test and build time: wildcard content scripts cove
 **How do local profiles work?** Open Settings → Profiles to create or switch profiles. Each profile stays in local browser/userscript storage and keeps its own settings, quota snapshot, history, and API credentials. Deleting a profile removes that profile's local records; one profile must always remain.
 
 **What happens in an incognito window?** Chromium split-incognito windows get an independent Default/profile registry, state, history, and API-key namespace, and the widget/popup label the context “Incognito.” The Firefox package does not run in private windows because its platform cannot provide the same split behavior.
+
+**What does settings sync include?** Only display, locale, row-visibility, refresh, retention, threshold, and notification-rule preferences for the active profile. It never syncs history, quota/provider snapshots, API keys, credentials, or bridge configuration, and it is off by default.
 
 **How do I disable background page fallback?** It is off by default. If enabled for a debugging case, turn off “Use hidden fallback tabs when API refresh fails” in Settings; the extension does not silently enable it.
 

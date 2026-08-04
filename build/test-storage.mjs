@@ -187,4 +187,41 @@ assert.equal(privateStore.has('aut.incognito.aut.state.v1.profile.default'), tru
 if (savedChrome === undefined) delete globalThis.chrome;
 else globalThis.chrome = savedChrome;
 
+// --- Test: optional sync only writes an explicit settings allowlist ---
+const syncChrome = globalThis.chrome;
+const syncStore = new Map();
+const makeSyncArea = () => ({
+  get(key, callback) { callback({ [key]: syncStore.get(key) }); },
+  set(values, callback) {
+    Object.entries(values).forEach(([key, value]) => syncStore.set(key, value));
+    callback();
+  },
+  remove(key, callback) { syncStore.delete(key); callback(); },
+});
+globalThis.chrome = {
+  extension: { inIncognitoContext: false },
+  runtime: { lastError: null },
+  storage: { local: makeSyncArea(), sync: makeSyncArea() },
+};
+const syncStorage = await import('../src/lib/storage.js?sync-contract');
+assert.equal(syncStorage.syncSettingsAvailable(), true);
+const syncCandidate = {
+  ...defaultSettings(),
+  theme: 'latte',
+  syncSettings: true,
+  history: [{ bucketId: 'must-not-sync' }],
+  apiKey: 'must-not-sync',
+};
+await syncStorage.saveSyncedSettings(syncCandidate, 'default');
+const rawSyncRecord = syncStore.get('aut.sync.settings.v1');
+assert.equal(rawSyncRecord.settings.theme, 'latte');
+assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'history'), false);
+assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'apiKey'), false);
+assert.equal((await syncStorage.loadSyncedSettings('default')).theme, 'latte');
+assert.equal(await syncStorage.loadSyncedSettings('work'), null, 'sync records must not cross profile ids');
+await syncStorage.clearSyncedSettings();
+assert.equal(syncStore.has('aut.sync.settings.v1'), false);
+if (syncChrome === undefined) delete globalThis.chrome;
+else globalThis.chrome = syncChrome;
+
 console.log('storage migration smoke: OK');

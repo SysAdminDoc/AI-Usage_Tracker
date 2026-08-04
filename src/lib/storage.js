@@ -14,6 +14,9 @@ const PROFILE_CREDENTIALS_PREFIX = 'aut.api-credentials.v1.profile.';
 export const INCOGNITO_STORAGE_PREFIX = 'aut.incognito.';
 export const STORAGE_SCOPE_REGULAR = 'regular';
 export const STORAGE_SCOPE_INCOGNITO = 'incognito';
+export const SYNC_SETTINGS_KEY = 'aut.sync.settings.v1';
+export const SYNC_SETTINGS_SCHEMA = 'ai-usage-tracker.sync-settings';
+export const SYNC_SETTINGS_VERSION = 1;
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
 export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api']);
@@ -154,6 +157,128 @@ export function getProfileCredentialsStoragePrefix(scope = getStorageScope()) {
   return scopedStorageKey(PROFILE_CREDENTIALS_PREFIX, scope);
 }
 
+export function getSyncSettingsStorageKey(scope = getStorageScope()) {
+  return scopedStorageKey(SYNC_SETTINGS_KEY, scope);
+}
+
+const syncReadCache = new Map();
+
+function cloneSyncedSettings(settings) {
+  return settings ? JSON.parse(JSON.stringify(settings)) : null;
+}
+
+export function syncSettingsAvailable() {
+  const sync = getWebExtensionSyncStorage();
+  return !!(sync?.get && sync?.set);
+}
+
+export function pickSyncSettings(settings = {}) {
+  const safe = sanitizeImportedSettings(settings);
+  const notifications = Object.fromEntries([
+    'R1-60', 'R1-15', 'R1-0', 'R2', 'U1-75', 'U1-90', 'U1-95', 'U2', 'D1',
+    'dailyBriefingHour',
+  ].map((key) => [key, safe.notifications[key]]));
+  const showRows = Object.fromEntries(Object.entries(safe.showRows || {})
+    .filter(([key, value]) => typeof key === 'string' && typeof value === 'boolean')
+    .slice(0, 128));
+  return {
+    refreshMinutes: safe.refreshMinutes,
+    silentTabRefresh: safe.silentTabRefresh === true,
+    highContrast: safe.highContrast === true,
+    locale: typeof safe.locale === 'string' ? safe.locale.slice(0, 16) : 'en',
+    showProviders: { ...safe.showProviders },
+    showRows,
+    notifications,
+    theme: safe.theme,
+    thresholds: { ...safe.thresholds },
+    historyRetentionDays: safe.historyRetentionDays,
+  };
+}
+
+export function mergeSyncedSettings(current, remote) {
+  const safe = pickSyncSettings(remote);
+  return {
+    ...current,
+    ...safe,
+    showProviders: { ...current?.showProviders, ...safe.showProviders },
+    showRows: { ...current?.showRows, ...safe.showRows },
+    notifications: { ...current?.notifications, ...safe.notifications },
+    thresholds: { ...current?.thresholds, ...safe.thresholds },
+    syncSettings: current?.syncSettings === true,
+  };
+}
+
+async function readSyncedSettings(profileId) {
+  const sync = getWebExtensionSyncStorage();
+  if (!sync?.get) return null;
+  const key = `${getSyncSettingsStorageKey()}:${profileId}`;
+  const cached = syncReadCache.get(key);
+  if (cached && Date.now() - cached.readAt < 30_000) return cloneSyncedSettings(cached.settings);
+  try {
+    const value = await invokeWebExtension(sync, 'get', [getSyncSettingsStorageKey()]);
+    const record = value?.[getSyncSettingsStorageKey()];
+    if (!record || typeof record !== 'object' || Array.isArray(record)
+        || record.schema !== SYNC_SETTINGS_SCHEMA
+        || record.schemaVersion !== SYNC_SETTINGS_VERSION
+        || record.profileId !== profileId
+        || !record.settings || typeof record.settings !== 'object' || Array.isArray(record.settings)) {
+      syncReadCache.set(key, { readAt: Date.now(), settings: null });
+      return null;
+    }
+    const settings = pickSyncSettings(record.settings);
+    syncReadCache.set(key, { readAt: Date.now(), settings });
+    return cloneSyncedSettings(settings);
+  } catch (error) {
+    console.warn('[AUT] Synced settings read failed:', error);
+    return null;
+  }
+}
+
+export async function loadSyncedSettings(profileId = null) {
+  const id = profileId || await getActiveProfileId();
+  return readSyncedSettings(id);
+}
+
+let lastSyncFingerprint = '';
+
+export async function saveSyncedSettings(settings, profileId = null) {
+  const sync = getWebExtensionSyncStorage();
+  if (!sync?.set) return { supported: false, synced: false };
+  const id = profileId || await getActiveProfileId();
+  const payload = pickSyncSettings(settings);
+  const fingerprint = `${id}:${JSON.stringify(payload)}`;
+  if (fingerprint === lastSyncFingerprint) return { supported: true, synced: false, unchanged: true };
+  const key = getSyncSettingsStorageKey();
+  await invokeWebExtension(sync, 'set', [{
+    [key]: {
+      schema: SYNC_SETTINGS_SCHEMA,
+      schemaVersion: SYNC_SETTINGS_VERSION,
+      profileId: id,
+      settings: payload,
+      updatedAtISO: new Date().toISOString(),
+    },
+  }]);
+  lastSyncFingerprint = fingerprint;
+  syncReadCache.delete(`${getSyncSettingsStorageKey()}:${id}`);
+  return { supported: true, synced: true };
+}
+
+export async function clearSyncedSettings() {
+  const sync = getWebExtensionSyncStorage();
+  if (!sync?.remove) return { supported: false, cleared: false };
+  await invokeWebExtension(sync, 'remove', [getSyncSettingsStorageKey()]);
+  lastSyncFingerprint = '';
+  syncReadCache.clear();
+  return { supported: true, cleared: true };
+}
+
+export async function getSyncSettingsStatus(profileId = null) {
+  const supported = syncSettingsAvailable();
+  if (!supported) return { supported: false, hasRemote: false };
+  const remote = await loadSyncedSettings(profileId);
+  return { supported: true, hasRemote: !!remote };
+}
+
 export async function getStorageUsage(state = null) {
   const ext = getWebExtensionStorage();
   if (ext?.local?.getBytesInUse) {
@@ -187,6 +312,10 @@ function getWebExtensionStorage() {
   return (typeof browser !== 'undefined' && browser.storage)
     || (typeof chrome !== 'undefined' && chrome.storage)
     || null;
+}
+
+function getWebExtensionSyncStorage() {
+  return getWebExtensionStorage()?.sync || null;
 }
 
 function invokeStorageMethod(target, method, argument) {
@@ -482,6 +611,17 @@ export async function deleteProfile(profileId) {
   return cloneJSON(next);
 }
 
+async function applySyncedSettings(state, profileId) {
+  if (state?.settings?.syncSettings !== true) return state;
+  const remote = await readSyncedSettings(profileId);
+  if (!remote) return state;
+  const merged = mergeSyncedSettings(state.settings, remote);
+  if (JSON.stringify(state.settings) === JSON.stringify(merged)) return state;
+  state.settings = merged;
+  try { await adapter.set(profileStateStorageKey(profileId), state); } catch { /* best effort */ }
+  return state;
+}
+
 export async function loadState() {
   const profileId = await getActiveProfileId();
   const stateKey = profileStateStorageKey(profileId);
@@ -516,7 +656,7 @@ export async function loadState() {
     try { await adapter.set(stateKey, state); } catch { /* best effort */ }
   }
   state.profileId = profileId;
-  return state;
+  return applySyncedSettings(state, profileId);
 }
 
 export async function saveState(state) {
@@ -529,6 +669,13 @@ export async function saveState(state) {
   state.stateVersion = CURRENT_STATE_VERSION;
   state.profileId = profileId;
   await adapter.set(profileStateStorageKey(profileId), state);
+  if (state.settings?.syncSettings === true) {
+    try { await saveSyncedSettings(state.settings, profileId); } catch (error) {
+      console.warn('[AUT] Synced settings write failed:', error);
+    }
+  } else {
+    lastSyncFingerprint = '';
+  }
 }
 
 export async function patchState(patch) {
@@ -674,6 +821,7 @@ function sanitizeImportedSettings(input) {
     ? Number(settings.historyRetentionDays) : 30;
   settings.silentTabRefresh = settings.silentTabRefresh === true;
   settings.highContrast = settings.highContrast === true;
+  settings.syncSettings = settings.syncSettings === true;
   settings.theme = ['mocha', 'latte', 'system'].includes(settings.theme) ? settings.theme : 'mocha';
   settings.showProviders = {
     ...settings.showProviders,
@@ -747,6 +895,7 @@ export function defaultSettings() {
     refreshMinutes: 5,
     silentTabRefresh: false,
     highContrast: false,
+    syncSettings: false,
     locale: 'en',
     showProviders: { claude: true, codex: true, 'anthropic-api': true, 'openai-api': true },
     showRows: {     // headline buckets default ON; per-model rows default OFF

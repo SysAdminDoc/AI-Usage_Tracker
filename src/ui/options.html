@@ -17,6 +17,7 @@
   <main class="opt-shell">
     <nav class="opt-nav" aria-label="Settings sections">
       <a href="#profiles">Profiles</a>
+      <a href="#sync">Sync</a>
       <a href="#providers">Providers</a>
       <a href="#api">API access</a>
       <a href="#rows">Rows</a>
@@ -38,6 +39,16 @@
         <label for="newProfileName">New profile</label>
         <input id="newProfileName" class="opt-text" type="text" maxlength="48" autocomplete="off" placeholder="e.g. Work" aria-label="New profile name">
         <button id="createProfile" class="opt-btn">Create profile</button>
+      </div>
+    </section>
+
+    <section id="sync" class="opt-card">
+      <h2>Optional settings sync</h2>
+      <p class="opt-hint">Opt in to browser sync for display and alert preferences only. History, quota snapshots, provider data, API keys, and bridge configuration never leave local storage.</p>
+      <label class="opt-toggle"><input id="syncSettings" type="checkbox"> Sync non-sensitive settings across browsers</label>
+      <div id="syncStatus" class="opt-callout" role="status" aria-live="polite">Checking sync availability...</div>
+      <div class="opt-row opt-row--wrap">
+        <button id="clearSyncedSettings" class="opt-btn opt-btn--quiet" type="button">Clear synced copy</button>
       </div>
     </section>
 

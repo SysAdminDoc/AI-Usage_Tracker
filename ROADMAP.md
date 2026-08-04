@@ -6,13 +6,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 
 ### P1
 ### P2
-- [ ] P2 — chrome.storage.sync settings opt-in
-  Why: Cross-device settings sync is useful, but history and credentials must stay local.
-  Evidence: Chrome storage docs: `storage.sync` quotas are small and sync-specific.
-  Touches: `src/lib/storage.js`, `src/ui/options.js`
-  Acceptance: Users can opt in to sync non-sensitive settings only; history, tokens, provider data, and bridge config remain local.
-  Complexity: M
-
 ### P3
 - [ ] P3 — GitHub Copilot provider
   Why: Copilot is common in the same developer workflow as Claude/Codex tracking.
