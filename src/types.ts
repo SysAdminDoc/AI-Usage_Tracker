@@ -1,4 +1,4 @@
-export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api';
+export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot';
 
 export type UsageSource = 'api' | 'dom' | 'html' | 'live' | 'fetch' | 'stream' | 'headers' | string;
 
@@ -80,6 +80,9 @@ export interface TrackerSettings {
   theme: 'mocha' | 'latte' | 'system';
   thresholds: { warnAt: number; dangerAt: number };
   historyRetentionDays: 7 | 14 | 30 | 60 | 90;
+  syncSettings?: boolean;
+  githubCopilotOrganization?: string;
+  githubCopilotUsername?: string;
 }
 
 export interface WidgetState {

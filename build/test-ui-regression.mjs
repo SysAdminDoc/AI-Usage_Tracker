@@ -78,6 +78,11 @@ try {
   await widget.refreshWidget();
   assert.ok(widgetHost.shadowRoot.querySelector('.aut-widget__error'), 'widget error state should render recovery copy');
 
+  await saveState(makeState({ githubCopilot: copilotProvider() }));
+  await popup.render();
+  assert.match(document.querySelector('.popup-provider').textContent, /Active|Last activity/,
+    'popup should render Copilot seat activity metrics');
+
   const disabled = makeState({ claude: provider({ percentUsed: 50 }) });
   disabled.settings.showProviders = { claude: false, codex: false };
   await saveState(disabled);
@@ -136,7 +141,8 @@ try {
   const optionsWindow = installDocument(optionsMarkup, { patchForms: true });
   const options = await import('../src/ui/options.js?ui-regression');
   await options.ready;
-  assert.equal(document.querySelectorAll('[data-provider]').length, 4, 'options should render web and official API provider toggles');
+  assert.equal(document.querySelectorAll('[data-provider]').length, 5, 'options should render web and official API provider toggles');
+  assert.ok(document.querySelector('[data-api-config="githubCopilotOrganization"]'), 'options should expose Copilot organization configuration');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
@@ -194,13 +200,36 @@ function installDocument(markup, { patchForms = false } = {}) {
   return parsed.window;
 }
 
-function makeState({ claude = null, codex = null } = {}) {
+function makeState({ claude = null, codex = null, githubCopilot = null } = {}) {
   const state = defaultState();
   state.snapshot = {
     fetchedAtISO: new Date(Date.now() - 60_000).toISOString(),
-    providers: { claude, codex },
+    providers: { claude, codex, 'github-copilot': githubCopilot },
   };
   return state;
+}
+
+function copilotProvider() {
+  return {
+    ok: true,
+    provider: 'github-copilot',
+    source: 'api-key',
+    plan: 'Copilot Business',
+    buckets: [{
+      id: 'github-copilot-seat',
+      label: 'Copilot Business seat',
+      kind: 'api',
+      model: null,
+      percentUsed: 0,
+      resetISO: null,
+      metric: {
+        kind: 'activity',
+        active: true,
+        lastActivityISO: new Date(Date.now() - 30_000).toISOString(),
+        lastActivityEditor: 'vscode/copilot',
+      },
+    }],
+  };
 }
 
 function provider({ percentUsed = 42, stale = false, lastErrorDetail = null } = {}) {

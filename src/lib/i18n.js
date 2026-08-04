@@ -1,6 +1,7 @@
 const ENGLISH = Object.freeze({
   'provider.claude': 'Claude', 'provider.codex': 'Codex',
   'provider.anthropic-api': 'Anthropic API', 'provider.openai-api': 'OpenAI API',
+  'provider.github-copilot': 'GitHub Copilot',
   'overview.mostConstrained': 'Most constrained', 'overview.used': '{percent} used',
   'overview.localOnly': 'Local only', 'updated.never': 'Never updated',
   'updated.prefix': 'Updated {relative}', 'empty.title': 'No local usage snapshot yet',

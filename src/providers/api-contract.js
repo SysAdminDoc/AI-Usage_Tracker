@@ -2,7 +2,7 @@
 // snapshot shape as the web providers, but use `kind: 'api'` buckets with a
 // metric payload instead of pretending token counts are quota percentages.
 
-export const API_PROVIDER_IDS = Object.freeze(['anthropic-api', 'openai-api']);
+export const API_PROVIDER_IDS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot']);
 
 export const API_PROVIDER_META = Object.freeze({
   'anthropic-api': Object.freeze({
@@ -18,6 +18,13 @@ export const API_PROVIDER_META = Object.freeze({
     placeholder: 'sk-admin...',
     hint: 'Requires an OpenAI organization admin key for Usage and Costs.',
     docsUrl: 'https://platform.openai.com/docs/api-reference/usage',
+  }),
+  'github-copilot': Object.freeze({
+    label: 'GitHub Copilot',
+    credentialLabel: 'GitHub token',
+    placeholder: 'github_pat_...',
+    hint: 'Requires a local GitHub token with read access to Copilot seat details, plus your organization and username below.',
+    docsUrl: 'https://docs.github.com/en/rest/copilot/copilot-user-management',
   }),
 });
 

@@ -31,6 +31,7 @@ export async function validateHostMatrix() {
   const apiPermissions = [
     'https://api.anthropic.com/*',
     'https://api.openai.com/*',
+    'https://api.github.com/*',
   ];
 
   for (const [target, manifest] of [['chrome', chrome], ['firefox', firefox]]) {

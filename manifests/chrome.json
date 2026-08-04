@@ -95,7 +95,8 @@
     "https://claude.ai/*",
     "https://chatgpt.com/*",
     "https://api.anthropic.com/*",
-    "https://api.openai.com/*"
+    "https://api.openai.com/*",
+    "https://api.github.com/*"
   ],
 
   "web_accessible_resources": [

@@ -159,13 +159,15 @@ async function renderApiCredentials() {
   const wrap = document.getElementById('api-credentials');
   const statusWrap = document.getElementById('apiCredentialsStatus');
   if (!wrap) return;
+  const state = await loadState();
+  const settings = normalizeSettings(state.settings);
   const statuses = await getApiCredentialStatus();
   clearChildren(wrap);
   const configured = API_PROVIDER_IDS.filter((id) => statuses[id]?.configured).length;
   if (statusWrap) {
     statusWrap.textContent = configured
-      ? `${configured} official API credential${configured === 1 ? '' : 's'} configured locally.`
-      : 'No official API credentials configured. Web usage tracking remains available without them.';
+      ? `${configured} official provider credential${configured === 1 ? '' : 's'} configured locally.`
+      : 'No official provider credentials configured. Web usage tracking remains available without them.';
     statusWrap.className = `opt-callout ${configured ? 'opt-callout--good' : ''}`;
   }
 
@@ -193,6 +195,35 @@ async function renderApiCredentials() {
     input.placeholder = meta.placeholder;
     input.dataset.apiProvider = id;
     input.setAttribute('aria-label', `${meta.credentialLabel} value`);
+    let copilotConfig = null;
+    if (id === 'github-copilot') {
+      const config = document.createElement('div');
+      config.className = 'opt-grid';
+      const organizationLabel = document.createElement('label');
+      organizationLabel.textContent = 'GitHub organization';
+      const organization = document.createElement('input');
+      organization.type = 'text';
+      organization.autocomplete = 'off';
+      organization.spellcheck = false;
+      organization.placeholder = 'your-org';
+      organization.value = settings.githubCopilotOrganization || '';
+      organization.dataset.apiConfig = 'githubCopilotOrganization';
+      organization.setAttribute('aria-label', 'GitHub Copilot organization');
+      organizationLabel.appendChild(organization);
+      const usernameLabel = document.createElement('label');
+      usernameLabel.textContent = 'GitHub username';
+      const username = document.createElement('input');
+      username.type = 'text';
+      username.autocomplete = 'off';
+      username.spellcheck = false;
+      username.placeholder = 'your-username';
+      username.value = settings.githubCopilotUsername || '';
+      username.dataset.apiConfig = 'githubCopilotUsername';
+      username.setAttribute('aria-label', 'GitHub Copilot username');
+      usernameLabel.appendChild(username);
+      config.append(organizationLabel, usernameLabel);
+      copilotConfig = config;
+    }
     const actions = document.createElement('div');
     actions.className = 'api-credential__actions';
     actions.append(
@@ -206,7 +237,9 @@ async function renderApiCredentials() {
       ? 'Configured locally. The key value is never shown again.'
       : 'Not configured.';
     credentialStatus.dataset.apiStatus = id;
-    card.append(head, hint, input, actions, credentialStatus);
+    card.append(head, hint, input);
+    if (copilotConfig) card.appendChild(copilotConfig);
+    card.append(actions, credentialStatus);
     wrap.appendChild(card);
   }
 }
@@ -469,21 +502,38 @@ function bindHandlers() {
     const input = document.querySelector(`[data-api-provider="${provider}"][type="password"]`);
     button.disabled = true;
     try {
+      const state = await loadState();
       if (action === 'save' || action === 'refresh') {
         const value = input?.value?.trim() || '';
         if (!value) {
           flash('Enter an API key first', 'bad');
           return;
         }
+        if (provider === 'github-copilot') {
+          const organization = document.querySelector('[data-api-config="githubCopilotOrganization"]')?.value?.trim() || '';
+          const username = document.querySelector('[data-api-config="githubCopilotUsername"]')?.value?.trim() || '';
+          if (!organization || !username) {
+            flash('Enter the GitHub organization and username first', 'bad');
+            return;
+          }
+          state.settings = normalizeSettings(state.settings);
+          state.settings.githubCopilotOrganization = organization;
+          state.settings.githubCopilotUsername = username;
+        }
         await saveApiCredential(provider, value);
+        if (provider === 'github-copilot') await saveState(state);
         if (input) input.value = '';
         await renderApiCredentials();
         if (action === 'refresh') await refreshApiProviderData();
         else flash(`${API_PROVIDER_META[provider]?.label || provider} key saved`);
       } else if (action === 'revoke') {
         await removeApiCredential(provider);
-        const state = await loadState();
         state.snapshot.providers[provider] = null;
+        if (provider === 'github-copilot') {
+          state.settings = normalizeSettings(state.settings);
+          state.settings.githubCopilotOrganization = '';
+          state.settings.githubCopilotUsername = '';
+        }
         await saveState(state);
         await renderApiCredentials();
         await renderRows();

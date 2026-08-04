@@ -459,6 +459,7 @@ function renderMetric(metric, i18n) {
 
 function formatMetricValue(metric, i18n) {
   const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
+  if (metric.kind === 'activity') return metric.active ? 'Active' : 'No activity';
   if (metric.kind === 'currency') {
     return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
       .format(Number(metric.costUSD) || 0);
@@ -470,6 +471,11 @@ function formatMetricDetail(metric, i18n) {
   const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
   const number = (value) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(value) || 0);
   const parts = [];
+  if (metric.kind === 'activity') {
+    if (metric.lastActivityISO) parts.push(`Last activity ${i18n.formatDateTime(metric.lastActivityISO)}`);
+    if (metric.lastActivityEditor) parts.push(metric.lastActivityEditor);
+    return parts.join(' · ') || 'No Copilot activity reported';
+  }
   if (metric.inputTokens != null) parts.push(`${number(metric.inputTokens)} in`);
   if (metric.outputTokens != null) parts.push(`${number(metric.outputTokens)} out`);
   if (metric.cachedInputTokens != null) parts.push(`${number(metric.cachedInputTokens)} cached`);

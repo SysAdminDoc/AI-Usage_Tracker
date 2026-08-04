@@ -19,7 +19,7 @@ export const SYNC_SETTINGS_SCHEMA = 'ai-usage-tracker.sync-settings';
 export const SYNC_SETTINGS_VERSION = 1;
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
-export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api']);
+export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot']);
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
 
@@ -358,6 +358,7 @@ const MIGRATIONS = [
     if (!next.snapshot.providers) next.snapshot.providers = { claude: null, codex: null };
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'anthropic-api')) next.snapshot.providers['anthropic-api'] = null;
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'openai-api')) next.snapshot.providers['openai-api'] = null;
+    if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'github-copilot')) next.snapshot.providers['github-copilot'] = null;
     if (!Array.isArray(next.history)) next.history = [];
     if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
     if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
@@ -822,6 +823,8 @@ function sanitizeImportedSettings(input) {
   settings.silentTabRefresh = settings.silentTabRefresh === true;
   settings.highContrast = settings.highContrast === true;
   settings.syncSettings = settings.syncSettings === true;
+  settings.githubCopilotOrganization = sanitizeOptionalIdentifier(settings.githubCopilotOrganization);
+  settings.githubCopilotUsername = sanitizeOptionalIdentifier(settings.githubCopilotUsername);
   settings.theme = ['mocha', 'latte', 'system'].includes(settings.theme) ? settings.theme : 'mocha';
   settings.showProviders = {
     ...settings.showProviders,
@@ -829,6 +832,7 @@ function sanitizeImportedSettings(input) {
     codex: settings.showProviders?.codex !== false,
     'anthropic-api': settings.showProviders?.['anthropic-api'] !== false,
     'openai-api': settings.showProviders?.['openai-api'] !== false,
+    'github-copilot': settings.showProviders?.['github-copilot'] !== false,
   };
   settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
   settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
@@ -871,6 +875,10 @@ function clampNumber(value, min, max, fallback) {
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
+function sanitizeOptionalIdentifier(value) {
+  return String(value || '').trim().replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 100);
+}
+
 function cloneJSON(value) {
   if (typeof structuredClone === 'function') return structuredClone(value);
   return JSON.parse(JSON.stringify(value));
@@ -881,7 +889,13 @@ export function defaultState() {
     stateVersion: CURRENT_STATE_VERSION,
     snapshot: {
       fetchedAtISO: null,
-      providers: { claude: null, codex: null, 'anthropic-api': null, 'openai-api': null },
+      providers: {
+        claude: null,
+        codex: null,
+        'anthropic-api': null,
+        'openai-api': null,
+        'github-copilot': null,
+      },
     },
     history: [],          // [{ ts, bucketId, percentUsed }]
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
@@ -896,8 +910,16 @@ export function defaultSettings() {
     silentTabRefresh: false,
     highContrast: false,
     syncSettings: false,
+    githubCopilotOrganization: '',
+    githubCopilotUsername: '',
     locale: 'en',
-    showProviders: { claude: true, codex: true, 'anthropic-api': true, 'openai-api': true },
+    showProviders: {
+      claude: true,
+      codex: true,
+      'anthropic-api': true,
+      'openai-api': true,
+      'github-copilot': true,
+    },
     showRows: {     // headline buckets default ON; per-model rows default OFF
       'claude-session': true,
       'claude-weekly-all': true,

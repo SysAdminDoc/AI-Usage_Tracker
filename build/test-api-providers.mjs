@@ -45,8 +45,17 @@ const openAICostFixture = {
   }],
 };
 
+const copilotSeatFixture = {
+  plan_type: 'business',
+  last_activity_at: '2026-08-03T11:30:00Z',
+  last_authenticated_at: '2026-08-03T11:00:00Z',
+  last_activity_editor: 'vscode/1.99.0/copilot/1.250.0',
+  assignee: { login: 'octocat' },
+};
+
 const { fetchAnthropicUsage, parseAnthropicUsage } = await import('../src/providers/anthropic.js');
 const { fetchOpenAIUsage, parseOpenAIUsage } = await import('../src/providers/openai.js');
+const { fetchGitHubCopilotUsage, parseGitHubCopilotUsage } = await import('../src/providers/github-copilot.js');
 const {
   exportSettings,
   defaultState,
@@ -108,6 +117,27 @@ const parsedUsageBucket = parsed.buckets.find((bucket) => bucket.metric.totalTok
 assert.equal(parsedUsageBucket.dimensions.projectId, 'proj_1234567890');
 assert.equal(parsedUsageBucket.dimensions.apiKeyId, 'key_1234567890');
 assert.equal(parseAnthropicUsage({ data: [] }).ok, false);
+
+let copilotRequest;
+const copilot = await fetchGitHubCopilotUsage({
+  apiKey: 'github-token-never-export-this',
+  organization: 'acme-tools',
+  username: 'octocat',
+  fetchImpl: async (url, options) => {
+    copilotRequest = { url, options };
+    return { ok: true, status: 200, json: async () => copilotSeatFixture };
+  },
+});
+assert.equal(copilot.ok, true);
+assert.equal(copilot.provider, 'github-copilot');
+assert.equal(copilot.plan, 'Copilot Business');
+assert.equal(copilot.buckets[0].metric.kind, 'activity');
+assert.equal(copilot.buckets[0].metric.lastActivityEditor, copilotSeatFixture.last_activity_editor);
+assert.match(copilotRequest.url, /api\.github\.com\/orgs\/acme-tools\/members\/octocat\/copilot/);
+assert.equal(copilotRequest.options.headers.Authorization, 'Bearer github-token-never-export-this');
+assert.equal(copilotRequest.options.headers['X-GitHub-Api-Version'], '2026-03-10');
+assert.equal(parseGitHubCopilotUsage({}, { organization: 'acme', username: 'user' }).ok, false);
+assert.equal((await getApiCredentialStatus())['github-copilot'].configured, false);
 
 globalThis.__AUT_ALLOW_LOCALSTORAGE__ = true;
 const backing = new Map();

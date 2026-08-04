@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — GitHub Copilot provider
-  Why: Copilot is common in the same developer workflow as Claude/Codex tracking.
-  Evidence: OpenUsage, CodexBar, Tokens 4 Breakfast, and WakaTime AI all treat Copilot as adjacent provider coverage.
-  Touches: provider modules, auth settings, popup/options rows
-  Acceptance: Users can authenticate locally and view Copilot quota or usage without weakening the default permission set.
-  Complexity: L
-
 - [ ] P3 — Cursor provider
   Why: Cursor usage and cost visibility appears repeatedly in adjacent commercial trackers.
   Evidence: OpenUsage, CodexBar, Tokens 4 Breakfast, TokenWatch.

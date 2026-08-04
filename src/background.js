@@ -23,6 +23,7 @@ import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
 import { loadApiCredential } from './lib/storage.js';
 import { fetchAnthropicUsage } from './providers/anthropic.js';
 import { fetchOpenAIUsage } from './providers/openai.js';
+import { fetchGitHubCopilotUsage } from './providers/github-copilot.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -106,13 +107,14 @@ async function reschedule() {
 async function refreshNow({ allowSilentTab = false } = {}) {
   const now = new Date();
   let state = (await loadState()) || defaultState();
-  const [anthropicKey, openAIKey] = await Promise.all([
+  const [anthropicKey, openAIKey, githubCopilotKey] = await Promise.all([
     loadApiCredential('anthropic-api'),
     loadApiCredential('openai-api'),
+    loadApiCredential('github-copilot'),
   ]);
 
   // 1) Best-effort direct fetch. If either side is SSR'd we get a free win.
-  const [claude, codex, anthropic, openAI] = await Promise.all([
+  const [claude, codex, anthropic, openAI, githubCopilot] = await Promise.all([
     fetchClaude({ now }).catch((e) => ({ ok: false, provider: 'claude', error: String(e) })),
     fetchCodex({ now }).catch((e) =>  ({ ok: false, provider: 'codex',  error: String(e) })),
     anthropicKey ? fetchAnthropicUsage({ apiKey: anthropicKey, now }).catch((e) => ({
@@ -121,6 +123,14 @@ async function refreshNow({ allowSilentTab = false } = {}) {
     openAIKey ? fetchOpenAIUsage({ apiKey: openAIKey, now }).catch((e) => ({
       ok: false, provider: 'openai-api', error: 'api-refresh-failed', errorCode: 'openai-api.refresh.failed',
     })) : null,
+    githubCopilotKey ? fetchGitHubCopilotUsage({
+      apiKey: githubCopilotKey,
+      organization: state.settings?.githubCopilotOrganization,
+      username: state.settings?.githubCopilotUsername,
+      now,
+    }).catch((e) => ({
+      ok: false, provider: 'github-copilot', error: 'api-refresh-failed', errorCode: 'github-copilot.refresh.failed',
+    })) : null,
   ]);
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
@@ -128,6 +138,8 @@ async function refreshNow({ allowSilentTab = false } = {}) {
   else state = await mergeSnapshot(state, anthropic, { source: 'api-key', now });
   if (!openAIKey) state.snapshot.providers['openai-api'] = null;
   else state = await mergeSnapshot(state, openAI, { source: 'api-key', now });
+  if (!githubCopilotKey) state.snapshot.providers['github-copilot'] = null;
+  else state = await mergeSnapshot(state, githubCopilot, { source: 'api-key', now });
 
   // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
   if (allowSilentTab && state.settings?.silentTabRefresh === true) {

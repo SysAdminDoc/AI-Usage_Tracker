@@ -28,12 +28,15 @@ export function normalizeSettings(input = {}) {
   next.silentTabRefresh = next.silentTabRefresh === true;
   next.highContrast = next.highContrast === true;
   next.syncSettings = next.syncSettings === true;
+  next.githubCopilotOrganization = sanitizeIdentifier(next.githubCopilotOrganization);
+  next.githubCopilotUsername = sanitizeIdentifier(next.githubCopilotUsername);
   next.locale = resolveLocale(next.locale);
   next.showProviders = {
     claude: next.showProviders?.claude !== false,
     codex: next.showProviders?.codex !== false,
     'anthropic-api': next.showProviders?.['anthropic-api'] !== false,
     'openai-api': next.showProviders?.['openai-api'] !== false,
+    'github-copilot': next.showProviders?.['github-copilot'] !== false,
   };
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
@@ -72,6 +75,7 @@ function providerLabel(provider) {
   if (provider === 'codex') return 'Codex';
   if (provider === 'anthropic-api') return 'Anthropic API';
   if (provider === 'openai-api') return 'OpenAI API';
+  if (provider === 'github-copilot') return 'GitHub Copilot';
   return String(provider);
 }
 
@@ -79,6 +83,10 @@ function clampInteger(value, min, max, fallback) {
   const n = Number(value);
   if (!Number.isInteger(n)) return fallback;
   return Math.max(min, Math.min(max, n));
+}
+
+function sanitizeIdentifier(value) {
+  return String(value || '').trim().replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 100);
 }
 
 function mergeDefaults(current, defaults) {
