@@ -4,6 +4,8 @@ import {
   forecastExhaustion,
   historyStats,
   historyToCSV,
+  paceMarkerPoint,
+  paceProjection,
   pruneHistory,
   recordSnapshot,
   sparklineFor,
@@ -81,6 +83,31 @@ assert.equal(sparklineSamplesFor(history, 'missing').length, 0);
   // Rising ~15%/hr from 80%, should exhaust in ~1.3hrs
   const hoursUntil = (eta.getTime() - t) / h;
   assert.ok(hoursUntil > 0.5 && hoursUntil < 3, `Expected ~1.3h, got ${hoursUntil.toFixed(1)}h`);
+}
+
+// --- paceProjection: projected usage marker at reset ---
+{
+  const now = new Date('2026-06-16T12:00:00Z');
+  const t = now.getTime();
+  const h = 60 * 60 * 1000;
+  const bucket = {
+    id: 'pace-test',
+    percentUsed: 80,
+    resetISO: new Date(t + 2 * h).toISOString(),
+  };
+  const rising = [
+    { ts: t - 4 * h, bucketId: 'pace-test', percentUsed: 20 },
+    { ts: t - 3 * h, bucketId: 'pace-test', percentUsed: 35 },
+    { ts: t - 2 * h, bucketId: 'pace-test', percentUsed: 50 },
+    { ts: t - 1 * h, bucketId: 'pace-test', percentUsed: 65 },
+    { ts: t,         bucketId: 'pace-test', percentUsed: 80 },
+  ];
+  const projection = paceProjection(rising, bucket, { now });
+  assert.ok(projection, 'A rising quota should expose a pace projection');
+  assert.equal(projection.markerPercent, 100, 'Quota exhaustion before reset should pin the marker to 100%');
+  assert.equal(projection.reachesLimitBeforeReset, true);
+  assert.equal(paceProjection(rising, { ...bucket, resetISO: null }, { now }), null, 'Missing reset should hide the marker');
+  assert.deepEqual(paceMarkerPoint(0, { center: 22, radius: 18 }), { x: 22, y: 4 });
 }
 
 // --- forecastExhaustion: handles reset (usage drops) ---

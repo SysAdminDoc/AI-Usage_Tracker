@@ -70,6 +70,22 @@ try {
   await widget.refreshWidget();
   assert.ok(widgetHost.shadowRoot.querySelector('.aut-provider__stale'), 'widget stale state should expose a visible stale label');
 
+  const pacedState = makeState({ claude: provider({ percentUsed: 80 }) });
+  pacedState.history = paceHistory('claude-session');
+  await saveState(pacedState);
+  await popup.render();
+  const popupPaceMarker = document.querySelector('.popup-bucket__pace-marker');
+  assert.ok(popupPaceMarker, 'popup quota ring should render an SVG pace marker');
+  assert.equal(popupPaceMarker.parentNode.tagName.toLowerCase(), 'svg', 'popup pace marker should not add layout dimensions');
+  assert.match(document.querySelector('.popup-bucket').getAttribute('aria-label'), /Pace forecast/,
+    'popup quota ring should expose its pace forecast to assistive technology');
+  await widget.refreshWidget();
+  const widgetPaceMarker = widgetHost.shadowRoot.querySelector('.aut-ring__pace-marker');
+  assert.ok(widgetPaceMarker, 'widget quota ring should render an SVG pace marker');
+  assert.equal(widgetPaceMarker.parentNode.tagName.toLowerCase(), 'svg', 'widget pace marker should not add layout dimensions');
+  assert.match(widgetHost.shadowRoot.querySelector('.aut-bucket').getAttribute('aria-label'), /Pace forecast/,
+    'widget quota ring should expose its pace forecast to assistive technology');
+
   await saveState(makeState({
     claude: { ok: false, provider: 'claude', error: 'shell-response', errorCode: 'claude.html.shell', stale: true },
   }));
@@ -177,8 +193,10 @@ try {
 
   assert.match(themeCSS, /prefers-reduced-motion:\s*reduce/, 'reduced-motion media query must be present');
   assert.match(popupCSS, /\.popup-bucket__main\s*\{\s*min-width:\s*0/s, 'popup bucket text must be allowed to shrink');
+  assert.match(popupCSS, /\.popup-bucket__pace-marker\s*\{/, 'popup pace marker should be styled inside the ring');
   assert.match(optionsCSS, /word-break:\s*break-word/, 'options diagnostics must wrap long values');
   assert.match(widgetCSS, /overflow:\s*auto/, 'widget body must contain long state without page overflow');
+  assert.match(widgetCSS, /\.aut-ring__pace-marker\s*\{/, 'widget pace marker should be styled inside the ring');
   assert.equal(errors.length, 0, `rendering should not emit console errors: ${errors.map((e) => e.join(' ')).join('; ')}`);
 
   console.log('UI render regression harness: OK');
@@ -225,6 +243,16 @@ function makeState({ claude = null, codex = null, githubCopilot = null, cursor =
     providers: { claude, codex, 'github-copilot': githubCopilot, cursor, gemini, openrouter },
   };
   return state;
+}
+
+function paceHistory(bucketId) {
+  const now = Date.now();
+  const hour = 60 * 60 * 1000;
+  return [20, 35, 50, 65, 80].map((percentUsed, index) => ({
+    ts: now - (4 - index) * hour,
+    bucketId,
+    percentUsed,
+  }));
 }
 
 function copilotProvider() {

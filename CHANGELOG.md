@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Quota rings now show a fixed-layout pace marker for projected usage at reset, with an accessible exhaustion forecast when recent history is sufficient.
 - A userscript in-page settings modal for provider and quota-row visibility, refresh fallback, theme, thresholds, notifications, and daily briefing time.
 - Pure settings normalization and dynamic quota-row catalog coverage for userscript controls.
 - CSV export, retention selection, storage-size diagnostics, representative-sample compaction, and confirmation-gated history clearing in extension and userscript settings.

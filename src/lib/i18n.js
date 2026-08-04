@@ -9,6 +9,8 @@ const ENGLISH = Object.freeze({
   'empty.openClaude': 'Open Claude', 'empty.openCodex': 'Open Codex',
   'error.provider': '{provider} refresh failed', 'error.recovery': 'Open the provider page and try refresh again.',
   'status.stale': 'Stale ({relative})', 'status.staleShort': 'Stale', 'status.localOnly': 'Local only',
+  'pace.beforeReset': 'Pace forecast: reaches 100% by {time}, before reset.',
+  'pace.atReset': 'Pace forecast: projected {percent} at reset; reaches 100% by {time}.',
   'settings.language': 'Language', 'settings.languageHint': 'Dashboard labels and dates use this locale.',
   'language.en': 'English', 'language.es': 'Spanish', 'language.fr': 'French', 'language.de': 'German',
 });

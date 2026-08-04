@@ -17,6 +17,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Always-visible widget** — drag-positionable glass card with radial-ring countdowns (HH:MM:SS center, green→amber→red ramp). Minimizes to a 32 px square corner badge.
 - **Toolbar badge + popup dashboard** — rolled-up most-constrained usage percent on the extension icon, plus both providers side-by-side with recent-usage sparklines.
 - **Inspectable sparklines** — hover or focus a popup sparkline to see the exact usage value and sample timestamp.
+- **Pace markers** — quota rings place a secondary projected-use marker when recent history predicts the window will be exhausted, with the forecast exposed to assistive technology.
 - **OS notifications** — five trigger types, each toggleable:
   - **R1 Renewal-imminent** — fires 60 min / 15 min / at-reset.
   - **R2 Renewal-arrived** — "Fresh quota — go!" the moment a bucket resets.

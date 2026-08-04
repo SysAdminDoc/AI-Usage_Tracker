@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Pace marker on quota rings
-  Why: Users need to know not only current usage but whether current burn rate will exceed the window.
-  Evidence: Claude-Code-Usage-Monitor, Tokens 4 Breakfast, and existing burn-rate forecast.
-  Touches: `src/lib/history.js`, `src/ui/widget.js`, `src/ui/popup.js`, `src/styles/widget.css`
-  Acceptance: Rings show a secondary projected-use marker with accessible text and no layout shift.
-  Complexity: M
-
 - [ ] P3 — Anomaly and spike detection
   Why: Community reports show sudden quota jumps are a high-friction failure mode.
   Evidence: Anthropic/Claude Code community complaints; existing history samples.

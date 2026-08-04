@@ -1,6 +1,6 @@
 import { getActiveProfile, isIncognitoContext, loadState } from '../lib/storage.js';
 import { formatCountdown, formatResetAbsolute, ringColor, normalizeThresholds } from '../lib/countdown.js';
-import { sparklineSamplesFor } from '../lib/history.js';
+import { paceMarkerPoint, paceProjection, sparklineSamplesFor } from '../lib/history.js';
 import {
   appendChildren,
   clearChildren,
@@ -194,12 +194,13 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
   const offset = RING_C * (1 - remaining / 100);
+  const projection = b.metric ? null : paceProjection(history, b);
   if (b.metric) {
     row.appendChild(renderMetric(b.metric, i18n));
   } else {
     const ring = createElement('div', { className: 'popup-bucket__ring' });
     const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 52 52', style: 'transform:rotate(-90deg);' } });
-    appendChildren(svg, [
+    const ringChildren = [
       createSvgElement('circle', {
         attrs: { cx: 26, cy: 26, r: RING_R, fill: 'none', stroke: 'var(--aut-surface0)', 'stroke-width': 4 },
       }),
@@ -216,7 +217,21 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
           'stroke-linecap': 'round',
         },
       }),
-    ]);
+    ];
+    if (projection) {
+      const point = paceMarkerPoint(projection.markerPercent, { center: 26, radius: RING_R });
+      ringChildren.push(createSvgElement('circle', {
+        attrs: {
+          class: 'popup-bucket__pace-marker',
+          cx: point.x,
+          cy: point.y,
+          r: 3.2,
+          'data-pace-marker': 'true',
+          'aria-hidden': 'true',
+        },
+      }));
+    }
+    appendChildren(svg, ringChildren);
     appendChildren(ring, [
       svg,
       createElement('div', {
@@ -257,9 +272,21 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
   spark.className = 'popup-bucket__spark';
   buildSparkline(spark, history, b.id, i18n);
   row.appendChild(spark);
-  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
+  const paceText = projection ? `. ${paceAriaLabel(projection, i18n)}` : '';
+  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used${paceText}`);
 
   return row;
+}
+
+function paceAriaLabel(projection, i18n) {
+  const exhaustion = i18n.formatDateTime(projection.exhaustionISO);
+  if (projection.reachesLimitBeforeReset) {
+    return i18n.t('pace.beforeReset', { time: exhaustion });
+  }
+  return i18n.t('pace.atReset', {
+    percent: i18n.formatPercent(projection.markerPercent),
+    time: exhaustion,
+  });
 }
 
 function buildOverview(snapshot, settings, thresholds, i18n = createI18n('en')) {

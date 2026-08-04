@@ -3,6 +3,7 @@
 
 import { getActiveProfile, isIncognitoContext, loadState, saveState } from '../lib/storage.js';
 import { formatCountdown, ringColor, normalizeThresholds } from '../lib/countdown.js';
+import { paceMarkerPoint, paceProjection } from '../lib/history.js';
 import { send } from '../lib/browser.js';
 import {
   appendChildren,
@@ -102,7 +103,7 @@ async function render({ onRefresh, onOpenSettings }) {
   const state = await loadState();
   const activeProfile = await getActiveProfile();
   const incognito = isIncognitoContext();
-  const { snapshot, settings, widget } = state;
+  const { snapshot, settings, widget, history } = state;
   applyTheme(rootEl, settings);
   const thresholds = normalizeThresholds(settings.thresholds);
 
@@ -150,7 +151,7 @@ async function render({ onRefresh, onOpenSettings }) {
     const context = provider === 'claude' ? state.context?.claude : null;
     const cache = provider === 'claude' ? state.cache?.claude : null;
     if (!ps && (context || cache)) {
-      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], { context, cache, thresholds }));
+      body.appendChild(renderProvider(provider, { ok: true, buckets: [], source: null }, [], { context, cache, thresholds, history }));
       drewSomething = true;
       continue;
     }
@@ -162,7 +163,7 @@ async function render({ onRefresh, onOpenSettings }) {
     }
     const visibleBuckets = ps.buckets.filter((b) => settings.showRows[b.id] !== false);
     if (visibleBuckets.length === 0 && !context && !cache) continue;
-    body.appendChild(renderProvider(provider, ps, visibleBuckets, { context, cache, thresholds }));
+    body.appendChild(renderProvider(provider, ps, visibleBuckets, { context, cache, thresholds, history }));
     drewSomething = true;
   }
 
@@ -300,7 +301,7 @@ export function renderProvider(providerKey, ps, buckets, extras = {}) {
   wrap.appendChild(title);
 
   for (const b of buckets) {
-    wrap.appendChild(renderBucket(b, extras.thresholds));
+    wrap.appendChild(renderBucket(b, extras.thresholds, extras.history));
   }
   if (providerKey === 'claude' && extras.context) {
     wrap.appendChild(renderContextCounter(extras.context));
@@ -382,7 +383,7 @@ function renderContextCounter(context) {
   return row;
 }
 
-export function renderBucket(b, thresholds) {
+export function renderBucket(b, thresholds, history = []) {
   const row = createElement('div', {
     className: `aut-bucket aut-bucket--${severityFor(b.percentUsed, thresholds)}`,
     attrs: { role: 'group' },
@@ -392,8 +393,9 @@ export function renderBucket(b, thresholds) {
   const percent = Math.max(0, Math.min(100, b.percentUsed || 0));
   const remaining = 100 - percent;
   const offset = RING_C * (1 - remaining / 100);
+  const projection = paceProjection(history, b);
   const svg = createSvgElement('svg', { attrs: { viewBox: '0 0 44 44' } });
-  appendChildren(svg, [
+  const ringChildren = [
     createSvgElement('circle', {
       attrs: { class: 'aut-ring__track', cx: 22, cy: 22, r: RING_R, fill: 'none', 'stroke-width': 4 },
     }),
@@ -410,7 +412,21 @@ export function renderBucket(b, thresholds) {
         style: `stroke: ${ringColor(percent, thresholds)};`,
       },
     }),
-  ]);
+  ];
+  if (projection) {
+    const point = paceMarkerPoint(projection.markerPercent, { center: 22, radius: RING_R });
+    ringChildren.push(createSvgElement('circle', {
+      attrs: {
+        class: 'aut-ring__pace-marker',
+        cx: point.x,
+        cy: point.y,
+        r: 3,
+        'data-pace-marker': 'true',
+        'aria-hidden': 'true',
+      },
+    }));
+  }
+  appendChildren(svg, ringChildren);
   appendChildren(ring, [
     svg,
     createElement('div', { className: 'aut-ring__label', text: `${Math.round(remaining)}%` }),
@@ -444,8 +460,17 @@ export function renderBucket(b, thresholds) {
     reset,
   ]);
   row.appendChild(text);
-  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used`);
+  const paceText = projection ? paceAriaLabel(projection) : '';
+  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used${paceText}`);
   return row;
+}
+
+function paceAriaLabel(projection) {
+  const exhaustion = new Date(projection.exhaustionISO).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  if (projection.reachesLimitBeforeReset) {
+    return `. Pace forecast: reaches 100 percent by ${exhaustion}, before reset.`;
+  }
+  return `. Pace forecast: projected ${Math.round(projection.markerPercent)} percent at reset; reaches 100 percent by ${exhaustion}.`;
 }
 
 export function renderProviderError(provider, error) {

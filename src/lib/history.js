@@ -126,6 +126,45 @@ export function forecastExhaustion(history, bucketId, { now = new Date(), window
   return new Date(tsAt100);
 }
 
+// Convert a burn-rate ETA into the percentage expected at the bucket reset.
+// Keep this separate from the ring renderers so popup and widget surfaces use
+// the same projection and share the same minimum-history behavior.
+export function paceProjection(history, bucket, { now = new Date(), windowMs = 48 * 60 * 60 * 1000 } = {}) {
+  if (!bucket?.id || !bucket.resetISO) return null;
+
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const nowTs = nowDate.getTime();
+  const resetDate = new Date(bucket.resetISO);
+  if (!Number.isFinite(nowTs) || !Number.isFinite(resetDate.getTime()) || resetDate.getTime() <= nowTs) return null;
+
+  const exhaustionDate = forecastExhaustion(history || [], bucket.id, { now: nowDate, windowMs });
+  if (!exhaustionDate) return null;
+
+  const currentPercent = clampPercent(bucket.percentUsed);
+  const msToExhaustion = exhaustionDate.getTime() - nowTs;
+  if (!Number.isFinite(msToExhaustion) || msToExhaustion <= 0) return null;
+
+  const reachesLimitBeforeReset = exhaustionDate.getTime() <= resetDate.getTime();
+  const projectedPercent = reachesLimitBeforeReset
+    ? 100
+    : currentPercent + ((100 - currentPercent) * (resetDate.getTime() - nowTs) / msToExhaustion);
+
+  return {
+    markerPercent: clampPercent(projectedPercent),
+    exhaustionISO: exhaustionDate.toISOString(),
+    resetISO: resetDate.toISOString(),
+    reachesLimitBeforeReset,
+  };
+}
+
+export function paceMarkerPoint(percent, { center = 22, radius = 22 } = {}) {
+  const angle = (clampPercent(percent) / 100) * Math.PI * 2 - Math.PI / 2;
+  return {
+    x: center + radius * Math.cos(angle),
+    y: center + radius * Math.sin(angle),
+  };
+}
+
 // Per-bucket sparkline: returns up to `n` points spaced ~evenly over last
 // RETAIN_MS, normalized to [0..100] for easy SVG plotting.
 export function sparklineFor(history, bucketId, { n = 24 } = {}) {

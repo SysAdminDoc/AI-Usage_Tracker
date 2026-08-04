@@ -172,6 +172,16 @@ html, body {
   font-size: 11px;
   font-weight: 700;
 }
+.popup-bucket__pace-marker {
+  fill: var(--aut-yellow);
+  stroke: var(--aut-crust);
+  stroke-width: 1.5;
+}
+.aut-root[data-aut-contrast="high"] .popup-bucket__pace-marker {
+  fill: var(--aut-peach);
+  stroke: var(--aut-text);
+  stroke-width: 2;
+}
 
 .popup-bucket__main { min-width: 0; }
 .popup-bucket__label {
