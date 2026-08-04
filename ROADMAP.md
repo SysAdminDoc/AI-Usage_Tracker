@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Month-end bill prediction
-  Why: Run-rate prediction turns raw API usage into a planning signal.
-  Evidence: Tokens 4 Breakfast and CostGoat emphasize monthly spend forecasting.
-  Touches: `src/lib/history.js`, cost provider modules, popup/options analytics
-  Acceptance: API-key providers show a tested projected month-end cost with confidence label and assumptions.
-  Complexity: L
-
 - [ ] P3 — Plan optimization recommendations
   Why: Users need plan guidance only after usage history is accurate and exportable.
   Evidence: Tokens 4 Breakfast plan optimization; current history and forecast primitives.

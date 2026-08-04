@@ -20,6 +20,7 @@
       <a href="#sync">Sync</a>
       <a href="#providers">Providers</a>
       <a href="#api">API access</a>
+      <a href="#forecast">Forecast</a>
       <a href="#rows">Rows</a>
       <a href="#refresh">Refresh</a>
       <a href="#appearance">Appearance</a>
@@ -63,6 +64,13 @@
       <p class="opt-hint">Optional organization analytics. Keys stay in this browser's local storage, are sent directly to the provider, and are omitted from settings and diagnostics exports. Local extension storage is not a password vault.</p>
       <div id="apiCredentialsStatus" class="opt-callout" role="status" aria-live="polite">Loading API credential status...</div>
       <div id="api-credentials" class="api-credential-grid"></div>
+    </section>
+
+    <section id="forecast" class="opt-card">
+      <h2>Month-end forecast</h2>
+      <p class="opt-hint">Projects cost-bearing API-provider spend from month-to-date observations. Official totals and pricing-table estimates are labelled separately.</p>
+      <div id="forecastStatus" class="opt-callout" role="status" aria-live="polite">Loading forecast details...</div>
+      <div id="forecastBreakdown" class="forecast-breakdown"></div>
     </section>
 
     <section id="rows" class="opt-card">

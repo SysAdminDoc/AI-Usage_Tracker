@@ -106,6 +106,10 @@ try {
   await popup.render();
   assert.match(document.querySelector('.popup-provider').textContent, /Cursor|requests|spend/i,
     'popup should render Cursor request and spend metrics');
+  assert.ok(document.querySelector('.popup-forecast'),
+    'popup should render a month-end forecast for cost-bearing API data');
+  assert.match(document.querySelector('.popup-forecast').textContent, /confidence|Projected|coverage/i,
+    'popup forecast should expose confidence and coverage assumptions');
 
   await saveState(makeState({ gemini: geminiProvider() }));
   await popup.render();
@@ -191,6 +195,8 @@ try {
   assert.equal(document.querySelector('#highContrast').checked, true, 'options should render persisted high-contrast state');
   assert.ok(document.querySelector('#exportDiagnostics'), 'options should expose a redacted diagnostics export');
   assert.ok(document.querySelector('#profileList'), 'options should expose local profile management');
+  assert.ok(document.querySelector('#forecastStatus'), 'options should expose month-end forecast status');
+  assert.ok(document.querySelector('#forecastBreakdown'), 'options should expose per-provider forecast details');
   assert.ok(document.querySelector('[data-notif="U3"]'), 'options should expose the anomaly alert toggle');
   assert.ok(document.querySelector('#anomalyThresholdPercent'), 'options should expose the anomaly threshold control');
   assert.equal(document.querySelector('#anomalyThresholdPercent').value, '20', 'options should render the default anomaly threshold');

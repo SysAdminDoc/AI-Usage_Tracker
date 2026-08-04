@@ -41,6 +41,7 @@ import {
   requestWebhookHostPermission,
 } from '../lib/browser.js';
 import { normalizeBudgetCap, resetSessionBudget } from '../lib/budget.js';
+import { forecastMonthEnd } from '../lib/forecast.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
@@ -332,6 +333,7 @@ async function loadCurrent() {
   renderSnoozeStatus(s);
   renderWebhookStatus(s);
   renderBudgetStatus(s, state.budget);
+  await renderForecastStatus();
 }
 
 export async function renderSyncSettings(state = null) {
@@ -458,6 +460,60 @@ export function renderBudgetStatus(settings = {}, budget = {}) {
   const warn = (sessionCap && Number(budget.sessionSpentUSD) >= sessionCap * 0.8)
     || (dailyCap && Number(budget.dailySpentUSD) >= dailyCap * 0.8);
   wrap.className = `opt-callout ${over ? 'opt-callout--warn' : warn ? 'opt-callout--warn' : 'opt-callout--good'}`;
+}
+
+export async function renderForecastStatus() {
+  const status = document.getElementById('forecastStatus');
+  const breakdown = document.getElementById('forecastBreakdown');
+  if (!status || !breakdown) return;
+  const state = await loadState();
+  const forecast = forecastMonthEnd(state.snapshot);
+  clearChildren(breakdown);
+
+  if (!forecast.providers.length) {
+    status.textContent = 'No cost-bearing API-provider snapshot yet. Anthropic, OpenAI, Cursor, or OpenRouter cost data will appear after a successful refresh.';
+    status.className = 'opt-callout';
+    return forecast;
+  }
+
+  const total = forecast.total;
+  const projected = total.projectedUSD == null
+    ? 'Forecast is waiting for more than one full day of cost coverage.'
+    : `Projected ${formatUSD(total.projectedUSD)} by ${formatForecastDate(forecast.monthEndISO)} (${total.confidenceLabel} confidence).`;
+  status.textContent = `${projected} ${formatUSD(total.observedUSD)} observed across ${total.providerCount} cost-bearing API provider${total.providerCount === 1 ? '' : 's'}. ${forecast.assumptions.join(' ')}`;
+  status.className = `opt-callout ${!total.confidence || total.confidence === 'low' ? 'opt-callout--warn' : 'opt-callout--good'}`;
+
+  for (const entry of forecast.providers) {
+    const card = document.createElement('article');
+    card.className = 'forecast-provider';
+    const head = document.createElement('div');
+    head.className = 'forecast-provider__head';
+    const label = document.createElement('strong');
+    label.textContent = entry.label;
+    const confidence = document.createElement('span');
+    confidence.className = `forecast-provider__confidence forecast-provider__confidence--${entry.confidence}`;
+    confidence.textContent = `${entry.confidenceLabel} confidence`;
+    head.append(label, confidence);
+    const observed = document.createElement('p');
+    observed.textContent = `Observed ${formatUSD(entry.observedUSD)} across ${entry.observedDays.toFixed(2)} days · ${entry.sourceLabel}.`;
+    const projection = document.createElement('p');
+    projection.textContent = entry.projectedUSD == null
+      ? 'Projection unavailable until coverage improves.'
+      : `Projected month end: ${formatUSD(entry.projectedUSD)}.`;
+    const assumptions = document.createElement('p');
+    assumptions.className = 'forecast-provider__assumptions';
+    assumptions.textContent = `Assumptions: ${entry.assumptions.join(' ')}`;
+    card.append(head, observed, projection, assumptions);
+    breakdown.appendChild(card);
+  }
+  return forecast;
+}
+
+function formatForecastDate(iso) {
+  const date = new Date(iso);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : 'month end';
 }
 
 function applyTheme(settings = {}) {

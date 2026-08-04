@@ -11,6 +11,12 @@ const ENGLISH = Object.freeze({
   'status.stale': 'Stale ({relative})', 'status.staleShort': 'Stale', 'status.localOnly': 'Local only',
   'pace.beforeReset': 'Pace forecast: reaches 100% by {time}, before reset.',
   'pace.atReset': 'Pace forecast: projected {percent} at reset; reaches 100% by {time}.',
+  'forecast.title': 'Month-end forecast',
+  'forecast.projected': 'Projected {amount} by {date}',
+  'forecast.observed': '{amount} observed across {providers} cost-bearing API provider(s)',
+  'forecast.confidence': '{label} confidence',
+  'forecast.assumptions': 'Assumptions: {text}',
+  'forecast.insufficient': 'Waiting for more than one full day of cost coverage.',
   'settings.language': 'Language', 'settings.languageHint': 'Dashboard labels and dates use this locale.',
   'language.en': 'English', 'language.es': 'Spanish', 'language.fr': 'French', 'language.de': 'German',
 });

@@ -10,6 +10,7 @@ import {
 } from '../lib/dom.js';
 import { createI18n } from '../lib/i18n.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
+import { forecastMonthEnd } from '../lib/forecast.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
@@ -73,6 +74,8 @@ export async function render() {
   clearChildren(dashboard);
   const overview = buildOverview(snapshot, settings, thresholds, i18n);
   if (overview) dashboard.appendChild(renderOverview(overview, i18n));
+  const forecast = forecastMonthEnd(snapshot);
+  if (forecast.providers.length) dashboard.appendChild(renderForecast(forecast, i18n));
 
   let drew = false;
   for (const provider of providerKeys(snapshot)) {
@@ -139,6 +142,62 @@ function renderOverview(overview, i18n) {
     createElement('span', { className: 'aut-status-label aut-status-label--info', text: i18n.t('overview.localOnly') }),
   ]);
   appendChildren(wrap, [copy, meta]);
+  return wrap;
+}
+
+function renderForecast(forecast, i18n) {
+  const tone = !forecast.total.confidence || forecast.total.confidence === 'low' ? 'warn' : 'good';
+  const wrap = createElement('section', {
+    className: `popup-forecast popup-forecast--${tone}`,
+    attrs: { 'aria-label': i18n.t('forecast.title') },
+  });
+  const head = createElement('div', { className: 'popup-forecast__head' });
+  const copy = createElement('div', { className: 'popup-forecast__copy' });
+  const projectedText = forecast.total.projectedUSD == null
+    ? i18n.t('forecast.insufficient')
+    : i18n.t('forecast.projected', {
+      amount: formatForecastUSD(forecast.total.projectedUSD, i18n),
+      date: formatForecastDate(forecast.monthEndISO, i18n),
+    });
+  copy.append(
+    createElement('span', { className: 'popup-forecast__label', text: i18n.t('forecast.title') }),
+    createElement('strong', { text: projectedText }),
+    createElement('span', {
+      text: i18n.t('forecast.observed', {
+        amount: formatForecastUSD(forecast.total.observedUSD, i18n),
+        providers: forecast.total.providerCount,
+      }),
+    }),
+  );
+  const confidence = createElement('span', {
+    className: `aut-status-label aut-status-label--${tone}`,
+    text: i18n.t('forecast.confidence', { label: forecast.total.confidenceLabel }),
+  });
+  head.append(copy, confidence);
+  wrap.appendChild(head);
+
+  for (const entry of forecast.providers) {
+    const row = createElement('div', { className: 'popup-forecast__provider' });
+    const provider = createElement('strong', { text: i18n.t(`provider.${entry.provider}`) });
+    const value = createElement('span', {
+      className: 'popup-forecast__value',
+      text: entry.projectedUSD == null
+        ? i18n.t('forecast.insufficient')
+        : formatForecastUSD(entry.projectedUSD, i18n),
+    });
+    const meta = createElement('span', {
+      className: 'popup-forecast__meta',
+      text: `${entry.sourceLabel} · ${entry.confidenceLabel} confidence${entry.stale ? ' · stale' : ''}`,
+    });
+    row.append(provider, value, meta);
+    wrap.appendChild(row);
+  }
+
+  const assumptionText = forecast.assumptions.join(' ');
+  wrap.appendChild(createElement('p', {
+    className: 'popup-forecast__assumptions',
+    text: i18n.t('forecast.assumptions', { text: assumptionText }),
+  }));
   return wrap;
 }
 
@@ -537,6 +596,22 @@ function formatMetricDetail(metric, i18n) {
     parts.push(`${number(metric.webSearchRequests)} web searches`);
   }
   return parts.join(' · ') || 'Month to date';
+}
+
+function formatForecastUSD(value, i18n) {
+  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+function formatForecastDate(iso, i18n) {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return 'month end';
+  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date);
 }
 
 function currency(value, locale) {
