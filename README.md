@@ -42,6 +42,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Provider plugin contract** — API providers use a versioned `auth` → `fetch` → `parse` → `normalize` registry seam, so new integrations can add fixture-backed adapters without expanding the service worker's dispatch table.
 - **Claude context counter** — estimates the visible conversation plus draft prompt against the 200k context window and shows a compact progress bar in the widget.
 - **Claude cache timer** — starts a five-minute follow-up countdown from streamed `message_limit` events, with explicit cache expiry support if Claude publishes it.
+- **Claude cache reuse analytics** — keeps local 24-hour and 7-day inferred reuse ratios from successive stream observations, with explicit limits because Claude does not publish a billing-grade hit counter.
 - **Polished status feedback** — clearer first-run, degraded, loading, diagnostics, and refresh states across the widget, popup, and settings.
 - **Redacted support bundle** — export version, channel, permission, freshness, source, error-code, and storage evidence without history, raw errors, cookies, prompts, or full identifiers.
 - **Local MCP usage server** — export an explicit redacted state file, then let a local stdio MCP process answer `get_usage`, `forecast`, and `time_to_reset` without browser storage or network access.
@@ -231,6 +232,8 @@ The dashboard is opt-in and file-based. It never uploads, syncs, inspects Git, o
 **How does plan guidance work?** Settings → Forecast and the popup can show a plan-review prompt only after seven days of fresh cost coverage. It uses a provider-reported limit, or Cursor's reported included-versus-usage-based request mix, to flag a possible higher-cap or lower-cost review. It does not know current plan names, prices, entitlements, or terms, so every prompt carries an uncertainty label and should be verified against the provider before acting.
 
 **How do webhook alerts work?** Settings → Notifications keeps webhook delivery off until you enable it and grant the configured endpoint origin. Rule events use bounded retries for transient failures; the default payload contains the event schema, rule ID, tone, and catch-up flag, while provider, bucket, percentage, reset, title, and body details require the separate opt-in. The endpoint URL and delivery status stay local and are not included in diagnostics.
+
+**How is Claude cache reuse measured?** Each streamed `message_limit` observation is recorded locally. If it arrives before the previous locally observed five-minute expiry, it counts as an inferred reuse; the popup and widget show rolling 24-hour and 7-day ratios. This is not a provider-reported hit/miss or billing metric, and missed refreshes cannot be reconstructed.
 
 **How do API spend caps work?** Settings → Notifications can track observed increases in cumulative Anthropic, OpenAI, Cursor, or OpenRouter API spend for the current local session and calendar day. The first observed total is a baseline rather than a retroactive charge; provider counter resets are handled as new spend, and missed refreshes cannot be reconstructed. Caps remain off when their value is blank or zero, and alerts fire at 80% and 100%.
 

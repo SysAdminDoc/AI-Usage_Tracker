@@ -277,6 +277,23 @@
   font-size: 10px;
   color: var(--aut-subtext0);
 }
+.aut-cache__reuse {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 3px;
+  border-top: 1px solid var(--aut-border-subtle);
+}
+.aut-cache__reuse-head {
+  color: var(--aut-text);
+  font-size: 10px;
+  font-weight: 700;
+}
+.aut-cache__reuse-value {
+  color: var(--aut-green);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
 
 .aut-ring {
   width: 44px;

@@ -1,6 +1,7 @@
 import { getActiveProfile, isIncognitoContext, loadState } from '../lib/storage.js';
 import { formatCountdown, formatResetAbsolute, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { paceMarkerPoint, paceProjection, sparklineSamplesFor } from '../lib/history.js';
+import { CACHE_REUSE_DAY_MS, CACHE_REUSE_WEEK_MS, cacheReuseStats } from '../lib/cache-timer.js';
 import {
   appendChildren,
   clearChildren,
@@ -67,7 +68,7 @@ export async function render() {
     profileName.title = `Active local profile: ${name}${incognito ? ' (Incognito)' : ''}`;
     profileName.classList.toggle('popup-profile--incognito', incognito);
   }
-  const { snapshot, settings, history } = state;
+  const { snapshot, settings, history, cache } = state;
   const i18n = createI18n(settings.locale);
   applyTheme(settings);
   const thresholds = normalizeThresholds(settings.thresholds);
@@ -79,6 +80,8 @@ export async function render() {
   if (forecast.providers.length) dashboard.appendChild(renderForecast(forecast, i18n));
   const optimization = buildPlanRecommendations(snapshot, forecast);
   if (optimization.recommendations.length) dashboard.appendChild(renderOptimization(optimization));
+  const cacheAnalytics = buildCacheAnalytics(cache, new Date());
+  if (cacheAnalytics.week.eventCount) dashboard.appendChild(renderCacheReuse(cacheAnalytics));
 
   let drew = false;
   for (const provider of providerKeys(snapshot)) {
@@ -145,6 +148,41 @@ function renderOverview(overview, i18n) {
     createElement('span', { className: 'aut-status-label aut-status-label--info', text: i18n.t('overview.localOnly') }),
   ]);
   appendChildren(wrap, [copy, meta]);
+  return wrap;
+}
+
+function buildCacheAnalytics(cache, now) {
+  const events = cache?.claude?.reuseEvents || [];
+  return {
+    day: cacheReuseStats(events, { now, windowMs: CACHE_REUSE_DAY_MS }),
+    week: cacheReuseStats(events, { now, windowMs: CACHE_REUSE_WEEK_MS }),
+  };
+}
+
+function renderCacheReuse(analytics) {
+  const wrap = createElement('section', {
+    className: 'popup-cache-reuse',
+    attrs: { 'aria-label': 'Claude cache reuse' },
+  });
+  const windows = createElement('div', { className: 'popup-cache-reuse__windows' });
+  for (const [label, stats] of [['24 hours', analytics.day], ['7 days', analytics.week]]) {
+    const card = createElement('div', { className: 'popup-cache-reuse__window' });
+    const percent = stats.reusePercent == null ? 'No data' : `${Math.round(stats.reusePercent)}% inferred reuse`;
+    card.append(
+      createElement('strong', { text: percent }),
+      createElement('span', { text: label }),
+      createElement('small', { text: stats.eventCount ? `${stats.reuseCount} of ${stats.eventCount} stream events` : 'No observed events' }),
+    );
+    windows.appendChild(card);
+  }
+  wrap.append(
+    createElement('div', { className: 'popup-cache-reuse__head', text: 'Claude cache reuse' }),
+    windows,
+    createElement('p', {
+      className: 'popup-cache-reuse__note',
+      text: 'Inferred from successive Claude stream observations, not a provider-reported hit rate. Missed refreshes are not reconstructed.',
+    }),
+  );
   return wrap;
 }
 

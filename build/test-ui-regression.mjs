@@ -89,6 +89,24 @@ try {
   assert.match(widgetHost.shadowRoot.querySelector('.aut-bucket').getAttribute('aria-label'), /Pace forecast/,
     'widget quota ring should expose its pace forecast to assistive technology');
 
+  const cacheNow = Date.now();
+  const cacheState = makeState({ claude: provider({ percentUsed: 55 }) });
+  cacheState.cache.claude = {
+    provider: 'claude',
+    cachedUntilISO: new Date(cacheNow + 4 * 60 * 1000).toISOString(),
+    windowMs: 5 * 60 * 1000,
+    reuseEvents: [
+      { sampledAtISO: new Date(cacheNow - 60 * 60 * 1000).toISOString(), reused: false, source: 'stream' },
+      { sampledAtISO: new Date(cacheNow - 30 * 60 * 1000).toISOString(), reused: true, source: 'stream' },
+    ],
+  };
+  await saveState(cacheState);
+  await popup.render();
+  assert.ok(document.querySelector('.popup-cache-reuse'), 'popup should render inferred cache reuse analytics');
+  assert.match(document.querySelector('.popup-cache-reuse').textContent, /24 hours|7 days/);
+  await widget.refreshWidget();
+  assert.ok(widgetHost.shadowRoot.querySelector('.aut-cache__reuse'), 'widget should render inferred cache reuse analytics');
+
   await saveState(makeState({
     claude: { ok: false, provider: 'claude', error: 'shell-response', errorCode: 'claude.html.shell', stale: true },
   }));
@@ -244,9 +262,11 @@ try {
   assert.match(popupCSS, /\.popup-bucket__main\s*\{\s*min-width:\s*0/s, 'popup bucket text must be allowed to shrink');
   assert.match(popupCSS, /\.popup-bucket__pace-marker\s*\{/, 'popup pace marker should be styled inside the ring');
   assert.match(popupCSS, /\.popup-optimization\s*\{/, 'popup should style plan guidance separately from provider rows');
+  assert.match(popupCSS, /\.popup-cache-reuse\s*\{/, 'popup should style inferred cache reuse analytics');
   assert.match(optionsCSS, /word-break:\s*break-word/, 'options diagnostics must wrap long values');
   assert.match(widgetCSS, /overflow:\s*auto/, 'widget body must contain long state without page overflow');
   assert.match(widgetCSS, /\.aut-ring__pace-marker\s*\{/, 'widget pace marker should be styled inside the ring');
+  assert.match(widgetCSS, /\.aut-cache__reuse\s*\{/, 'widget should style inferred cache reuse analytics');
   assert.match(widgetCSS, /\.aut-widget--mobile\s*\{/, 'widget mobile mode should have a viewport-anchored layout');
   assert.match(widgetCSS, /touch-action:\s*pan-y/, 'mobile widget should preserve page scrolling');
   assert.equal(errors.length, 0, `rendering should not emit console errors: ${errors.map((e) => e.join(' ')).join('; ')}`);

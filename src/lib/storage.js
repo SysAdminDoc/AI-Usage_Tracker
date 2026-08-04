@@ -954,6 +954,7 @@ export function defaultState() {
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
     budget: defaultBudgetLedger(),
     collaboration: defaultCollaborationState(),
+    cache: {},
     settings: defaultSettings(),
     widget: { x: null, y: null, minimized: false },
   };

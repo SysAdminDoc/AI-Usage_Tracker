@@ -163,6 +163,21 @@ export interface WidgetState {
   minimized: boolean;
 }
 
+export interface CacheReuseEvent {
+  sampledAtISO: string;
+  reused: boolean;
+  source?: string;
+}
+
+export interface ClaudeCacheState {
+  provider?: 'claude' | string;
+  cachedUntilISO?: string | null;
+  windowMs?: number;
+  source?: string;
+  sampledAtISO?: string;
+  reuseEvents?: CacheReuseEvent[];
+}
+
 export interface TrackerState {
   stateVersion: number;
   snapshot: TrackerSnapshot;
@@ -172,6 +187,7 @@ export interface TrackerState {
   widget: WidgetState;
   budget: BudgetLedger;
   collaboration?: CollaborationState;
+  cache?: { claude?: ClaudeCacheState; [key: string]: unknown };
   [key: string]: unknown;
 }
 

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Claude cache analytics now retain bounded local stream observations and show inferred 24-hour/7-day cache reuse ratios in the popup and widget, with explicit non-billing and missed-refresh limitations.
 - The optional bridge build now includes a dependency-free local native scheduler helper with per-user Chromium/Firefox registration, opt-in refresh/briefing wakeups, a metadata-only protocol, and browser-alarm fallback coverage.
 - The userscript now detects narrow/coarse-pointer viewports, anchors a compact widget to the safe viewport edges, preserves 44px touch targets, and disables desktop dragging while in mobile mode.
 - Optional webhook notification delivery now supports endpoint-origin permission requests, redacted-by-default rule events, bounded transient retries, a redacted test action, and visible failure status while remaining disabled by default.

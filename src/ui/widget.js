@@ -4,6 +4,7 @@
 import { getActiveProfile, isIncognitoContext, loadState, saveState } from '../lib/storage.js';
 import { formatCountdown, ringColor, normalizeThresholds } from '../lib/countdown.js';
 import { paceMarkerPoint, paceProjection } from '../lib/history.js';
+import { CACHE_REUSE_DAY_MS, CACHE_REUSE_WEEK_MS, cacheReuseStats } from '../lib/cache-timer.js';
 import { send } from '../lib/browser.js';
 import {
   appendChildren,
@@ -340,7 +341,26 @@ function renderCacheTimer(cache) {
     }),
     createElement('div', { className: 'aut-cache__meta', text: 'Continue before expiry for the cheapest follow-up window.' }),
   ]);
+  const reuse = renderCacheReuse(cache.reuseEvents);
+  if (reuse) row.appendChild(reuse);
   return row;
+}
+
+function renderCacheReuse(events) {
+  const now = new Date();
+  const day = cacheReuseStats(events, { now, windowMs: CACHE_REUSE_DAY_MS });
+  const week = cacheReuseStats(events, { now, windowMs: CACHE_REUSE_WEEK_MS });
+  if (!week.eventCount) return null;
+  const format = (stats) => stats.reusePercent == null ? '—' : `${Math.round(stats.reusePercent)}%`;
+  return createElement('div', {
+    className: 'aut-cache__reuse',
+    attrs: { 'aria-label': 'Claude cache reuse inferred from stream observations' },
+    children: [
+      createElement('div', { className: 'aut-cache__reuse-head', text: 'Cache reuse (inferred)' }),
+      createElement('div', { className: 'aut-cache__reuse-value', text: `24h ${format(day)} · 7d ${format(week)}` }),
+      createElement('div', { className: 'aut-cache__meta', text: `${week.reuseCount} of ${week.eventCount} stream events; missed refreshes are not reconstructed.` }),
+    ],
+  });
 }
 
 function renderContextCounter(context) {
