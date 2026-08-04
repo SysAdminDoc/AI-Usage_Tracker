@@ -1,4 +1,4 @@
-export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot' | 'cursor' | 'gemini';
+export type ProviderId = 'claude' | 'codex' | 'anthropic-api' | 'openai-api' | 'github-copilot' | 'cursor' | 'gemini' | 'openrouter';
 
 export type UsageSource = 'api' | 'dom' | 'html' | 'live' | 'fetch' | 'stream' | 'headers' | string;
 

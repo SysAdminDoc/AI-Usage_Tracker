@@ -19,7 +19,7 @@ export const SYNC_SETTINGS_SCHEMA = 'ai-usage-tracker.sync-settings';
 export const SYNC_SETTINGS_VERSION = 1;
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
-export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini']);
+export const API_CREDENTIAL_PROVIDERS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini', 'openrouter']);
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
 
@@ -361,6 +361,7 @@ const MIGRATIONS = [
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'github-copilot')) next.snapshot.providers['github-copilot'] = null;
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'cursor')) next.snapshot.providers.cursor = null;
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'gemini')) next.snapshot.providers.gemini = null;
+    if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'openrouter')) next.snapshot.providers.openrouter = null;
     if (!Array.isArray(next.history)) next.history = [];
     if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
     if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
@@ -838,6 +839,7 @@ function sanitizeImportedSettings(input) {
     'github-copilot': settings.showProviders?.['github-copilot'] !== false,
     cursor: settings.showProviders?.cursor !== false,
     gemini: settings.showProviders?.gemini !== false,
+    openrouter: settings.showProviders?.openrouter !== false,
   };
   settings.notifications = mergeDefaults(settings.notifications, defaultSettings().notifications);
   settings.notifications.dailyBriefingHour = clampNumber(settings.notifications.dailyBriefingHour, 0, 23, 8);
@@ -907,6 +909,7 @@ export function defaultState() {
         'github-copilot': null,
         cursor: null,
         gemini: null,
+        openrouter: null,
       },
     },
     history: [],          // [{ ts, bucketId, percentUsed }]
@@ -933,6 +936,7 @@ export function defaultSettings() {
       'github-copilot': true,
       cursor: true,
       gemini: true,
+      openrouter: true,
     },
     geminiProjectId: '',
     showRows: {     // headline buckets default ON; per-model rows default OFF

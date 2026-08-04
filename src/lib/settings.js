@@ -40,6 +40,7 @@ export function normalizeSettings(input = {}) {
     'github-copilot': next.showProviders?.['github-copilot'] !== false,
     cursor: next.showProviders?.cursor !== false,
     gemini: next.showProviders?.gemini !== false,
+    openrouter: next.showProviders?.openrouter !== false,
   };
   next.showRows = { ...next.showRows };
   next.notifications = { ...next.notifications };
@@ -81,6 +82,7 @@ function providerLabel(provider) {
   if (provider === 'github-copilot') return 'GitHub Copilot';
   if (provider === 'cursor') return 'Cursor';
   if (provider === 'gemini') return 'Gemini';
+  if (provider === 'openrouter') return 'OpenRouter';
   return String(provider);
 }
 

@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — OpenRouter provider
-  Why: OpenRouter is a lower-effort API-key provider that adds model-routing cost visibility.
-  Evidence: OpenUsage and Tokens 4 Breakfast include OpenRouter coverage.
-  Touches: provider modules, auth settings, popup/options rows
-  Acceptance: Users can add an OpenRouter key locally and view credits/usage with refresh diagnostics.
-  Complexity: M
-
 - [ ] P3 — Pace marker on quota rings
   Why: Users need to know not only current usage but whether current burn rate will exceed the window.
   Evidence: Claude-Code-Usage-Monitor, Tokens 4 Breakfast, and existing burn-rate forecast.

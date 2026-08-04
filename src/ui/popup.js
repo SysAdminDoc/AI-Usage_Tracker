@@ -487,6 +487,15 @@ function formatMetricDetail(metric, i18n) {
     if (metric.lastActivityISO) parts.push(`Last activity ${i18n.formatDateTime(metric.lastActivityISO)}`);
     return parts.join(' · ') || `${number(metric.requests)} requests`;
   }
+  if (metric.kind === 'currency') {
+    if (metric.limitUSD != null) parts.push(`${currency(metric.limitUSD, locale)} limit`);
+    if (metric.remainingUSD != null) parts.push(`${currency(metric.remainingUSD, locale)} remaining`);
+    if (metric.usageDailyUSD != null) parts.push(`${currency(metric.usageDailyUSD, locale)} today`);
+    if (metric.usageWeeklyUSD != null) parts.push(`${currency(metric.usageWeeklyUSD, locale)} this week`);
+    if (metric.totalCreditsUSD != null) parts.push(`${currency(metric.totalCreditsUSD, locale)} purchased`);
+    if (metric.remainingCreditsUSD != null) parts.push(`${currency(metric.remainingCreditsUSD, locale)} remaining`);
+    return parts.join(' · ') || 'Usage and credits';
+  }
   if (metric.inputTokens != null) parts.push(`${number(metric.inputTokens)} in`);
   if (metric.outputTokens != null) parts.push(`${number(metric.outputTokens)} out`);
   if (metric.cachedInputTokens != null) parts.push(`${number(metric.cachedInputTokens)} cached`);
@@ -499,6 +508,11 @@ function formatMetricDetail(metric, i18n) {
     parts.push(`${number(metric.webSearchRequests)} web searches`);
   }
   return parts.join(' · ') || 'Month to date';
+}
+
+function currency(value, locale) {
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
+    .format(Number(value) || 0);
 }
 
 function applyTheme(settings = {}) {

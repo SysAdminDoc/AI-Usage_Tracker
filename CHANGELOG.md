@@ -28,6 +28,7 @@
 - Optional GitHub Copilot provider support now stores a token locally and shows official organization-member seat activity with an explicit organization/username configuration.
 - Optional Cursor provider support now stores a team admin API key locally and shows official daily request totals, current-cycle spend, and source/freshness diagnostics.
 - Optional Gemini provider support now stores a local Google Cloud monitoring OAuth token and project ID, then shows official output-token and request-quota usage without relaying prompts or generated content.
+- Optional OpenRouter provider support now stores a key locally and shows official key usage/limits plus account credits when available.
 - README now includes current widget, popup, settings, first-run, degraded-state, and animated product captures.
 
 ### Fixed

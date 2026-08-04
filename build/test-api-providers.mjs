@@ -100,11 +100,32 @@ const geminiRequestFixture = {
   }],
 };
 
+const openRouterKeyFixture = {
+  data: {
+    usage: 25.5,
+    usage_monthly: 25.5,
+    usage_daily: 3.25,
+    usage_weekly: 12.5,
+    limit: 100,
+    limit_remaining: 74.5,
+    limit_reset: 'monthly',
+    label: 'Local usage key',
+  },
+};
+
+const openRouterCreditsFixture = {
+  data: {
+    total_credits: 100.5,
+    total_usage: 25.75,
+  },
+};
+
 const { fetchAnthropicUsage, parseAnthropicUsage } = await import('../src/providers/anthropic.js');
 const { fetchOpenAIUsage, parseOpenAIUsage } = await import('../src/providers/openai.js');
 const { fetchGitHubCopilotUsage, parseGitHubCopilotUsage } = await import('../src/providers/github-copilot.js');
 const { fetchCursorUsage, parseCursorUsage } = await import('../src/providers/cursor.js');
 const { fetchGeminiUsage, parseGeminiUsage } = await import('../src/providers/gemini.js');
+const { fetchOpenRouterUsage, parseOpenRouterUsage } = await import('../src/providers/openrouter.js');
 const {
   exportSettings,
   defaultState,
@@ -244,6 +265,34 @@ assert.ok(geminiRequests.every(({ options }) => options.headers.Authorization ==
 assert.ok(geminiRequests.every(({ url }) => url.includes('/v3/projects/my-gemini-project/timeSeries')));
 assert.equal(parseGeminiUsage({ output: {}, requests: {} }).ok, false);
 assert.equal((await getApiCredentialStatus()).gemini.configured, false);
+
+let openRouterRequests = [];
+const openRouter = await fetchOpenRouterUsage({
+  apiKey: 'sk-or-v1-test-secret',
+  now: fixedNow,
+  fetchImpl: async (url, options) => {
+    openRouterRequests.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => url.endsWith('/key') ? openRouterKeyFixture : openRouterCreditsFixture,
+    };
+  },
+});
+assert.equal(openRouter.ok, true);
+assert.equal(openRouter.provider, 'openrouter');
+assert.equal(openRouter.plan, 'OpenRouter');
+assert.equal(openRouter.totals.usageUSD, 25.5);
+assert.equal(openRouter.totals.totalCreditsUSD, 100.5);
+assert.equal(openRouter.buckets.find((bucket) => bucket.id === 'openrouter-key-usage').percentUsed, 25.5);
+assert.equal(openRouter.buckets.find((bucket) => bucket.id === 'openrouter-credits').metric.remainingCreditsUSD, 74.75);
+assert.match(openRouter.buckets.find((bucket) => bucket.id === 'openrouter-key-usage').resetISO, /^2026-09-01/);
+assert.equal(openRouterRequests.length, 2);
+assert.ok(openRouterRequests.every(({ options }) => options.headers.Authorization === 'Bearer sk-or-v1-test-secret'));
+assert.ok(openRouterRequests.some(({ url }) => url.endsWith('/api/v1/key')));
+assert.ok(openRouterRequests.some(({ url }) => url.endsWith('/api/v1/credits')));
+assert.equal(parseOpenRouterUsage({ key: {}, credits: {} }).ok, false);
+assert.equal((await getApiCredentialStatus()).openrouter.configured, false);
 
 globalThis.__AUT_ALLOW_LOCALSTORAGE__ = true;
 const backing = new Map();
