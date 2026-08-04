@@ -28,6 +28,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 export const DEFAULT_TRACKER_SETTINGS: TrackerSettings = {
   refreshMinutes: 5,
   silentTabRefresh: false,
+  nativeSchedulerEnabled: false,
   highContrast: false,
   showProviders: { claude: true, codex: true },
   showRows: {},

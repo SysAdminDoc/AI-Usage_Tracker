@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- The optional bridge build now includes a dependency-free local native scheduler helper with per-user Chromium/Firefox registration, opt-in refresh/briefing wakeups, a metadata-only protocol, and browser-alarm fallback coverage.
 - The userscript now detects narrow/coarse-pointer viewports, anchors a compact widget to the safe viewport edges, preserves 44px touch targets, and disables desktop dragging while in mobile mode.
 - Optional webhook notification delivery now supports endpoint-origin permission requests, redacted-by-default rule events, bounded transient retries, a redacted test action, and visible failure status while remaining disabled by default.
 - Optional local API spend caps now track session/day deltas for cost-bearing providers and alert at 80% and 100%, with explicit baseline/reset behavior and fixture coverage for counter resets and pricing-source changes.

@@ -108,7 +108,7 @@ async function removeStalePackages(target, bridge, keepPath) {
 }
 
 // Simple ZIP packer using Node's built-in zlib — avoids an extra dependency.
-async function zipDir(srcDir, zipPath) {
+export async function zipDir(srcDir, zipPath) {
   const { createWriteStream } = await import('node:fs');
   const { Readable } = await import('node:stream');
   const { pipeline } = await import('node:stream/promises');

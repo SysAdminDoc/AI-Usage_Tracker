@@ -145,6 +145,11 @@
       <div class="opt-row">
         <label class="opt-toggle"><input id="silentTabRefresh" type="checkbox"> Use hidden fallback tabs when API refresh fails</label>
       </div>
+      <div class="opt-divider"></div>
+      <h3>Native scheduler helper</h3>
+      <p class="opt-hint">Optional local helper for refresh and daily-briefing wakeups when the MV3 service worker is asleep. It receives only the refresh interval and next notification deadline; it never receives quota data, credentials, prompts, or history. Install the bridge companion and register its host before enabling this.</p>
+      <label class="opt-toggle"><input id="nativeSchedulerEnabled" type="checkbox"> Use the local scheduler helper</label>
+      <div id="nativeSchedulerStatus" class="opt-callout" role="status" aria-live="polite">The scheduler helper is off.</div>
     </section>
 
     <section id="appearance" class="opt-card">

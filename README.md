@@ -114,7 +114,23 @@ Userscript caveats vs. extension:
 
 Release downloads include `SHA256SUMS.txt` for verifying the Chrome ZIP, Firefox XPI, and userscript assets.
 
-Default extension packages do not request the optional `nativeMessaging` permission. QuotaGlass users who want the local desktop mirror can build the explicitly separated bridge channel with `npm run build:bridge`; it produces `AI-Usage-Tracker-chrome-bridge-v0.2.2.zip` and `ai-usage-tracker-firefox-bridge-v0.2.2.xpi` with the companion permission and no other tracking behavior changes.
+Default extension packages do not request the optional `nativeMessaging` permission. QuotaGlass users who want the local desktop mirror can build the explicitly separated bridge channel with `npm run build:bridge`; it produces `AI-Usage-Tracker-chrome-bridge-v0.2.2.zip`, `ai-usage-tracker-firefox-bridge-v0.2.2.xpi`, and `AI-Usage-Tracker-native-scheduler-v0.2.2.zip` with the companion permission and no other tracking behavior changes.
+
+### Optional native scheduler helper
+
+MV3 service workers and browser alarms can be delayed while a browser is asleep. The bridge build includes a dependency-free Python 3.10+ helper that keeps an opt-in native-messaging pipe open and emits a wake message for the next refresh or notification deadline. Browser alarms remain enabled as a fallback. The helper has no network or storage access and receives only `refreshMinutes` plus one `notificationAtISO` value.
+
+To install it for the stable Chrome extension ID and the bundled Firefox ID:
+
+```bash
+unzip AI-Usage-Tracker-native-scheduler-v0.2.2.zip -d ai-usage-tracker-native-scheduler
+cd ai-usage-tracker-native-scheduler
+python register_scheduler_host.py --host-path /absolute/path/to/ai_usage_tracker_scheduler.py --browser all
+```
+
+On Windows, use `py -3` in place of `python` and register an executable native host path (for example, a locally built unsigned launcher for the Python helper). The registration command writes only per-user HKCU browser keys; on macOS and Linux it writes user-level `NativeMessagingHosts` manifests. Use `--dry-run` to inspect the exact allow-list before writing anything. Install the `-bridge` extension package, open Settings → Refresh, and enable **Use the local scheduler helper**. It is off by default, is not included in settings sync, and can be disabled at any time.
+
+The bundle includes `build_scheduler_host.ps1` for a Windows host executable: run `py -3 -m PyInstaller --onefile --name ai_usage_tracker_scheduler ai_usage_tracker_scheduler.py` (or run the included script), then pass the resulting `ai_usage_tracker_scheduler.exe` to `register_scheduler_host.py`. On macOS/Linux, make the Python helper executable (`chmod +x ai_usage_tracker_scheduler.py`) and register that absolute path, or publish it with PyInstaller for a standalone host.
 
 ## Browser compatibility
 
@@ -144,7 +160,7 @@ The default extension packages use this narrow, local-first permission boundary:
 | `monitoring.googleapis.com` host access | Optional direct Gemini usage queries after you configure a local monitoring OAuth token and project ID | The token and project ID stay local; no Gemini prompts or generated content are sent through the tracker. |
 | `openrouter.ai` host access | Optional direct key/credits queries after you configure an OpenRouter key | The key stays in the separate local-only credential record and is omitted from settings/diagnostics exports. |
 | Optional webhook endpoint origin | Requested only after you enable/test a configured HTTP(S) webhook, scoped to that endpoint origin | Webhook delivery is off by default; payloads contain only rule metadata unless you explicitly include provider details. |
-| `nativeMessaging` | Optional QuotaGlass desktop mirror only | Missing from default packages; the bridge profile sends a minimal redacted quota envelope to the locally installed companion. |
+| `nativeMessaging` | Optional QuotaGlass mirror or local scheduler helper | Missing from default packages; the bridge profile sends either the documented redacted quota envelope or schedule metadata to a separately registered local companion, depending on the explicit setting. |
 
 The userscript has the equivalent two-provider `@match` scope and first-party/API `@connect` declarations, but the API-key settings surface is currently extension-only. It cannot refresh while no provider tab is open. No tracker path stores provider passwords, cookies, or raw prompt text. Provider snapshots may retain first-party identifiers needed for diagnostics; the optional bridge explicitly excludes account/org identifiers. The Claude context counter reads visible page text locally to estimate context usage; it does not transmit that text.
 
@@ -228,7 +244,7 @@ The dashboard is opt-in and file-based. It never uploads, syncs, inspects Git, o
 
 **What happens in an incognito window?** Chromium split-incognito windows get an independent Default/profile registry, state, history, and API-key namespace, and the widget/popup label the context “Incognito.” The Firefox package does not run in private windows because its platform cannot provide the same split behavior.
 
-**What does settings sync include?** Only display, locale, row-visibility, refresh, retention, threshold, and notification-rule preferences for the active profile. It never syncs history, quota/provider snapshots, API keys, credentials, or bridge configuration, and it is off by default.
+**What does settings sync include?** Only display, locale, row-visibility, refresh, retention, threshold, and notification-rule preferences for the active profile. It never syncs history, quota/provider snapshots, API keys, credentials, bridge configuration, or native scheduler configuration, and it is off by default.
 
 **How do I disable background page fallback?** It is off by default. If enabled for a debugging case, turn off “Use hidden fallback tabs when API refresh fails” in Settings; the extension does not silently enable it.
 

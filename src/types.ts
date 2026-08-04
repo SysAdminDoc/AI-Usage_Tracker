@@ -82,6 +82,7 @@ export interface NotificationSettings {
 export interface TrackerSettings {
   refreshMinutes: 1 | 5 | 15 | 30;
   silentTabRefresh: boolean;
+  nativeSchedulerEnabled: boolean;
   highContrast: boolean;
   showProviders: Record<string, boolean>;
   showRows: Record<string, boolean>;

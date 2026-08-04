@@ -325,6 +325,7 @@ async function loadCurrent() {
   }
   document.getElementById('refreshMinutes').value = String(s.refreshMinutes ?? 5);
   document.getElementById('silentTabRefresh').checked = s.silentTabRefresh === true;
+  document.getElementById('nativeSchedulerEnabled').checked = s.nativeSchedulerEnabled === true;
   document.getElementById('highContrast').checked = s.highContrast === true;
   document.getElementById('dailyBriefingHour').value = String(notifications.dailyBriefingHour ?? 8);
   document.getElementById('theme').value = normalizeThemeValue(s.theme);
@@ -343,6 +344,7 @@ async function loadCurrent() {
   if (syncCheckbox) syncCheckbox.checked = s.syncSettings === true;
   setThresholdLabels(thresholds);
   renderSnoozeStatus(s);
+  renderNativeSchedulerStatus(s);
   renderWebhookStatus(s);
   renderBudgetStatus(s, state.budget);
   await renderForecastStatus();
@@ -450,6 +452,24 @@ export function renderWebhookStatus(settings = {}) {
     wrap.className = 'opt-callout opt-callout--good';
   } else {
     wrap.textContent = 'Webhook delivery is enabled. The next matching rule will send a redacted event.';
+    wrap.className = 'opt-callout opt-callout--good';
+  }
+}
+
+export function renderNativeSchedulerStatus(settings = {}) {
+  const wrap = document.getElementById('nativeSchedulerStatus');
+  if (!wrap) return;
+  const enabled = settings.nativeSchedulerEnabled === true;
+  const runtime = getRuntime();
+  const nativeMessagingAvailable = typeof runtime?.connectNative === 'function';
+  if (!enabled) {
+    wrap.textContent = 'Off by default. The standard packages do not open a native-messaging pipe.';
+    wrap.className = 'opt-callout';
+  } else if (!nativeMessagingAvailable) {
+    wrap.textContent = 'Enabled locally, but this package has no native-messaging capability. Install the optional bridge package and register its scheduler host first.';
+    wrap.className = 'opt-callout opt-callout--warn';
+  } else {
+    wrap.textContent = 'Enabled. The bridge package will send only schedule metadata to the registered local helper; browser alarms remain as a fallback.';
     wrap.className = 'opt-callout opt-callout--good';
   }
 }
@@ -822,6 +842,8 @@ function bindHandlers() {
       s.refreshMinutes = parseInt(t.value, 10) || 5;
     } else if (t.id === 'silentTabRefresh') {
       s.silentTabRefresh = t.checked;
+    } else if (t.id === 'nativeSchedulerEnabled') {
+      s.nativeSchedulerEnabled = t.checked;
     } else if (t.id === 'highContrast') {
       s.highContrast = t.checked;
     } else if (t.id === 'dailyBriefingHour') {
@@ -898,13 +920,14 @@ function bindHandlers() {
     await renderHistoryStatus();
     await renderDiagnostics();
     renderSnoozeStatus(s);
+    renderNativeSchedulerStatus(s);
     renderWebhookStatus(s);
     renderBudgetStatus(s, state.budget);
     if (collaborationChanged) await renderCollaboration();
     flash('Saved just now');
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
-    if (t.id === 'refreshMinutes' && runtime?.sendMessage) {
+    if ((t.id === 'refreshMinutes' || t.id === 'nativeSchedulerEnabled') && runtime?.sendMessage) {
       sendRuntimeMessage({ type: 'aut/reschedule' }).catch(() => {});
     }
     if (runtime?.sendMessage) {

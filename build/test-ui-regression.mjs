@@ -231,6 +231,8 @@ try {
   assert.ok(document.querySelector('#createProfile'), 'options should expose profile creation');
   assert.match(document.querySelector('#profileStatus').textContent, /Default is active/);
   assert.ok(document.querySelector('#syncSettings'), 'options should expose the sync opt-in');
+  assert.ok(document.querySelector('#nativeSchedulerEnabled'), 'options should expose the native scheduler opt-in');
+  assert.ok(document.querySelector('#nativeSchedulerStatus'), 'options should explain native scheduler status');
   assert.match(document.querySelector('#syncStatus').textContent, /Unavailable|Off/);
   assert.ok(document.querySelector('#snoozeStatus').className.includes('warn'), 'options should render active snooze state');
   assert.match(document.querySelector('#diagnostics').textContent, /Claude/);

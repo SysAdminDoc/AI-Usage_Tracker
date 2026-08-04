@@ -837,6 +837,7 @@ function sanitizeImportedSettings(input) {
   settings.historyRetentionDays = retentionValues.includes(Number(settings.historyRetentionDays))
     ? Number(settings.historyRetentionDays) : 30;
   settings.silentTabRefresh = settings.silentTabRefresh === true;
+  settings.nativeSchedulerEnabled = settings.nativeSchedulerEnabled === true;
   settings.highContrast = settings.highContrast === true;
   settings.syncSettings = settings.syncSettings === true;
   settings.githubCopilotOrganization = sanitizeOptionalIdentifier(settings.githubCopilotOrganization);
@@ -962,6 +963,7 @@ export function defaultSettings() {
   return {
     refreshMinutes: 5,
     silentTabRefresh: false,
+    nativeSchedulerEnabled: false,
     highContrast: false,
     syncSettings: false,
     githubCopilotOrganization: '',

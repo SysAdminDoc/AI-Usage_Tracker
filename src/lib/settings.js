@@ -28,6 +28,7 @@ export function normalizeSettings(input = {}) {
     ? Number(next.refreshMinutes)
     : 5;
   next.silentTabRefresh = next.silentTabRefresh === true;
+  next.nativeSchedulerEnabled = next.nativeSchedulerEnabled === true;
   next.highContrast = next.highContrast === true;
   next.syncSettings = next.syncSettings === true;
   next.githubCopilotOrganization = sanitizeIdentifier(next.githubCopilotOrganization);

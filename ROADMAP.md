@@ -7,12 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Native messaging companion for schedule reliability
-  Why: MV3 service workers can sleep through exact notification windows.
-  Evidence: Chrome service worker lifecycle docs; existing QuotaGlass bridge capability.
-  Touches: native bridge, installer docs, `src/background.js`, `src/lib/notify.js`
-  Acceptance: An explicit opt-in helper can wake the extension for scheduled refresh/briefing checks across supported OSes.
-  Complexity: L
 
 ## Research-Driven Additions
 

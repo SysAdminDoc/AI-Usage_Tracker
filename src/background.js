@@ -23,6 +23,7 @@ import {
 } from './lib/notify.js';
 import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
+import { configureNativeScheduler } from './lib/native-scheduler.js';
 import { updateToolbarBadge } from './lib/badge.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from './lib/cache-timer.js';
 import { forgetApiProvider, updateBudgetLedger } from './lib/budget.js';
@@ -34,6 +35,8 @@ const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
 
 const STALE_MS = 10 * 60 * 1000;   // only force a silent-tab refresh if cached data is older than this
+
+let nativeWakeInFlight = null;
 
 init();
 
@@ -57,6 +60,7 @@ function bindMessageHandlers() {
     }
     if (msg.type === 'aut/settings-updated') {
       await refreshToolbarBadge();
+      await syncNativeScheduler(await loadState());
       return { ok: true };
     }
     if (msg.type === 'aut/profile-updated') {
@@ -157,6 +161,14 @@ async function refreshNow({ allowSilentTab = false } = {}) {
 
   await fireNotifications(state, now);
   return state;
+}
+
+function handleNativeWake() {
+  if (nativeWakeInFlight) return nativeWakeInFlight;
+  nativeWakeInFlight = refreshNow({ allowSilentTab: true })
+    .catch((error) => console.error('[AUT] native scheduler refresh failed:', error))
+    .finally(() => { nativeWakeInFlight = null; });
+  return nativeWakeInFlight;
 }
 
 function needsSilentRefresh(state, provider, now) {
@@ -345,16 +357,27 @@ async function scheduleNotificationAlarm(state, now) {
     now,
   });
   if (!next) {
-    cancelSchedule(NOTIFICATION_ALARM_NAME);
+    await cancelSchedule(NOTIFICATION_ALARM_NAME);
+    syncNativeScheduler(state, null);
     return;
   }
-  scheduleAt({
+  await scheduleAt({
     name: NOTIFICATION_ALARM_NAME,
     when: next.at,
     onFire: async () => {
       const current = await loadState();
       await fireNotifications(current || defaultState(), new Date());
     },
+  });
+  syncNativeScheduler(state, next.atISO);
+}
+
+function syncNativeScheduler(state, notificationAtISO = null) {
+  return configureNativeScheduler({
+    enabled: state?.settings?.nativeSchedulerEnabled === true,
+    refreshMinutes: state?.settings?.refreshMinutes,
+    notificationAtISO,
+    onWake: handleNativeWake,
   });
 }
 
