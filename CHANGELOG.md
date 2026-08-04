@@ -8,6 +8,7 @@
 - Optional local API spend caps now track session/day deltas for cost-bearing providers and alert at 80% and 100%, with explicit baseline/reset behavior and fixture coverage for counter resets and pricing-source changes.
 - Cost-bearing API providers now expose a tested UTC month-end spend projection in the popup and settings, with official/estimated provenance, coverage-aware confidence, stale-data downgrades, and visible run-rate assumptions.
 - Settings and the popup now offer conservative plan-review prompts after seven days of fresh coverage when provider limits or subscription/usage-based seat mix provide evidence, with explicit uncertainty and no embedded plan catalog.
+- Settings now exposes a credential-free API breakdown grouped by provider dimensions and a redacted CSV export, with fixture coverage proving workspace/project/API-key identifiers are shortened and secret-like values are omitted.
 - API-key providers now register through a versioned `auth` → `fetch` → `parse` → `normalize` plugin contract with a shared credential boundary, generic background dispatch, and fixture coverage for every built-in adapter.
 - API analytics now follow paginated usage/cost reports, show Anthropic’s official model/workspace costs, and show OpenAI per-model pricing-table estimates beside the official organization cost reconciliation rows with visible provenance.
 - Optional U3 spike alerts now compare each new quota sample with the recent moving average, with configurable percentage-point thresholds in extension and userscript settings.

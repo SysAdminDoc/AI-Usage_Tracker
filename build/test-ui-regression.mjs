@@ -189,6 +189,8 @@ try {
   assert.ok(document.querySelector('[data-api-provider="cursor"]'), 'options should expose Cursor API credentials');
   assert.ok(document.querySelector('[data-api-config="geminiProjectId"]'), 'options should expose Gemini project configuration');
   assert.ok(document.querySelector('[data-api-provider="openrouter"]'), 'options should expose OpenRouter API credentials');
+  assert.ok(document.querySelector('#apiBreakdownStatus'), 'options should expose API breakdown status');
+  assert.ok(document.querySelector('#exportApiBreakdown'), 'options should expose a redacted API breakdown export');
   assert.match(document.querySelector('.api-credential__cost-hint').textContent, /cost|usage/i,
     'options should explain API cost coverage');
   assert.equal(document.querySelector('[data-provider="claude"]').checked, false, 'options should render disabled-provider state');

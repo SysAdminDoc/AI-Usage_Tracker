@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Per-API-key and workspace breakdown
-  Why: Official API usage endpoints support higher-resolution cost attribution.
-  Evidence: OpenAI Usage API and Anthropic analytics docs.
-  Touches: API provider modules, popup/options analytics, export
-  Acceptance: API paths can group by workspace/project/API key without exposing secret values in UI or exports.
-  Complexity: L
-
 - [ ] P3 — MCP usage server
   Why: Claude Code and other agents could query remaining usage without a browser context switch.
   Evidence: Existing Later item; adjacent statusline and local-monitor tools show demand.

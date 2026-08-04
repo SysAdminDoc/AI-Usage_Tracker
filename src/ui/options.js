@@ -44,6 +44,7 @@ import { normalizeBudgetCap, resetSessionBudget } from '../lib/budget.js';
 import { forecastMonthEnd } from '../lib/forecast.js';
 import { buildPlanRecommendations } from '../lib/optimization.js';
 import { buildSupportBundle } from '../lib/diagnostics.js';
+import { apiBreakdownToCSV, buildApiBreakdown } from '../lib/api-breakdown.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
 
@@ -335,6 +336,7 @@ async function loadCurrent() {
   renderWebhookStatus(s);
   renderBudgetStatus(s, state.budget);
   await renderForecastStatus();
+  await renderApiBreakdown();
 }
 
 export async function renderSyncSettings(state = null) {
@@ -509,6 +511,56 @@ export async function renderForecastStatus() {
     breakdown.appendChild(card);
   }
   return forecast;
+}
+
+export async function renderApiBreakdown() {
+  const status = document.getElementById('apiBreakdownStatus');
+  const wrap = document.getElementById('apiBreakdown');
+  const exportButton = document.getElementById('exportApiBreakdown');
+  if (!status || !wrap) return null;
+  const state = await loadState();
+  const breakdown = buildApiBreakdown(state.snapshot);
+  clearChildren(wrap);
+  if (exportButton) exportButton.disabled = breakdown.rows.length === 0;
+  if (!breakdown.rows.length) {
+    status.textContent = 'No official API rows are available yet. Add a credential and refresh the provider first.';
+    status.className = 'opt-callout';
+    return breakdown;
+  }
+  status.textContent = `${breakdown.rows.length} API row${breakdown.rows.length === 1 ? '' : 's'} grouped locally. Workspace, project, and API-key identifiers are shortened in this view and export.`;
+  status.className = 'opt-callout opt-callout--good';
+  for (const row of breakdown.rows) {
+    const item = document.createElement('article');
+    item.className = 'api-breakdown__row';
+    const head = document.createElement('div');
+    head.className = 'api-breakdown__head';
+    const provider = document.createElement('strong');
+    provider.textContent = row.providerLabel;
+    const value = document.createElement('span');
+    value.className = 'api-breakdown__value';
+    value.textContent = apiMetricSummary(row);
+    head.append(provider, value);
+    const group = document.createElement('span');
+    group.className = 'api-breakdown__meta';
+    group.textContent = row.group;
+    const source = document.createElement('span');
+    source.className = 'api-breakdown__source';
+    source.textContent = [
+      row.model ? `Model ${row.model}` : '',
+      row.costSource ? (row.costSource === 'pricing-table' ? 'Pricing-table estimate' : 'Official cost') : 'Usage metric',
+    ].filter(Boolean).join(' · ');
+    item.append(head, group, source);
+    wrap.appendChild(item);
+  }
+  return breakdown;
+}
+
+function apiMetricSummary(row) {
+  const parts = [];
+  if (row.costUSD != null) parts.push(formatUSD(row.costUSD));
+  if (row.totalTokens != null) parts.push(`${formatCount(row.totalTokens)} tokens`);
+  if (row.requests != null) parts.push(`${formatCount(row.requests)} requests`);
+  return parts.join(' · ') || 'Usage row';
 }
 
 export function renderOptimizationStatus(optimization = {}) {
@@ -768,6 +820,7 @@ function bindHandlers() {
         await renderApiCredentials();
         await renderRows();
         await renderDiagnostics();
+        await renderApiBreakdown();
         flash(`${API_PROVIDER_META[provider]?.label || provider} key revoked`);
       }
     } catch (error) {
@@ -894,6 +947,17 @@ function bindHandlers() {
     const state = await loadState();
     downloadHistory(state.history || []);
     flash('History CSV download started');
+  });
+
+  document.getElementById('exportApiBreakdown')?.addEventListener('click', async () => {
+    const state = await loadState();
+    const breakdown = buildApiBreakdown(state.snapshot);
+    if (!breakdown.rows.length) {
+      flash('No API breakdown is available yet', 'bad');
+      return;
+    }
+    downloadApiBreakdown(breakdown);
+    flash('Redacted API breakdown CSV download started');
   });
 
   document.getElementById('compactHistory').addEventListener('click', async () => {
@@ -1066,6 +1130,23 @@ function downloadHistory(history) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function downloadApiBreakdown(breakdown) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash('Download unavailable', 'bad');
+    return;
+  }
+  const blob = new Blob([apiBreakdownToCSV(breakdown)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `ai-usage-tracker-api-breakdown-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function downloadSettings(payload) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
     flash('Download unavailable', 'bad');
@@ -1186,6 +1267,10 @@ function notificationDiagnostic(settings = {}) {
 
 function formatUSD(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function formatCount(value) {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value) || 0);
 }
 
 function providerDiagnostic(provider, ps) {
