@@ -16,9 +16,14 @@ import { openInlineSettings as showInlineSettings } from '../src/ui/inline-setti
 import { isClaudeHost, isSupportedHost } from '../src/lib/hosts.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
+const MOBILE_LAYOUT_MAX_WIDTH = 640;
+
+let mobileLayout = false;
 
 (async function main() {
   if (!isSupportedHost(location.hostname)) return;
+
+  mobileLayout = isMobileViewport();
 
   installClaudeStreamInterceptor();
 
@@ -28,6 +33,7 @@ const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
   await mountWidget({
     onRefresh: () => refreshNow().then(() => refreshWidget()),
     onOpenSettings: openInlineSettings,
+    mobile: mobileLayout,
   });
 
   await refreshNow();
@@ -38,9 +44,27 @@ const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
   });
   scheduleNext();
 
+  window.addEventListener('resize', handleViewportResize, { passive: true });
+
   // Re-render widget every 5s so countdowns tick + "Updated Xs ago" stays fresh.
   setInterval(() => refreshWidget(), 5_000);
 })();
+
+function isMobileViewport() {
+  const narrow = Number(window.innerWidth) > 0 && window.innerWidth <= MOBILE_LAYOUT_MAX_WIDTH;
+  const coarse = typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: coarse)').matches;
+  return narrow || coarse;
+}
+
+function handleViewportResize() {
+  const next = isMobileViewport();
+  if (next === mobileLayout) return;
+  mobileLayout = next;
+  refreshWidget({ mobile: mobileLayout }).catch((error) => {
+    console.warn('AUT mobile layout refresh failed', error);
+  });
+}
 
 async function refreshNow() {
   const now = new Date();

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- The userscript now detects narrow/coarse-pointer viewports, anchors a compact widget to the safe viewport edges, preserves 44px touch targets, and disables desktop dragging while in mobile mode.
 - API analytics now follow paginated usage/cost reports, show Anthropic’s official model/workspace costs, and show OpenAI per-model pricing-table estimates beside the official organization cost reconciliation rows with visible provenance.
 - Optional U3 spike alerts now compare each new quota sample with the recent moving average, with configurable percentage-point thresholds in extension and userscript settings.
 - Quota rings now show a fixed-layout pace marker for projected usage at reset, with an accessible exhaustion forecast when recent history is sufficient.

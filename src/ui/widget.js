@@ -34,9 +34,9 @@ let contextMenuEl = null;
 let hiddenForSession = false;
 let widgetCallbacks = {};
 
-export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
+export async function mountWidget({ onRefresh, onOpenSettings, mobile = false } = {}) {
   if (rootEl) return rootEl;
-  widgetCallbacks = { onRefresh, onOpenSettings };
+  widgetCallbacks = { onRefresh, onOpenSettings, mobile: mobile === true };
 
   // Detached shadow DOM container so host page CSS can't reach us.
   const host = document.createElement('div');
@@ -57,18 +57,19 @@ export async function mountWidget({ onRefresh, onOpenSettings } = {}) {
   shadow.appendChild(root);
 
   rootEl = root;
-  await render({ onRefresh, onOpenSettings });
+  await render(widgetCallbacks);
   startTicker();
   return rootEl;
 }
 
-export async function refreshWidget({ onRefresh, onOpenSettings } = {}) {
+export async function refreshWidget({ onRefresh, onOpenSettings, mobile } = {}) {
   if (!rootEl) return;
   const active = rootEl.getRootNode?.().activeElement;
   const focusAction = active?.dataset?.act || '';
   widgetCallbacks = {
     onRefresh: onRefresh || widgetCallbacks.onRefresh,
     onOpenSettings: onOpenSettings || widgetCallbacks.onOpenSettings,
+    mobile: typeof mobile === 'boolean' ? mobile : widgetCallbacks.mobile === true,
   };
   await render(widgetCallbacks);
   if (focusAction) rootEl.querySelector(`[data-act="${focusAction}"]`)?.focus();
@@ -93,7 +94,7 @@ async function fetchInlineCSS(relPath) {
   return '';
 }
 
-async function render({ onRefresh, onOpenSettings }) {
+async function render({ onRefresh, onOpenSettings, mobile = false }) {
   if (hiddenForSession) {
     if (rootEl) rootEl.style.display = 'none';
     return;
@@ -109,10 +110,11 @@ async function render({ onRefresh, onOpenSettings }) {
 
   const wrap = document.createElement('div');
   wrap.className = 'aut-widget aut-glass aut-shimmer';
+  if (mobile) wrap.classList.add('aut-widget--mobile');
   if (widget.minimized) wrap.classList.add('aut-widget--mini');
 
   // Position
-  if (widget.x != null && widget.y != null) {
+  if (!mobile && widget.x != null && widget.y != null) {
     wrap.style.left = `${widget.x}px`;
     wrap.style.top  = `${widget.y}px`;
     wrap.style.right = 'auto';
@@ -126,9 +128,9 @@ async function render({ onRefresh, onOpenSettings }) {
       const s = await loadState();
       s.widget.minimized = false;
       await saveState(s);
-      await render({ onRefresh, onOpenSettings });
+      await render({ onRefresh, onOpenSettings, mobile });
     });
-    enableDrag(wrap);
+    enableDrag(wrap, { disabled: mobile });
     enableContextMenu(wrap, { onRefresh, onOpenSettings });
     swapRoot(wrap);
     return;
@@ -139,6 +141,7 @@ async function render({ onRefresh, onOpenSettings }) {
     onOpenSettings,
     profileName: activeProfile?.name,
     incognito,
+    mobile,
   }));
 
   const body = document.createElement('div');
@@ -201,7 +204,7 @@ async function render({ onRefresh, onOpenSettings }) {
     wrap.appendChild(foot);
   }
 
-  enableDrag(wrap);
+  enableDrag(wrap, { disabled: mobile });
   enableContextMenu(wrap, { onRefresh, onOpenSettings });
   swapRoot(wrap);
 }
@@ -213,7 +216,7 @@ function swapRoot(newWrap) {
   root.appendChild(newWrap);
 }
 
-function renderHeader({ onRefresh, onOpenSettings, profileName = 'Default', incognito = false }) {
+function renderHeader({ onRefresh, onOpenSettings, profileName = 'Default', incognito = false, mobile = false }) {
   const header = document.createElement('div');
   header.className = 'aut-widget__header';
   setStaticMarkup(header, `
@@ -264,7 +267,7 @@ function renderHeader({ onRefresh, onOpenSettings, profileName = 'Default', inco
     const s = await loadState();
     s.widget.minimized = true;
     await saveState(s);
-    await render({ onRefresh, onOpenSettings });
+    await render({ onRefresh, onOpenSettings, mobile });
   });
   return header;
 }
@@ -601,7 +604,8 @@ function startTicker() {
   }, 1000);
 }
 
-function enableDrag(wrap) {
+function enableDrag(wrap, { disabled = false } = {}) {
+  if (disabled) return;
   const onPointerDown = (e) => {
     if (e.target.closest('.aut-iconbtn')) return;
     const rect = wrap.getBoundingClientRect();

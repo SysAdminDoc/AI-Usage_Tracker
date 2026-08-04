@@ -7,13 +7,6 @@ Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or
 ### P1
 ### P2
 ### P3
-- [ ] P3 — Mobile-friendly userscript build
-  Why: Android userscript browsers need a lower-motion, non-drag-first layout.
-  Evidence: Existing Later item; current widget is optimized for desktop pointer use.
-  Touches: `userscript/entry.js`, `src/ui/widget.js`, `src/styles/widget.css`
-  Acceptance: A mobile userscript mode uses stable touch targets, no drag dependency, and a compact sticky layout.
-  Complexity: M
-
 - [ ] P3 — Provider plugin API
   Why: Provider count will grow faster than core maintainers can safely ship if every provider is hard-coded.
   Evidence: CodexBar and OpenUsage provider breadth; current provider logic is centralized.

@@ -60,6 +60,9 @@ try {
   await widget.mountWidget({});
   const widgetHost = document.getElementById('aut-host');
   assert.ok(widgetHost?.shadowRoot?.querySelector('.aut-widget__empty'), 'widget first-run state should render inside its shadow root');
+  await widget.refreshWidget({ mobile: true });
+  assert.ok(widgetHost.shadowRoot.querySelector('.aut-widget--mobile'), 'userscript mobile mode should add its compact layout class');
+  await widget.refreshWidget({ mobile: false });
 
   await saveState(makeState({
     claude: provider({ percentUsed: 86, stale: true, lastErrorDetail: 'usage unavailable' }),
@@ -207,6 +210,8 @@ try {
   assert.match(optionsCSS, /word-break:\s*break-word/, 'options diagnostics must wrap long values');
   assert.match(widgetCSS, /overflow:\s*auto/, 'widget body must contain long state without page overflow');
   assert.match(widgetCSS, /\.aut-ring__pace-marker\s*\{/, 'widget pace marker should be styled inside the ring');
+  assert.match(widgetCSS, /\.aut-widget--mobile\s*\{/, 'widget mobile mode should have a viewport-anchored layout');
+  assert.match(widgetCSS, /touch-action:\s*pan-y/, 'mobile widget should preserve page scrolling');
   assert.equal(errors.length, 0, `rendering should not emit console errors: ${errors.map((e) => e.join(' ')).join('; ')}`);
 
   console.log('UI render regression harness: OK');

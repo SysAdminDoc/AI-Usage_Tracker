@@ -14,7 +14,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 
 ## Features
 
-- **Always-visible widget** — drag-positionable glass card with radial-ring countdowns (HH:MM:SS center, green→amber→red ramp). Minimizes to a 32 px square corner badge.
+- **Always-visible widget** — drag-positionable glass card with radial-ring countdowns (HH:MM:SS center, green→amber→red ramp). Minimizes to a 32 px square corner badge; the userscript switches to a compact viewport-anchored touch layout on narrow/coarse-pointer screens.
 - **Toolbar badge + popup dashboard** — rolled-up most-constrained usage percent on the extension icon, plus both providers side-by-side with recent-usage sparklines.
 - **Inspectable sparklines** — hover or focus a popup sparkline to see the exact usage value and sample timestamp.
 - **Pace markers** — quota rings place a secondary projected-use marker when recent history predicts the window will be exhausted, with the forecast exposed to assistive technology.
@@ -96,6 +96,7 @@ Release Firefox does not allow unsigned extensions; a signed AMO submission is p
 
 Userscript caveats vs. extension:
 - No silent background refresh — data only updates while you have a Claude or ChatGPT tab open.
+- Narrow or coarse-pointer userscript viewports use a compact bottom-anchored layout with no drag dependency; desktop userscript viewports retain the positionable card.
 - No toolbar popup dashboard (open the in-page settings modal and history controls via the widget gear icon).
 - OS notifications use the userscript manager API when available, otherwise the web `Notification` API; either path requires a provider tab to be open.
 - The optional settings-sync control is extension-only; userscript data remains in the local userscript-manager store.

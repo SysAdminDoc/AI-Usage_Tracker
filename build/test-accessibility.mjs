@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { normalizeSettings } from '../src/lib/settings.js';
 
-const [theme, widget, popup, options, inline] = await Promise.all([
+const [theme, widget, popup, options, inline, userscript] = await Promise.all([
   fs.readFile(new URL('../src/ui/theme.css', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/widget.js', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/popup.js', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/options.html', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/inline-settings.js', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../userscript/entry.js', import.meta.url), 'utf8'),
 ]);
 
 assert.match(theme, /prefers-reduced-motion:\s*reduce/, 'reduced-motion rules must remain present');
@@ -24,6 +25,8 @@ assert.match(options, /id="highContrast"/, 'extension settings must expose high 
 assert.match(options, /aria-live="polite"/, 'extension status regions need live announcements');
 assert.match(inline, /setAttribute\('aria-modal', 'true'\)/, 'userscript settings must remain a modal dialog');
 assert.match(inline, /highContrast/, 'userscript settings must expose high contrast');
+assert.match(widget, /enableDrag\(wrap, \{ disabled: mobile \}\)/, 'mobile mode must disable drag listeners');
+assert.match(userscript, /isMobileViewport\(\)/, 'userscript must detect narrow or coarse-pointer viewports');
 
 assert.equal(normalizeSettings({ highContrast: true }).highContrast, true);
 assert.equal(normalizeSettings({ highContrast: 1 }).highContrast, false);
