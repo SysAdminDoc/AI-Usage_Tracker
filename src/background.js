@@ -59,8 +59,9 @@ function bindMessageHandlers() {
       return { ok: true };
     }
     if (msg.type === 'aut/settings-updated') {
+      const state = await loadState();
+      await scheduleNotificationAlarm(state, new Date());
       await refreshToolbarBadge();
-      await syncNativeScheduler(await loadState());
       return { ok: true };
     }
     if (msg.type === 'aut/profile-updated') {

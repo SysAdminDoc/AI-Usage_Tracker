@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Rebuild the notification deadline alarm whenever settings or snooze state changes, so service-worker refreshes do not leave stale one-shot schedules behind.
+
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 
 ### Added
