@@ -1,6 +1,7 @@
 import {
   addNumbers,
   apiFailure,
+  apiSchemaFailure,
   currentMonthRange,
   numberValue,
   readJSONPages,
@@ -8,6 +9,7 @@ import {
   slug,
 } from './api-contract.js';
 import { estimateTokenCost } from '../lib/pricing.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 export const OPENAI_USAGE_URL = 'https://api.openai.com/v1/organization/usage/completions';
 export const OPENAI_COSTS_URL = 'https://api.openai.com/v1/organization/costs';
@@ -68,6 +70,12 @@ export async function fetchOpenAIData({ apiKey, now = new Date(), fetchImpl = nu
 
 export function parseOpenAIResponse(data, { range = currentMonthRange(), usageOk = true, costsOk = true,
   usageErrorCode = null, costsErrorCode = null, usageTruncated = false, costsTruncated = false } = {}) {
+  if (usageTruncated || costsTruncated) {
+    return apiSchemaFailure('openai-api', 'pagination', 'pagination-truncated', {
+      usageTruncated,
+      costsTruncated,
+    });
+  }
   const parsed = parseOpenAIUsage(data?.usage || { data: [] }, {
     costs: data?.costs || null,
     range,
@@ -100,6 +108,7 @@ export function parseOpenAIUsage(data, { costs = null, range = currentMonthRange
   const groups = new Map();
   for (const bucket of Array.isArray(data?.data) ? data.data : []) {
     for (const result of Array.isArray(bucket?.results) ? bucket.results : []) {
+      if (!hasSupportedOpenAIResult(result)) continue;
       const model = result?.model || 'all';
       const projectId = result?.project_id || null;
       const apiKeyId = result?.api_key_id || null;
@@ -123,13 +132,27 @@ export function parseOpenAIUsage(data, { costs = null, range = currentMonthRange
   }
 
   const costGroups = parseCostGroups(costs);
-  if (!groups.size) return apiFailure('openai-api', 'usage.schema-empty', 'usage-schema-empty');
+  if (!groups.size) {
+    return apiSchemaFailure('openai-api', 'usage', 'missing-supported-usage-shape', {
+      usage: data,
+      costs,
+    });
+  }
   return buildOpenAISnapshot([...groups.values()], { range, costs: costGroups });
+}
+
+function hasSupportedOpenAIResult(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return false;
+  return [
+    'input_tokens', 'output_tokens', 'input_cached_tokens', 'num_model_requests',
+  ].some((key) => Number.isFinite(Number(result[key])));
 }
 
 function parseOpenAICostsOnly(data, { range }) {
   const costs = parseCostGroups(data);
-  if (!costs.total && !costs.groups.size) return apiFailure('openai-api', 'costs.schema-empty', 'costs-schema-empty');
+  if (!costs.total && !costs.groups.size) {
+    return apiSchemaFailure('openai-api', 'costs', 'missing-supported-cost-shape', data);
+  }
   return buildOpenAISnapshot([{
     model: 'all', projectId: null, apiKeyId: null, inputTokens: 0, outputTokens: 0,
     cachedInputTokens: 0, requests: 0,
@@ -199,6 +222,8 @@ function buildOpenAISnapshot(groups, { range, costs }) {
     ok: true,
     provider: 'openai-api',
     source: 'api-key',
+    ...supportedSchema('openai-api', 'usage', 'usage-and-costs'),
+    schemaSources: ['usage', 'costs'],
     range: { startISO: range.startISO, endISO: range.endISO },
     totals: {
       costUSD: costs?.hasData ? numberValue(costs.total) : estimatedCostUSD,

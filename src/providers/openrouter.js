@@ -1,9 +1,11 @@
 import {
   apiFailure,
+  apiSchemaFailure,
   numberValue,
   readJSONResponse,
   resolveFetch,
 } from './api-contract.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 export const OPENROUTER_KEY_URL = 'https://openrouter.ai/api/v1/key';
 export const OPENROUTER_CREDITS_URL = 'https://openrouter.ai/api/v1/credits';
@@ -73,12 +75,16 @@ export function parseOpenRouterUsage({ key = null, credits = null } = {}, { now 
   const creditData = credits?.data && typeof credits.data === 'object' ? credits.data : null;
   const hasKeyShape = !!keyData && [
     'usage', 'usage_monthly', 'limit', 'limit_remaining', 'limit_reset',
-  ].some((field) => Object.prototype.hasOwnProperty.call(keyData, field));
+  ].some((field) => Object.prototype.hasOwnProperty.call(keyData, field))
+    && ['usage', 'usage_monthly', 'limit', 'limit_remaining']
+      .some((field) => Number.isFinite(Number(keyData[field])));
   const hasCreditShape = !!creditData && [
     'total_credits', 'total_usage',
-  ].some((field) => Object.prototype.hasOwnProperty.call(creditData, field));
+  ].some((field) => Object.prototype.hasOwnProperty.call(creditData, field))
+    && ['total_credits', 'total_usage']
+      .some((field) => Number.isFinite(Number(creditData[field])));
   if (!hasKeyShape && !hasCreditShape) {
-    return apiFailure('openrouter', 'usage.schema-empty', 'usage-schema-empty');
+    return apiSchemaFailure('openrouter', 'usage', 'missing-supported-key-or-credit-shape', { key, credits });
   }
 
   const monthlyUsage = numberValue(keyData?.usage_monthly ?? keyData?.usage);
@@ -141,6 +147,7 @@ export function parseOpenRouterUsage({ key = null, credits = null } = {}, { now 
     ok: true,
     provider: 'openrouter',
     source: 'api-key',
+    ...supportedSchema('openrouter', 'usage', 'key-and-credits'),
     plan: 'OpenRouter',
     totals: {
       usageUSD: monthlyUsage,

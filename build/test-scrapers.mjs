@@ -235,7 +235,7 @@ async function smokeProviderContractMatrix() {
   clearClaudeOrgCache();
   const missingClaude = await getClaudeOrgId({ fetchImpl: async () => jsonResponse([]) });
   assertError(missingClaude, 'claude.account.missing', 'Claude missing-account fixture should classify the failure');
-  assertError(parseClaudeUsageApi({}, { now }), 'claude.usage.schema-empty', 'Claude empty API fixture should classify the failure');
+  assertError(parseClaudeUsageApi({}, { now }), 'claude.api.schema-unsupported', 'Claude empty API fixture should classify the failure');
 
   const codexFixture = {
     usage: {
@@ -249,7 +249,7 @@ async function smokeProviderContractMatrix() {
   assert(codexApi.ok, 'Codex renamed-field fixture should parse');
   assertEqual(findBucket(codexApi, 'codex-5h-all')?.percentUsed, 12, 'Codex percentUsed alias should parse');
   assertEqual(findBucket(codexApi, 'codex-weekly-all')?.percentUsed, 25, 'Codex remainingPercent alias should normalize');
-  assertError(parseCodexUsageApi({}, { now }), 'codex.usage.schema-empty', 'Codex empty API fixture should classify the failure');
+  assertError(parseCodexUsageApi({}, { now }), 'codex.api.schema-unsupported', 'Codex empty API fixture should classify the failure');
 
   const missingCodex = await getChatGptAuthContext({ fetchImpl: async () => jsonResponse({ accountId: 'acc_fixture' }) });
   assertError(missingCodex, 'codex.auth.missing-token', 'Codex missing-auth fixture should classify the failure');

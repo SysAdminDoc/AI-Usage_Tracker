@@ -1630,7 +1630,10 @@ function providerDiagnostic(provider, ps) {
   if (provider === 'claude' && ps.orgId) parts.push(`org ${shortId(ps.orgId)}`);
   if (ps.plan) parts.push(ps.plan);
   if (ps.lastSuccessISO) parts.push(`fresh ${formatAgo(ps.lastSuccessISO)}`);
-  if (ps.stale) parts.push(`(stale - ${formatProviderError('last fetch failed', ps.lastErrorCode)})`);
+  if (ps.stale) {
+    const reason = ps.staleReason ? `; ${ps.staleReason}` : '';
+    parts.push(`(stale - ${formatProviderError(`last fetch failed${reason}`, ps.lastErrorCode)})`);
+  }
   return { ok: !ps.stale && ps.ok !== false, summary: parts.filter(Boolean).join(' - ') };
 }
 

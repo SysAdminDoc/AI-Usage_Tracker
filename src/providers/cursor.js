@@ -1,10 +1,12 @@
 import {
   apiFailure,
+  apiSchemaFailure,
   currentMonthRange,
   numberValue,
   readJSONResponse,
   resolveFetch,
 } from './api-contract.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 export const CURSOR_API_BASE_URL = 'https://api.cursor.com';
 export const CURSOR_DAILY_USAGE_URL = `${CURSOR_API_BASE_URL}/teams/daily-usage-data`;
@@ -95,7 +97,7 @@ export function parseCursorUsage({ daily = null, spend = null } = {}, { range = 
   const hasSpendShape = spendRows.some((row) => row && typeof row === 'object'
     && ['spendCents', 'fastPremiumRequests', 'name', 'email'].some((key) => Object.prototype.hasOwnProperty.call(row, key)));
   if (!hasDailyShape && !hasSpendShape && !hasSpendCycle) {
-    return apiFailure('cursor', 'usage.schema-empty', 'usage-schema-empty');
+    return apiSchemaFailure('cursor', 'usage', 'missing-supported-daily-or-spend-shape', { daily, spend });
   }
 
   const usage = {
@@ -191,12 +193,15 @@ export function parseCursorUsage({ daily = null, spend = null } = {}, { range = 
       },
     });
   }
-  if (!buckets.length) return apiFailure('cursor', 'usage.schema-empty', 'usage-schema-empty');
+  if (!buckets.length) {
+    return apiSchemaFailure('cursor', 'usage', 'supported-shape-without-usable-bucket', { daily, spend });
+  }
 
   return {
     ok: true,
     provider: 'cursor',
     source: 'api-key',
+    ...supportedSchema('cursor', 'usage', 'daily-and-spend'),
     plan: 'Cursor team',
     range: { startISO: range.startISO, endISO: range.endISO },
     totals: {

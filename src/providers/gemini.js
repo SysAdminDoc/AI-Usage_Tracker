@@ -1,10 +1,12 @@
 import {
   apiFailure,
+  apiSchemaFailure,
   currentMonthRange,
   numberValue,
   readJSONResponse,
   resolveFetch,
 } from './api-contract.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 export const GEMINI_MONITORING_BASE_URL = 'https://monitoring.googleapis.com/v3/projects';
 export const GEMINI_OUTPUT_TOKEN_METRIC = 'generativelanguage.googleapis.com/generate_content_usage_output_token_count';
@@ -78,11 +80,13 @@ export function parseGeminiUsage({ output = null, requests = null } = {}, {
   range = currentMonthRange(),
   projectId = '',
 } = {}) {
-  if (!output && !requests) return apiFailure('gemini', 'usage.schema-empty', 'usage-schema-empty');
+  if (!output && !requests) {
+    return apiSchemaFailure('gemini', 'usage', 'missing-supported-time-series-shape', { output, requests });
+  }
   const outputUsage = summarizeTimeSeries(output);
   const requestUsage = summarizeTimeSeries(requests);
   if (!outputUsage.hasShape && !requestUsage.hasShape) {
-    return apiFailure('gemini', 'usage.schema-empty', 'usage-schema-empty');
+    return apiSchemaFailure('gemini', 'usage', 'missing-supported-time-series-shape', { output, requests });
   }
 
   const models = new Set([...outputUsage.models, ...requestUsage.models]);
@@ -93,6 +97,7 @@ export function parseGeminiUsage({ output = null, requests = null } = {}, {
     ok: true,
     provider: 'gemini',
     source: 'api-key',
+    ...supportedSchema('gemini', 'usage', 'monitoring-time-series'),
     plan: 'Gemini API',
     range: { startISO: range.startISO, endISO: range.endISO },
     totals: { outputTokens, requests: requestCount, totalTokens: outputTokens },
@@ -136,7 +141,12 @@ function buildMetricUrl(projectId, metric, range) {
 
 function summarizeTimeSeries(data) {
   const series = Array.isArray(data?.timeSeries) ? data.timeSeries : [];
-  const summary = { total: 0, latestISO: null, models: new Set(), hasShape: Array.isArray(data?.timeSeries) };
+  const summary = {
+    total: 0,
+    latestISO: null,
+    models: new Set(),
+    hasShape: Array.isArray(data?.timeSeries) && data.timeSeries.length > 0,
+  };
   for (const timeSeries of series) {
     const model = timeSeries?.metric?.labels?.model;
     if (model) summary.models.add(String(model).slice(0, 120));

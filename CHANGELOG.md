@@ -8,6 +8,7 @@
 - Background content/page messages now require the extension sender identity, provider URL, bounded schema, and recent observation timestamp before state mutation.
 - API provider origins are now optional, exact-scoped permissions requested only for configured providers and removed when credentials are revoked; default installs no longer request the six API hosts.
 - Userscript refreshes now fetch only the provider represented by the current first-party page, use same-origin fetch without privileged GM cross-origin requests, and keep only exact first-party `@connect` entries.
+- Provider scrapers and API adapters now emit source-specific schema markers, fail closed on unknown shapes or truncated pagination, reject web/API disagreement, and preserve last-good data with timestamped stale reasons and diagnostics.
 
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 

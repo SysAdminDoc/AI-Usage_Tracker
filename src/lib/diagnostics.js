@@ -64,10 +64,17 @@ function providerSupportSummary(snapshot) {
     present: true,
     ok: snapshot.ok === true,
     stale: snapshot.stale === true,
+    staleReason: snapshot.staleReason || null,
     source: snapshot.lastSuccessSource || snapshot.source || null,
     lastSuccessISO: snapshot.lastSuccessISO || null,
     lastErrorISO: snapshot.lastErrorISO || null,
     errorCode: snapshot.lastErrorCode || snapshot.errorCode || null,
+    schemaVersion: Number.isInteger(snapshot.schemaVersion) ? snapshot.schemaVersion : null,
+    schemaFingerprint: typeof snapshot.schemaFingerprint === 'string' ? snapshot.schemaFingerprint : null,
+    lastErrorSchemaVersion: Number.isInteger(snapshot.lastErrorSchemaVersion)
+      ? snapshot.lastErrorSchemaVersion : null,
+    lastErrorSchemaFingerprint: typeof snapshot.lastErrorSchemaFingerprint === 'string'
+      ? snapshot.lastErrorSchemaFingerprint : null,
     identifiers: {
       orgId: redactIdentifier(snapshot.orgId),
       accountId: redactIdentifier(snapshot.accountId),

@@ -303,6 +303,7 @@ function renderProvider(providerKey, ps, buckets, history, thresholds, i18n) {
     staleLabel.title = ps.lastErrorDetail
       ? `Last error: ${ps.lastErrorDetail}`
       : 'Preserved from a previous successful fetch';
+    if (ps.staleReason) staleLabel.title += ` (${ps.staleReason})`;
     meta.appendChild(staleLabel);
   }
   if (meta.childNodes.length) head.appendChild(meta);

@@ -37,6 +37,7 @@ import {
   isRetryableProviderError,
 } from './lib/refresh-coordinator.js';
 import { validateClaudeBridgeMessage, validateScrapedMessage } from './lib/message-contract.js';
+import { mergeProviderResult } from './lib/provider-state.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -254,7 +255,13 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now =
   const cacheTimer = extractClaudeCacheTimer(messageLimit, { now, source });
   const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
   if (!parsed.ok) {
-    if (cacheTimer) await saveState(mergeCacheTimer((await loadState()) || defaultState(), cacheTimer));
+    let failedState = (await loadState()) || defaultState();
+    if (cacheTimer) failedState = mergeCacheTimer(failedState, cacheTimer);
+    if (parsed.provider) {
+      await mergeSnapshot(failedState, parsed, { source, now });
+    } else if (cacheTimer) {
+      await saveState(failedState);
+    }
     return;
   }
 
@@ -275,51 +282,23 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   const prev = next.snapshot.providers[providerKey];
   const nowISO = now.toISOString();
 
-  if (!providerSnapshot.ok && prev && prev.ok) {
-    // Keep previous successful data, but stamp error freshness so the UI
-    // can show that the latest fetch failed while displaying preserved data.
-    const retry = computeRetryBackoff(prev.refreshBackoffLevel, now, {
-      retryable: isRetryableProviderError(providerSnapshot),
-      retryAfterMs: providerSnapshot.retryAfterMs,
-    });
-    next.snapshot.providers[providerKey] = {
-      ...prev,
-      lastErrorISO: nowISO,
-      lastErrorDetail: providerSnapshot.error || 'unknown',
-      lastErrorCode: providerSnapshot.errorCode || null,
-      stale: true,
-      refreshBackoffLevel: retry.level,
-      nextRetryISO: retry.nextRetryISO,
-      refreshSkippedReason: retry.nextRetryISO ? 'backoff' : null,
-    };
-  } else if (providerSnapshot.ok) {
-    next.snapshot.providers[providerKey] = {
-      ...providerSnapshot,
-      lastSuccessISO: nowISO,
-      lastSuccessSource: source || providerSnapshot.source || 'unknown',
-      lastErrorISO: prev?.lastErrorISO || null,
-      lastErrorDetail: prev?.lastErrorDetail || null,
-      lastErrorCode: prev?.lastErrorCode || null,
-      stale: false,
-      refreshBackoffLevel: 0,
-      nextRetryISO: null,
-      refreshSkippedReason: null,
-    };
-  } else {
-    // No previous success and new fetch failed.
+  if (!providerSnapshot.ok) {
     const retry = computeRetryBackoff(prev?.refreshBackoffLevel, now, {
       retryable: isRetryableProviderError(providerSnapshot),
       retryAfterMs: providerSnapshot.retryAfterMs,
     });
     next.snapshot.providers[providerKey] = {
-      ...providerSnapshot,
-      lastErrorISO: nowISO,
-      lastErrorDetail: providerSnapshot.error || 'unknown',
-      lastErrorCode: providerSnapshot.errorCode || null,
-      stale: true,
+      ...mergeProviderResult(prev, providerSnapshot, { source, now }),
       refreshBackoffLevel: retry.level,
       nextRetryISO: retry.nextRetryISO,
       refreshSkippedReason: retry.nextRetryISO ? 'backoff' : null,
+    };
+  } else {
+    next.snapshot.providers[providerKey] = {
+      ...mergeProviderResult(prev, providerSnapshot, { source, now }),
+      refreshBackoffLevel: 0,
+      nextRetryISO: null,
+      refreshSkippedReason: null,
     };
   }
 

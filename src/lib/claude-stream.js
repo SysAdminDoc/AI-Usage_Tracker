@@ -107,7 +107,9 @@ export function extractClaudeRateLimitHeaders(headers) {
   });
 
   for (const key of Object.keys(windows)) {
-    if (windows[key].utilization == null && !windows[key].reset_at) delete windows[key];
+    // A reset/status header can arrive before the utilization header. Do not
+    // emit a partial window that downstream code could mistake for usage.
+    if (windows[key].utilization == null) delete windows[key];
   }
   return Object.keys(windows).length ? { windows } : null;
 }

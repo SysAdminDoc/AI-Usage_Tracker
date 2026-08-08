@@ -15,6 +15,7 @@ import { extractClaudeCacheTimer, mergeCacheTimer } from '../src/lib/cache-timer
 import { openInlineSettings as showInlineSettings } from '../src/ui/inline-settings.js';
 import { isClaudeHost, isSupportedHost } from '../src/lib/hosts.js';
 import { providerForLocation } from '../src/lib/provider-surface.js';
+import { mergeProviderResult } from '../src/lib/provider-state.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 const MOBILE_LAYOUT_MAX_WIDTH = 640;
@@ -136,7 +137,26 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream' } = {}
   const cacheTimer = extractClaudeCacheTimer(messageLimit, { now, source });
   const parsed = parseClaudeUsageApi({ message_limit: messageLimit }, { now });
   if (!parsed.ok) {
-    if (cacheTimer) await saveState(mergeCacheTimer((await loadState()) || defaultState(), cacheTimer));
+    let failedState = (await loadState()) || defaultState();
+    if (cacheTimer) failedState = mergeCacheTimer(failedState, cacheTimer);
+    const previous = failedState.snapshot?.providers?.claude;
+    if (parsed.provider) {
+      const snapshot = {
+        fetchedAtISO: now.toISOString(),
+        providers: {
+          ...(failedState.snapshot?.providers || {}),
+          claude: keepPreviousSuccess(previous, parsed),
+        },
+      };
+      failedState.snapshot = snapshot;
+      failedState.history = recordSnapshot(failedState.history || [], snapshot, {
+        now,
+        retentionDays: failedState.settings?.historyRetentionDays,
+      });
+      await saveState(failedState);
+    } else if (cacheTimer) {
+      await saveState(failedState);
+    }
     return;
   }
 
@@ -177,34 +197,10 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream' } = {}
 }
 
 function keepPreviousSuccess(previous, next) {
-  const nowISO = new Date().toISOString();
-  if (next && next.ok) {
-    return {
-      ...next,
-      lastSuccessISO: nowISO,
-      lastSuccessSource: next.source || 'unknown',
-      lastErrorISO: previous?.lastErrorISO || null,
-      lastErrorDetail: previous?.lastErrorDetail || null,
-      lastErrorCode: previous?.lastErrorCode || null,
-      stale: false,
-    };
-  }
-  if (previous && previous.ok) {
-    return {
-      ...previous,
-      lastErrorISO: nowISO,
-      lastErrorDetail: next?.error || 'unknown',
-      lastErrorCode: next?.errorCode || null,
-      stale: true,
-    };
-  }
-  return {
-    ...next,
-    lastErrorISO: nowISO,
-    lastErrorDetail: next?.error || 'unknown',
-    lastErrorCode: next?.errorCode || null,
-    stale: true,
-  };
+  return mergeProviderResult(previous, next, {
+    now: new Date(),
+    source: next?.source || null,
+  });
 }
 
 function mergeProviderBuckets(previous, next) {

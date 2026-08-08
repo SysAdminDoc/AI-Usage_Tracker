@@ -1,8 +1,10 @@
 import {
   apiFailure,
+  apiSchemaFailure,
   readJSONResponse,
   resolveFetch,
 } from './api-contract.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 export const GITHUB_COPILOT_API_VERSION = '2026-03-10';
 export const GITHUB_COPILOT_SEAT_URL = 'https://api.github.com/orgs';
@@ -54,11 +56,13 @@ export async function fetchGitHubCopilotUsage({
 
 export function parseGitHubCopilotUsage(data, { organization = '', username = '' } = {}) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    return apiFailure('github-copilot', 'seat.schema-invalid', 'seat-schema-invalid');
+    return apiSchemaFailure('github-copilot', 'seat', 'seat-payload-is-not-an-object', data);
   }
   const hasSeatFields = ['plan_type', 'last_activity_at', 'last_authenticated_at', 'assignee']
     .some((key) => data[key] != null);
-  if (!hasSeatFields) return apiFailure('github-copilot', 'seat.schema-empty', 'seat-schema-empty');
+  if (!hasSeatFields) {
+    return apiSchemaFailure('github-copilot', 'seat', 'missing-supported-seat-fields', data);
+  }
   const planType = typeof data.plan_type === 'string' && data.plan_type.trim()
     ? data.plan_type.trim() : 'unknown';
   const lastActivityISO = validISO(data.last_activity_at);
@@ -72,6 +76,7 @@ export function parseGitHubCopilotUsage(data, { organization = '', username = ''
     ok: true,
     provider: 'github-copilot',
     source: 'api-key',
+    ...supportedSchema('github-copilot', 'seat', 'member-seat'),
     plan: `Copilot ${titleCase(planType)}`,
     accountId: assignee,
     orgId: organization || null,

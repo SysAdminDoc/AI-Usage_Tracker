@@ -8,6 +8,12 @@
 //   { ok, provider:'claude', plan, source, buckets[] }
 
 import { parseResetString } from '../lib/countdown.js';
+import {
+  isSchemaDrift,
+  sourceDisagreement,
+  supportedSchema,
+  unsupportedSchema,
+} from '../lib/schema-sentinel.js';
 
 export const CLAUDE_URL = 'https://claude.ai/settings/usage';
 export const CLAUDE_ORGS_URL = 'https://claude.ai/api/organizations';
@@ -32,6 +38,7 @@ export async function fetchClaude({ now = new Date(), fetchImpl = null } = {}) {
   if (api.ok) return api;
 
   const page = await fetchClaudeUsagePage({ now, fetchImpl });
+  if (page.ok && isSchemaDrift(api)) return sourceDisagreement('claude', api, page);
   if (page.ok) return page;
 
   // API errors are more actionable than hydration-shell page errors, so keep
@@ -96,6 +103,9 @@ export function clearClaudeOrgCache() {
 
 export function parseClaudeUsageApi(data, { now = new Date(), orgId = null } = {}) {
   const root = data?.usage || data?.message_limit || data;
+  if (!hasSupportedClaudeShape(root)) {
+    return claudeSchemaFailure('api', 'missing-supported-usage-window', root, { orgId });
+  }
   const buckets = [];
 
   for (const [key, info, opts] of extractUsageEntries(root)) {
@@ -112,13 +122,14 @@ export function parseClaudeUsageApi(data, { now = new Date(), orgId = null } = {
   }
 
   if (buckets.length === 0) {
-    return claudeFailure('api', 'usage.schema-empty', 'usage-schema-empty', { orgId });
+    return claudeSchemaFailure('api', 'supported-window-without-usable-utilization', root, { orgId });
   }
 
   return {
     ok: true,
     provider: 'claude',
     source: 'api',
+    ...supportedSchema('claude', 'api', 'usage-windows'),
     orgId,
     plan: extractPlanFromUsageApi(data),
     buckets,
@@ -383,9 +394,19 @@ export function parseClaudeDoc(doc, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return claudeFailure('dom', 'dom.no-rows', 'no-rows-rendered');
+    return claudeSchemaFailure('dom', 'usage-headings-without-rows', {
+      sessionHeading: !!sessionH3,
+      weeklyHeading: !!weeklyH3,
+    });
   }
-  return { ok: true, provider: 'claude', source: 'dom', plan, buckets };
+  return {
+    ok: true,
+    provider: 'claude',
+    source: 'dom',
+    ...supportedSchema('claude', 'dom', 'usage-progress-bars'),
+    plan,
+    buckets,
+  };
 }
 
 function findHeadingContaining(doc, text) {
@@ -470,9 +491,38 @@ export function parseClaude(html, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return claudeFailure('html', 'html.shell', 'shell-response');
+    return claudeSchemaFailure('html', 'usage-headings-without-rows', {
+      hasSessionHeading: sessionStart >= 0,
+      hasWeeklyHeading: weeklyStart >= 0,
+    });
   }
-  return { ok: true, provider: 'claude', plan, buckets };
+  return {
+    ok: true,
+    provider: 'claude',
+    source: 'html',
+    ...supportedSchema('claude', 'html', 'usage-progress-bars'),
+    plan,
+    buckets,
+  };
+}
+
+function claudeSchemaFailure(source, reason, observed, extra = {}) {
+  return {
+    ...unsupportedSchema('claude', source, reason, observed),
+    ...extra,
+  };
+}
+
+function hasSupportedClaudeShape(root) {
+  if (!root || typeof root !== 'object' || Array.isArray(root)) return false;
+  return extractUsageEntries(root).some(([key, info]) => isSupportedClaudeWindow(key, info));
+}
+
+function isSupportedClaudeWindow(key, info) {
+  if (!isUsageInfo(info)) return false;
+  const text = `${String(key || '')} ${firstString(info, ['label', 'name', 'display_name', 'displayName', 'title']) || ''}`
+    .toLowerCase();
+  return /5\s*h|five[_ -]?hour|session|7\s*d|seven[_ -]?day|weekly|opus|sonnet|haiku|design|all[_ -]?model|model/.test(text);
 }
 
 function extractPlanFromHtml(html) {

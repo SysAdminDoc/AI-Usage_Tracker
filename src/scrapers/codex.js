@@ -8,6 +8,12 @@
 //   { ok, provider:'codex', plan, source, buckets[] }
 
 import { parseResetString } from '../lib/countdown.js';
+import {
+  isSchemaDrift,
+  sourceDisagreement,
+  supportedSchema,
+  unsupportedSchema,
+} from '../lib/schema-sentinel.js';
 
 export const CODEX_URL = 'https://chatgpt.com/codex/cloud/settings/analytics#usage';
 export const CODEX_AUTH_SESSION_URL = 'https://chatgpt.com/api/auth/session';
@@ -29,6 +35,7 @@ export async function fetchCodex({ now = new Date(), fetchImpl = null } = {}) {
   if (api.ok) return api;
 
   const page = await fetchCodexAnalyticsPage({ now, fetchImpl });
+  if (page.ok && isSchemaDrift(api)) return sourceDisagreement('codex', api, page);
   if (page.ok) return page;
 
   return { ...api, fallbackError: page.error };
@@ -188,13 +195,14 @@ export function parseCodexUsageApi(data, { now = new Date(), accountId = null, a
 
   const uniqueBuckets = dedupeBuckets(buckets);
   if (uniqueBuckets.length === 0) {
-    return codexFailure('api', 'usage.schema-empty', 'usage-schema-empty', { accountId, authSource });
+    return codexSchemaFailure('api', 'missing-supported-rate-limit-window', root, { accountId, authSource });
   }
 
   return {
     ok: true,
     provider: 'codex',
     source: 'api',
+    ...supportedSchema('codex', 'api', 'rate-limit-windows'),
     accountId,
     authSource,
     plan: extractCodexPlan(root),
@@ -510,9 +518,16 @@ export function parseCodexDoc(doc, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return codexFailure('dom', 'dom.no-rows', 'no-rows-rendered');
+    return codexSchemaFailure('dom', 'usage-articles-without-rows', { articleCount: articles.length });
   }
-  return { ok: true, provider: 'codex', source: 'dom', plan: null, buckets };
+  return {
+    ok: true,
+    provider: 'codex',
+    source: 'dom',
+    ...supportedSchema('codex', 'dom', 'usage-articles'),
+    plan: null,
+    buckets,
+  };
 }
 
 // - FALLBACK: raw HTML over fetch() ----------------------------------------
@@ -551,9 +566,26 @@ export function parseCodex(html, { now = new Date() } = {}) {
   }
 
   if (buckets.length === 0) {
-    return codexFailure('html', 'html.shell', 'shell-response');
+    return codexSchemaFailure('html', 'usage-articles-without-rows', {
+      hasAnalyticsMarker: /Codex Analytics/i.test(html),
+      articleCount: parts.length,
+    });
   }
-  return { ok: true, provider: 'codex', plan: null, buckets };
+  return {
+    ok: true,
+    provider: 'codex',
+    source: 'html',
+    ...supportedSchema('codex', 'html', 'usage-articles'),
+    plan: null,
+    buckets,
+  };
+}
+
+function codexSchemaFailure(source, reason, observed, extra = {}) {
+  return {
+    ...unsupportedSchema('codex', source, reason, observed),
+    ...extra,
+  };
 }
 
 function classifyKind(label) {

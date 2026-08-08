@@ -1,6 +1,7 @@
 // @ts-check
 
 import { apiFailure } from './api-contract.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 /**
  * Versioned provider extension seam.
@@ -177,10 +178,15 @@ export function normalizeProviderSnapshot(snapshot, provider) {
     if (!normalized) return apiFailure(provider, 'normalize.bucket-invalid', 'bucket-invalid');
     buckets.push(normalized);
   }
+  const fallbackSchema = supportedSchema(provider, 'normalize', 'provider-snapshot');
   return {
     ...candidate,
     provider,
     source: typeof candidate.source === 'string' ? candidate.source : 'api-key',
+    schemaVersion: Number.isInteger(candidate.schemaVersion)
+      ? candidate.schemaVersion : fallbackSchema.schemaVersion,
+    schemaFingerprint: typeof candidate.schemaFingerprint === 'string'
+      ? candidate.schemaFingerprint : fallbackSchema.schemaFingerprint,
     buckets,
   };
 }

@@ -2,6 +2,8 @@
 // snapshot shape as the web providers, but use `kind: 'api'` buckets with a
 // metric payload instead of pretending token counts are quota percentages.
 
+import { schemaFailureFields } from '../lib/schema-sentinel.js';
+
 export const API_PROVIDER_IDS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini', 'openrouter']);
 export const API_PROVIDER_HOSTS = Object.freeze({
   'anthropic-api': 'https://api.anthropic.com/*',
@@ -85,6 +87,13 @@ export function apiFailure(provider, code, error, extra = {}) {
     errorCode: `${provider}.${code}`,
     ...extra,
   };
+}
+
+export function apiSchemaFailure(provider, source, reason, observed = null, extra = {}) {
+  return apiFailure(provider, `${source}.schema-unsupported`, 'unsupported-schema', {
+    ...schemaFailureFields(provider, source, reason, observed),
+    ...extra,
+  });
 }
 
 export function resolveFetch(fetchImpl) {

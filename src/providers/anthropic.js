@@ -1,6 +1,7 @@
 import {
   addNumbers,
   apiFailure,
+  apiSchemaFailure,
   currentMonthRange,
   numberValue,
   readJSONPages,
@@ -8,6 +9,7 @@ import {
   slug,
 } from './api-contract.js';
 import { estimateTokenCost } from '../lib/pricing.js';
+import { supportedSchema } from '../lib/schema-sentinel.js';
 
 export const ANTHROPIC_API_USAGE_URL = 'https://api.anthropic.com/v1/organizations/usage_report/messages';
 export const ANTHROPIC_API_COST_URL = 'https://api.anthropic.com/v1/organizations/cost_report';
@@ -74,6 +76,12 @@ export async function fetchAnthropicData({ apiKey, now = new Date(), fetchImpl =
 
 export function parseAnthropicResponse(data, { range = currentMonthRange(), usageOk = true, costsOk = true,
   usageErrorCode = null, costsErrorCode = null, usageTruncated = false, costsTruncated = false } = {}) {
+  if (usageTruncated || costsTruncated) {
+    return apiSchemaFailure('anthropic-api', 'pagination', 'pagination-truncated', {
+      usageTruncated,
+      costsTruncated,
+    });
+  }
   let parsed = parseAnthropicUsage(data?.usage || { data: [] }, {
     costs: data?.costs || null,
     range,
@@ -114,6 +122,7 @@ export function parseAnthropicUsage(data, {
 
   for (const timeBucket of buckets) {
     for (const result of Array.isArray(timeBucket?.results) ? timeBucket.results : []) {
+      if (!hasSupportedAnthropicResult(result)) continue;
       const model = result?.model || 'all';
       const workspaceId = result?.workspace_id || null;
       const key = anthropicGroupKey(model, workspaceId);
@@ -142,14 +151,29 @@ export function parseAnthropicUsage(data, {
 
   const costGroups = parseAnthropicCosts(costs);
   if (!groups.size && !costGroups.groups.size) {
-    return apiFailure('anthropic-api', 'usage.schema-empty', 'usage-schema-empty');
+    return apiSchemaFailure('anthropic-api', 'usage', 'missing-supported-usage-or-cost-shape', {
+      usage: data,
+      costs,
+    });
   }
   return buildAnthropicSnapshot([...groups.values()], { range, costs: costGroups });
 }
 
+function hasSupportedAnthropicResult(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return false;
+  return [
+    'uncached_input_tokens', 'input_tokens', 'output_tokens', 'cache_read_input_tokens',
+  ].some((key) => Number.isFinite(Number(result[key])))
+    || Number.isFinite(Number(result.cache_creation?.ephemeral_5m_input_tokens))
+    || Number.isFinite(Number(result.cache_creation?.ephemeral_1h_input_tokens))
+    || Number.isFinite(Number(result.server_tool_use?.web_search_requests));
+}
+
 function parseAnthropicCostsOnly(data, { range }) {
   const costs = parseAnthropicCosts(data);
-  if (!costs.groups.size) return apiFailure('anthropic-api', 'costs.schema-empty', 'costs-schema-empty');
+  if (!costs.groups.size) {
+    return apiSchemaFailure('anthropic-api', 'costs', 'missing-supported-cost-shape', data);
+  }
   return buildAnthropicSnapshot([], { range, costs });
 }
 
@@ -207,6 +231,8 @@ function buildAnthropicSnapshot(usageGroups, { range, costs }) {
     ok: true,
     provider: 'anthropic-api',
     source: 'api-key',
+    ...supportedSchema('anthropic-api', 'usage', 'usage-and-costs'),
+    schemaSources: ['usage', 'costs'],
     range: { startISO: range.startISO, endISO: range.endISO },
     totals: {
       costUSD,
