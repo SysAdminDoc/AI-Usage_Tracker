@@ -5,6 +5,7 @@
 - Rebuild the notification deadline alarm whenever settings or snooze state changes, so service-worker refreshes do not leave stale one-shot schedules behind.
 - Bound provider request time, response bodies, pagination, item counts, cancellation, and safe error reporting at the shared API contract.
 - API-key refreshes now use provider-local freshness TTLs, profile-scoped in-flight deduplication, manual-refresh bypass, and bounded exponential/`Retry-After` backoff while preserving stale last-good data.
+- Background content/page messages now require the extension sender identity, provider URL, bounded schema, and recent observation timestamp before state mutation.
 
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 

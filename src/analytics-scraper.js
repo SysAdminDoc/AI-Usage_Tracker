@@ -156,7 +156,12 @@ async function scrapeProvider({ lastClaudeApiAt, setLastClaudeApiAt, lastCodexAp
 
 async function shipSnapshot(parsed) {
   try {
-    await send({ type: 'aut/scraped', provider: parsed.provider, parsed });
+    await send({
+      type: 'aut/scraped',
+      provider: parsed.provider,
+      parsed,
+      observedAtISO: new Date().toISOString(),
+    });
   } catch (e) {
     console.warn('[AUT] scraper failed to ship snapshot', e);
   }

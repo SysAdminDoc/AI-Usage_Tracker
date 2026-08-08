@@ -36,6 +36,7 @@ import {
   decideProviderRefresh,
   isRetryableProviderError,
 } from './lib/refresh-coordinator.js';
+import { validateClaudeBridgeMessage, validateScrapedMessage } from './lib/message-contract.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -54,7 +55,7 @@ function init() {
 }
 
 function bindMessageHandlers() {
-  onMessage(async (msg) => {
+  onMessage(async (msg, sender) => {
     if (!msg || !msg.type) return null;
 
     if (msg.type === 'aut/refresh') {
@@ -85,14 +86,31 @@ function bindMessageHandlers() {
     }
     if (msg.type === 'aut/scraped') {
       // Live snapshot from analytics-scraper.js running on the analytics page.
+      const validation = validateScrapedMessage(msg, sender, {
+        runtimeId: extensionRuntimeId(),
+        now: new Date(),
+      });
+      if (!validation.ok) return rejectBackgroundMessage(validation);
       await ingestProviderSnapshot(msg.parsed, { source: 'live' });
       return { ok: true };
     }
     if (msg.type === 'aut/claude-message-limit') {
+      const validation = validateClaudeBridgeMessage(msg, sender, {
+        runtimeId: extensionRuntimeId(),
+        now: new Date(),
+        field: { messageType: 'aut/claude-message-limit', payloadKey: 'messageLimit' },
+      });
+      if (!validation.ok) return rejectBackgroundMessage(validation);
       await ingestClaudeUsageWindows(msg.messageLimit, { source: 'stream' });
       return { ok: true };
     }
     if (msg.type === 'aut/claude-rate-limit-headers') {
+      const validation = validateClaudeBridgeMessage(msg, sender, {
+        runtimeId: extensionRuntimeId(),
+        now: new Date(),
+        field: { messageType: 'aut/claude-rate-limit-headers', payloadKey: 'rateLimit' },
+      });
+      if (!validation.ok) return rejectBackgroundMessage(validation);
       await ingestClaudeUsageWindows(msg.rateLimit, { source: 'headers' });
       return { ok: true };
     }
@@ -347,6 +365,17 @@ function providerRefreshSettingsKey(provider, settings = {}) {
   }
   if (provider === 'gemini') return String(settings.geminiProjectId || '');
   return '';
+}
+
+function extensionRuntimeId() {
+  return (typeof chrome !== 'undefined' && chrome.runtime?.id)
+    || (typeof browser !== 'undefined' && browser.runtime?.id)
+    || null;
+}
+
+function rejectBackgroundMessage(validation) {
+  console.warn('[AUT] rejected background message', validation.errorCode);
+  return validation;
 }
 
 async function fireNotifications(state, now) {
