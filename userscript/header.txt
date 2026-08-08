@@ -22,8 +22,6 @@
 // @grant        unsafeWindow
 // @connect      claude.ai
 // @connect      chatgpt.com
-// @connect      api.anthropic.com
-// @connect      api.openai.com
 // @run-at       document-start
 // @noframes
 // @license      MIT

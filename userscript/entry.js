@@ -14,6 +14,7 @@ import { startClaudeContextCounter } from '../src/lib/context-counter.js';
 import { extractClaudeCacheTimer, mergeCacheTimer } from '../src/lib/cache-timer.js';
 import { openInlineSettings as showInlineSettings } from '../src/ui/inline-settings.js';
 import { isClaudeHost, isSupportedHost } from '../src/lib/hosts.js';
+import { providerForLocation } from '../src/lib/provider-surface.js';
 
 const REFRESH_MS_DEFAULT = 5 * 60 * 1000;
 const MOBILE_LAYOUT_MAX_WIDTH = 640;
@@ -69,18 +70,22 @@ function handleViewportResize() {
 async function refreshNow() {
   const now = new Date();
   const state = (await loadState()) || defaultState();
-
-  const [claude, codex] = await Promise.all([
-    fetchClaude({ now }),
-    fetchCodex({ now }),
-  ]);
+  const provider = providerForLocation(location);
+  if (!provider) return state;
+  const result = await (provider === 'claude' ? fetchClaude({ now }) : fetchCodex({ now }))
+    .catch(() => ({
+      ok: false,
+      provider,
+      error: 'fetch-failed',
+      errorCode: `${provider}.userscript.fetch-failed`,
+    }));
 
   const prevProviders = state.snapshot?.providers || {};
   const snapshot = {
     fetchedAtISO: now.toISOString(),
     providers: {
-      claude: keepPreviousSuccess(prevProviders.claude, claude),
-      codex: keepPreviousSuccess(prevProviders.codex, codex),
+      ...prevProviders,
+      [provider]: keepPreviousSuccess(prevProviders[provider], result),
     },
   };
   state.snapshot = snapshot;

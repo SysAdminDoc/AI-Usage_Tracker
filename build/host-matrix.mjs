@@ -59,8 +59,6 @@ export async function validateHostMatrix() {
   assert.deepEqual(metadataValues(header, 'connect'), [
     claude.connect,
     codex.connect,
-    'api.anthropic.com',
-    'api.openai.com',
   ], 'userscript @connect entries drifted');
   for (const host of [claude.apex, codex.apex]) {
     assert.match(readme, new RegExp(host.replace('.', '\\.'), 'i'), `README must name ${host}`);
