@@ -121,11 +121,12 @@ const callbackState = callbackStorage.defaultState();
 await callbackStorage.saveState(callbackState);
 assert.equal(callbackStorage.storageType, 'webext');
 assert.equal((await callbackStorage.loadState()).stateVersion, 2);
-assert.deepEqual(await callbackStorage.getStorageUsage(), {
-  bytes: 321,
-  quotaBytes: 5_000_000,
-  source: 'webext',
-});
+const callbackUsage = await callbackStorage.getStorageUsage();
+assert.equal(callbackUsage.bytes, 321);
+assert.equal(callbackUsage.quotaBytes, 5_000_000);
+assert.equal(callbackUsage.source, 'webext');
+assert.equal(callbackUsage.degraded, false);
+assert.equal(callbackUsage.history.degraded, false);
 
 delete globalThis.chrome;
 let promiseMessageListener;

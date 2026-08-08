@@ -4,6 +4,9 @@
 
 export const DEFAULT_RETENTION_DAYS = 30;
 export const HISTORY_RETENTION_OPTIONS = [7, 14, 30, 60, 90];
+export const HISTORY_MAX_SAMPLES = 4000;
+export const HISTORY_MAX_BYTES = 512 * 1024;
+export const HISTORY_MAX_BUCKET_ID_LENGTH = 128;
 
 export function recordSnapshot(history, snapshot, {
   now = new Date(),
@@ -22,7 +25,7 @@ export function recordSnapshot(history, snapshot, {
       next.push({ ts, bucketId: bucket.id, percentUsed: clampPercent(bucket.percentUsed) });
     }
   }
-  return next;
+  return compactHistoryToBudget(next, { now, retentionDays });
 }
 
 // Compare the newest ingest sample with a short moving average. A detector
@@ -73,15 +76,16 @@ export function detectAnomaly(history, bucketId, {
 
 export function pruneHistory(history = [], { now = new Date(), retentionDays = DEFAULT_RETENTION_DAYS } = {}) {
   const ts = now.getTime();
-  const cutoff = ts - retentionMs(retentionDays);
-  return history
+  const cutoff = retentionDays == null ? Number.NEGATIVE_INFINITY : ts - retentionMs(retentionDays);
+  const source = Array.isArray(history) ? history : [];
+  return source
     .filter((sample) => Number.isFinite(sample?.ts)
       && sample.ts >= cutoff
       && sample.ts <= ts
       && sample.bucketId)
     .map((sample) => ({
       ts: sample.ts,
-      bucketId: String(sample.bucketId),
+      bucketId: String(sample.bucketId).slice(0, HISTORY_MAX_BUCKET_ID_LENGTH),
       percentUsed: clampPercent(sample.percentUsed),
     }));
 }
@@ -109,6 +113,147 @@ export function compactHistory(history = [], {
     for (let i = 0; i < limit; i++) compacted.push(samples[Math.round(i * step)]);
   }
   return compacted.sort((a, b) => a.ts - b.ts || a.bucketId.localeCompare(b.bucketId));
+}
+
+/**
+ * Enforce the hard history budget used by operational state and imports.
+ * Compaction keeps a time-range endpoint for every bucket, then retains the
+ * newest deterministic samples. Byte pressure removes redundant/old samples
+ * before removing any bucket's newest valid sample.
+ */
+export function compactHistoryToBudget(history = [], {
+  now = new Date(),
+  retentionDays = DEFAULT_RETENTION_DAYS,
+  maxSamples = HISTORY_MAX_SAMPLES,
+  maxBytes = HISTORY_MAX_BYTES,
+  maxSamplesPerBucket = 200,
+} = {}) {
+  const sampleLimit = boundedLimit(maxSamples, HISTORY_MAX_SAMPLES);
+  const byteLimit = boundedLimit(maxBytes, HISTORY_MAX_BYTES);
+  const retained = compactHistory(history, { now, retentionDays, maxSamplesPerBucket });
+  let compacted = trimHistorySamples(retained, sampleLimit);
+
+  while (historyByteSize(compacted) > byteLimit && compacted.length > 1) {
+    const protectedIndexes = endpointIndexes(compacted);
+    const candidates = compacted
+      .map((sample, index) => ({ sample, index }))
+      .filter(({ index }) => !protectedIndexes.has(index))
+      .sort((a, b) => {
+        const redundantOrder = Number(isRedundantSample(compacted, a.index))
+          - Number(isRedundantSample(compacted, b.index));
+        if (redundantOrder) return redundantOrder;
+        return a.sample.ts - b.sample.ts || a.sample.bucketId.localeCompare(b.sample.bucketId);
+      });
+    if (!candidates.length) {
+      // If endpoint samples alone exceed the byte budget, retain the newest
+      // valid endpoint globally rather than allowing an unbounded write.
+      const newestIndex = newestSampleIndex(compacted);
+      compacted = compacted.filter((_, index) => index === newestIndex || !protectedIndexes.has(index));
+      if (compacted.length === 1 && historyByteSize(compacted) > byteLimit) break;
+      continue;
+    }
+    compacted.splice(candidates[0].index, 1);
+  }
+
+  return compacted;
+}
+
+export function historyByteSize(history = []) {
+  try {
+    const text = JSON.stringify(Array.isArray(history) ? history : []);
+    if (typeof TextEncoder === 'function') return new TextEncoder().encode(text).byteLength;
+    return text.length;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+export function historyBudgetStatus(history = [], {
+  maxSamples = HISTORY_MAX_SAMPLES,
+  maxBytes = HISTORY_MAX_BYTES,
+} = {}) {
+  const sampleCount = Array.isArray(history) ? history.length : 0;
+  const byteCount = historyByteSize(history);
+  const sampleLimit = boundedLimit(maxSamples, HISTORY_MAX_SAMPLES);
+  const byteLimit = boundedLimit(maxBytes, HISTORY_MAX_BYTES);
+  const overSampleBudget = sampleCount > sampleLimit;
+  const overByteBudget = byteCount > byteLimit;
+  return {
+    sampleCount,
+    byteCount,
+    maxSamples: sampleLimit,
+    maxBytes: byteLimit,
+    overSampleBudget,
+    overByteBudget,
+    degraded: overSampleBudget || overByteBudget,
+  };
+}
+
+function trimHistorySamples(samples, limit) {
+  if (samples.length <= limit) return samples;
+  const selected = new Set(endpointIndexes(samples));
+  if (selected.size > limit) {
+    const newestEndpoints = [...selected]
+      .sort((a, b) => samples[b].ts - samples[a].ts
+        || samples[a].bucketId.localeCompare(samples[b].bucketId)
+        || a - b)
+      .slice(0, limit);
+    const allowed = new Set(newestEndpoints);
+    return samples.filter((_, index) => allowed.has(index));
+  }
+  const candidates = samples
+    .map((sample, index) => ({ sample, index }))
+    .filter(({ index }) => !selected.has(index))
+    .sort((a, b) => b.sample.ts - a.sample.ts
+      || a.sample.bucketId.localeCompare(b.sample.bucketId)
+      || a.index - b.index);
+  for (const candidate of candidates) {
+    if (selected.size >= limit) break;
+    selected.add(candidate.index);
+  }
+  return samples.filter((_, index) => selected.has(index));
+}
+
+function endpointIndexes(samples) {
+  const endpoints = new Set();
+  const byBucket = new Map();
+  samples.forEach((sample, index) => {
+    if (!byBucket.has(sample.bucketId)) byBucket.set(sample.bucketId, []);
+    byBucket.get(sample.bucketId).push(index);
+  });
+  for (const indexes of byBucket.values()) {
+    endpoints.add(indexes[0]);
+    endpoints.add(indexes.at(-1));
+  }
+  return endpoints;
+}
+
+function newestSampleIndex(samples) {
+  let newest = 0;
+  for (let index = 1; index < samples.length; index += 1) {
+    if (samples[index].ts > samples[newest].ts
+        || (samples[index].ts === samples[newest].ts
+          && samples[index].bucketId.localeCompare(samples[newest].bucketId) > 0)) {
+      newest = index;
+    }
+  }
+  return newest;
+}
+
+function isRedundantSample(samples, index) {
+  const sample = samples[index];
+  const previous = samples[index - 1];
+  const next = samples[index + 1];
+  return previous?.bucketId === sample.bucketId
+    && next?.bucketId === sample.bucketId
+    && previous.percentUsed === sample.percentUsed
+    && next.percentUsed === sample.percentUsed;
+}
+
+function boundedLimit(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(1, Math.floor(number));
 }
 
 export function historyStats(history = []) {

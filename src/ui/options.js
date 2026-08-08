@@ -1368,8 +1368,12 @@ async function renderHistoryStatus() {
   const settings = normalizeSettings(state.settings);
   const stats = historyStats(state.history || []);
   const usage = await getStorageUsage(state);
-  wrap.textContent = `${stats.sampleCount} samples across ${stats.bucketCount} buckets. Retaining ${settings.historyRetentionDays} days. ${formatStorageUsage(usage)}.`;
-  wrap.className = 'opt-callout opt-callout--good';
+  const warning = usage.degraded || usage.warningCode;
+  const warningText = warning
+    ? ' Storage protection is active; older or redundant history is compacted automatically.'
+    : '';
+  wrap.textContent = `${stats.sampleCount} samples across ${stats.bucketCount} buckets. Retaining ${settings.historyRetentionDays} days. ${formatStorageUsage(usage)}.${warningText}`;
+  wrap.className = `opt-callout ${warning ? 'opt-callout--warn' : 'opt-callout--good'}`;
 }
 
 function downloadHistory(history) {
@@ -1499,8 +1503,10 @@ function confirmAction(message) {
 
 function formatStorageUsage(usage = {}) {
   const bytes = formatBytes(usage.bytes);
-  if (usage.quotaBytes) return `${bytes} of ${formatBytes(usage.quotaBytes)} (${usage.source})`;
-  return `${bytes} (${usage.source})`;
+  const base = usage.quotaBytes
+    ? `${bytes} of ${formatBytes(usage.quotaBytes)} (${usage.source})`
+    : `${bytes} (${usage.source})`;
+  return usage.warningCode ? `${base}; ${usage.warningCode}` : base;
 }
 
 function formatBytes(bytes) {
@@ -1518,6 +1524,7 @@ export function buildDiagnostics(state, usage = {}) {
   const rows = Object.values(providers)
     .filter((ps) => ps?.ok)
     .reduce((sum, ps) => sum + (ps.buckets?.length || 0), 0);
+  const historyWarning = usage.warningCode ? `; ${usage.warningCode}` : '';
   return {
     version: VERSION,
     snapshot: state.snapshot?.fetchedAtISO ? `Updated ${formatAgo(state.snapshot.fetchedAtISO)}` : 'No successful snapshot yet',
@@ -1534,7 +1541,7 @@ export function buildDiagnostics(state, usage = {}) {
       thresholds,
       providers: settings.showProviders,
     },
-    history: `${history.sampleCount} samples across ${history.bucketCount} buckets; ${settings.historyRetentionDays} day retention`,
+    history: `${history.sampleCount} samples across ${history.bucketCount} buckets; ${settings.historyRetentionDays} day retention${historyWarning}`,
     storage: formatStorageUsage(usage),
     notifications: notificationDiagnostic(settings),
   };

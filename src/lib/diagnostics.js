@@ -36,6 +36,15 @@ export function buildSupportBundle({ state = {}, usage = {}, version = 'unknown'
       bytes: Number.isFinite(Number(usage.bytes)) ? Number(usage.bytes) : null,
       quotaBytes: Number.isFinite(Number(usage.quotaBytes)) ? Number(usage.quotaBytes) : null,
       source: usage.source || 'unavailable',
+      degraded: usage.degraded === true,
+      warningCode: typeof usage.warningCode === 'string' ? usage.warningCode : null,
+      history: usage.history ? {
+        sampleCount: Number(usage.history.sampleCount) || 0,
+        byteCount: Number(usage.history.byteCount) || 0,
+        maxSamples: Number(usage.history.maxSamples) || null,
+        maxBytes: Number(usage.history.maxBytes) || null,
+        degraded: usage.history.degraded === true,
+      } : null,
     },
     redaction: {
       history: 'omitted', rawErrors: 'omitted', credentials: 'omitted',

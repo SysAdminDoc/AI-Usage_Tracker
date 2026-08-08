@@ -29,7 +29,14 @@ const state = {
 };
 const bundle = buildSupportBundle({
   state,
-  usage: { bytes: 321, quotaBytes: 5000, source: 'webext' },
+  usage: {
+    bytes: 321,
+    quotaBytes: 5000,
+    source: 'webext',
+    degraded: true,
+    warningCode: 'history-budget',
+    history: { sampleCount: 4001, byteCount: 600000, maxSamples: 4000, maxBytes: 524288, degraded: true },
+  },
   version: '0.2.3',
   channel: 'extension',
   manifest: { permissions: ['storage', 'notifications'], host_permissions: ['https://claude.ai/*'] },
@@ -41,6 +48,9 @@ assert.equal(bundle.snapshot.providers.claude.identifiers.orgId, 'or…34');
 assert.equal(bundle.snapshot.providers.claude.buckets[0].percentUsed, 91);
 assert.equal(bundle.snapshot.providers.claude.buckets[0].metric.costSource, 'pricing-table');
 assert.equal(bundle.snapshot.providers.claude.buckets[0].metric.pricingVersion, '2026-08-03');
+assert.equal(bundle.storage.degraded, true);
+assert.equal(bundle.storage.warningCode, 'history-budget');
+assert.equal(bundle.storage.history.maxSamples, 4000);
 const serialized = JSON.stringify(bundle);
 assert.doesNotMatch(serialized, /token-secret|org-secret-1234|account-secret-5678|secret-history|lastErrorDetail/);
 assert.equal(bundle.redaction.history, 'omitted');

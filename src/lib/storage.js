@@ -9,6 +9,12 @@ import { normalizeWebhookURL } from './notify.js';
 import { defaultBudgetLedger, normalizeBudgetCap } from './budget.js';
 import { defaultCollaborationState, normalizeCollaborationState } from './collaboration.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
+import {
+  compactHistoryToBudget,
+  historyBudgetStatus,
+  HISTORY_MAX_BYTES,
+  HISTORY_MAX_SAMPLES,
+} from './history.js';
 
 const LEGACY_STORE_KEY = 'aut.state.v1';
 export const PROFILE_REGISTRY_KEY = 'aut.profiles.v1';
@@ -287,32 +293,48 @@ export async function getSyncSettingsStatus(profileId = null) {
 }
 
 export async function getStorageUsage(state = null) {
+  const value = state || await loadState();
+  const history = historyBudgetStatus(value?.history || []);
   const ext = getWebExtensionStorage();
   if (ext?.local?.getBytesInUse) {
     try {
       const profileId = await getActiveProfileId();
       const bytes = await invokeStorageMethod(ext.local, 'getBytesInUse', profileStateStorageKey(profileId));
-      return {
+      return withStorageDiagnostics({
         bytes: Number(bytes) || 0,
         quotaBytes: Number(ext.local.QUOTA_BYTES) || null,
         source: 'webext',
-      };
+      }, history, value);
     } catch (error) {
       console.warn('[AUT] Storage byte query failed:', error);
     }
   }
 
   try {
-    const value = state || await loadState();
     const encoded = new TextEncoder().encode(JSON.stringify(value));
-    return {
+    return withStorageDiagnostics({
       bytes: encoded.byteLength,
       quotaBytes: null,
       source: `${adapter.type}-estimate`,
-    };
+    }, history, value);
   } catch {
-    return { bytes: null, quotaBytes: null, source: 'unavailable' };
+    return withStorageDiagnostics({ bytes: null, quotaBytes: null, source: 'unavailable' }, history, value);
   }
+}
+
+function withStorageDiagnostics(usage, history, state) {
+  const nearQuota = Number.isFinite(usage.bytes)
+    && Number.isFinite(usage.quotaBytes)
+    && usage.quotaBytes > 0
+    && usage.bytes / usage.quotaBytes >= 0.8;
+  const warningCode = state?.historyDiagnostics?.warningCode
+    || (history.degraded ? 'history-budget' : nearQuota ? 'storage-near-quota' : null);
+  return {
+    ...usage,
+    history,
+    degraded: history.degraded || nearQuota || !!state?.historyDiagnostics?.warningCode,
+    warningCode,
+  };
 }
 
 function getWebExtensionStorage() {
@@ -672,7 +694,15 @@ export async function loadState() {
   }
   state.collaboration = normalizeCollaborationState(state.collaboration || defaultCollaborationState());
   state.profileId = profileId;
-  return applySyncedSettings(state, profileId);
+  const syncedState = await applySyncedSettings(state, profileId);
+  const normalizedHistory = compactHistoryToBudget(syncedState.history, {
+    retentionDays: null,
+  });
+  if (JSON.stringify(normalizedHistory) !== JSON.stringify(syncedState.history)) {
+    syncedState.history = normalizedHistory;
+    try { await adapter.set(stateKey, syncedState); } catch { /* best effort */ }
+  }
+  return syncedState;
 }
 
 export async function saveState(state) {
@@ -685,7 +715,30 @@ export async function saveState(state) {
   state.stateVersion = CURRENT_STATE_VERSION;
   state.profileId = profileId;
   state.collaboration = normalizeCollaborationState(state.collaboration || defaultCollaborationState());
-  await adapter.set(profileStateStorageKey(profileId), state);
+  const stateKey = profileStateStorageKey(profileId);
+  const normalizedHistory = compactHistoryToBudget(state.history, {
+    retentionDays: null,
+  });
+  state.history = normalizedHistory;
+  try {
+    await adapter.set(stateKey, state);
+  } catch (error) {
+    // A busy profile or a browser with a smaller quota gets one tighter,
+    // recoverable retry before the write is surfaced to the caller.
+    const tighterHistory = compactHistoryToBudget(state.history, {
+      retentionDays: null,
+      maxSamples: Math.max(100, Math.floor(HISTORY_MAX_SAMPLES / 2)),
+      maxBytes: Math.max(64 * 1024, Math.floor(HISTORY_MAX_BYTES / 2)),
+    });
+    if (JSON.stringify(tighterHistory) === JSON.stringify(state.history)) throw error;
+    state.history = tighterHistory;
+    try {
+      await adapter.set(stateKey, state);
+    } catch (retryError) {
+      console.warn('[AUT] State write remains over storage quota after history compaction.');
+      throw retryError;
+    }
+  }
   if (state.settings?.syncSettings === true) {
     try { await saveSyncedSettings(state.settings, profileId); } catch (error) {
       console.warn('[AUT] Synced settings write failed:', error);
@@ -790,6 +843,7 @@ export function exportSettings(state = defaultState(), { includeHistory = false 
 export function parseSettingsImport(input, { includeHistory = false } = {}) {
   let payload = input;
   if (typeof payload === 'string') {
+    if (encodedByteLength(payload) > 2 * 1024 * 1024) throw new Error('Settings import exceeds the 2 MB safety limit');
     try { payload = JSON.parse(payload); } catch { throw new Error('Settings file is not valid JSON'); }
   }
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -807,7 +861,9 @@ export function parseSettingsImport(input, { includeHistory = false } = {}) {
     widget: normalizeWidget(payload.widget),
   };
   if (includeHistory && Object.prototype.hasOwnProperty.call(payload, 'history')) {
-    parsed.history = validateImportedHistory(payload.history);
+    const importedHistory = validateImportedHistory(payload.history);
+    parsed.history = compactHistoryToBudget(importedHistory, { retentionDays: null });
+    parsed.historyCompacted = JSON.stringify(parsed.history) !== JSON.stringify(importedHistory);
   }
   return parsed;
 }
@@ -824,7 +880,15 @@ export async function importSettings(input, options = {}) {
     settings: parsed.settings,
     widget: parsed.widget,
   };
-  if (Object.prototype.hasOwnProperty.call(parsed, 'history')) next.history = parsed.history;
+  if (Object.prototype.hasOwnProperty.call(parsed, 'history')) {
+    next.history = parsed.history;
+    if (parsed.historyCompacted) {
+      next.historyDiagnostics = {
+        warningCode: 'history-import-compacted',
+        compactedAtISO: new Date().toISOString(),
+      };
+    }
+  }
   await saveState(next);
   return next;
 }
@@ -889,10 +953,13 @@ function normalizeWidget(widget) {
 
 function validateImportedHistory(history) {
   if (!Array.isArray(history)) throw new Error('History import must be an array');
+  if (history.length > 20_000) throw new Error('History import exceeds the sample safety limit');
   return history.map((sample, index) => {
     if (!sample || typeof sample !== 'object' || Array.isArray(sample)
         || !Number.isFinite(Number(sample.ts))
         || typeof sample.bucketId !== 'string'
+        || sample.bucketId.length === 0
+        || sample.bucketId.length > 128
         || !Number.isFinite(Number(sample.percentUsed))) {
       throw new Error(`History sample ${index + 1} is invalid`);
     }
@@ -932,6 +999,12 @@ function sanitizeErrorCode(value) {
 function cloneJSON(value) {
   if (typeof structuredClone === 'function') return structuredClone(value);
   return JSON.parse(JSON.stringify(value));
+}
+
+function encodedByteLength(value) {
+  const text = String(value ?? '');
+  if (typeof TextEncoder === 'function') return new TextEncoder().encode(text).byteLength;
+  return text.length;
 }
 
 export function defaultState() {

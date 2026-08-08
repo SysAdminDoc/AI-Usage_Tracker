@@ -8,6 +8,7 @@ import {
   createProfile,
   deleteProfile,
   getApiCredentialStatus,
+  getStorageUsage,
   getActiveProfile,
   loadProfileRegistry,
   loadState,
@@ -230,6 +231,34 @@ assert.equal((await syncStorage.loadSyncedSettings('default')).theme, 'latte');
 assert.equal(await syncStorage.loadSyncedSettings('work'), null, 'sync records must not cross profile ids');
 await syncStorage.clearSyncedSettings();
 assert.equal(syncStore.has('aut.sync.settings.v1'), false);
+
+const largeHistory = Array.from({ length: 6_000 }, (_, index) => ({
+  ts: Date.now() - (6_000 - index) * 1_000,
+  bucketId: 'sync-history',
+  percentUsed: index % 101,
+}));
+const syncState = syncStorage.defaultState();
+syncState.settings.syncSettings = true;
+syncState.history = largeHistory;
+await syncStorage.saveState(syncState);
+const compactedSyncState = await syncStorage.loadState();
+assert.ok(compactedSyncState.history.length <= 4_000, 'sync-enabled state should enforce the history sample budget');
+
+const importPayload = {
+  schema: 'ai-usage-tracker.settings',
+  schemaVersion: 1,
+  settings: defaultSettings(),
+  history: largeHistory,
+};
+const imported = parseSettingsImport(importPayload, { includeHistory: true });
+assert.ok(imported.history.length <= 4_000, 'history imports should compact before use');
+assert.equal(imported.historyCompacted, true);
+assert.equal(imported.history.at(-1).ts, largeHistory.at(-1).ts, 'history imports should retain newest data');
+
+const usage = await getStorageUsage({ history: largeHistory });
+assert.equal(usage.history.overSampleBudget, true, 'diagnostics should expose oversized history');
+assert.equal(usage.degraded, true, 'oversized history should be marked degraded');
+assert.equal(usage.warningCode, 'history-budget');
 if (syncChrome === undefined) delete globalThis.chrome;
 else globalThis.chrome = syncChrome;
 

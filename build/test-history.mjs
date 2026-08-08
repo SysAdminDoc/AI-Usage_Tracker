@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import {
   compactHistory,
+  compactHistoryToBudget,
   detectAnomaly,
   forecastExhaustion,
   historyStats,
+  historyBudgetStatus,
   historyToCSV,
   paceMarkerPoint,
   paceProjection,
@@ -182,7 +184,7 @@ assert.equal(sparklineSamplesFor(history, 'missing').length, 0);
 
 // --- sparklineFor: negative percent clamped to 0 ---
 {
-  const negHistory = [
+const negHistory = [
     { ts: 1, bucketId: 'neg', percentUsed: -5 },
     { ts: 2, bucketId: 'neg', percentUsed: 50 },
   ];
@@ -222,3 +224,36 @@ console.log('history sparkline smoke: OK');
 }
 
 console.log('history controls smoke: OK');
+
+// --- hard sample/byte budgets preserve deterministic endpoints and newest data ---
+{
+  const now = new Date('2026-06-16T12:00:00Z');
+  const large = Array.from({ length: 600 }, (_, index) => ({
+    ts: now.getTime() - (600 - index) * 60_000,
+    bucketId: index % 3 === 0 ? 'claude-session' : index % 3 === 1 ? 'codex-5h-all' : 'codex-weekly-all',
+    percentUsed: index % 101,
+  }));
+  const bounded = compactHistoryToBudget(large, {
+    now,
+    retentionDays: null,
+    maxSamples: 40,
+    maxBytes: 4_000,
+  });
+  assert.ok(bounded.length <= 40, 'sample budget should be hard');
+  assert.ok(historyBudgetStatus(bounded, { maxSamples: 40, maxBytes: 4_000 }).degraded === false);
+  assert.ok(bounded.some((sample) => sample.ts === large.at(-1).ts), 'newest sample must survive');
+  assert.deepEqual(
+    compactHistoryToBudget(large, { now, retentionDays: null, maxSamples: 40, maxBytes: 4_000 }),
+    bounded,
+    'budget compaction should be deterministic',
+  );
+
+  const corrupt = compactHistoryToBudget([
+    { ts: 'not-a-timestamp', bucketId: 'bad', percentUsed: 50 },
+    { ts: now.getTime(), bucketId: 'x'.repeat(1000), percentUsed: 50 },
+  ], { now, retentionDays: null, maxBytes: 500 });
+  assert.equal(corrupt.length, 1, 'corrupt samples should not survive compaction');
+  assert.ok(corrupt[0].bucketId.length <= 128, 'bucket identifiers should be bounded');
+}
+
+console.log('history budget smoke: OK');
