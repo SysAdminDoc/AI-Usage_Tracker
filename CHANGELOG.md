@@ -6,6 +6,7 @@
 - Bound provider request time, response bodies, pagination, item counts, cancellation, and safe error reporting at the shared API contract.
 - API-key refreshes now use provider-local freshness TTLs, profile-scoped in-flight deduplication, manual-refresh bypass, and bounded exponential/`Retry-After` backoff while preserving stale last-good data.
 - Background content/page messages now require the extension sender identity, provider URL, bounded schema, and recent observation timestamp before state mutation.
+- API provider origins are now optional, exact-scoped permissions requested only for configured providers and removed when credentials are revoked; default installs no longer request the six API hosts.
 
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 

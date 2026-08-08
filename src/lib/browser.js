@@ -2,6 +2,8 @@
 // we actually use (storage, notifications, alarms, runtime, tabs), with
 // fallbacks to userscript primitives where needed.
 
+import { API_PROVIDER_HOSTS } from '../providers/api-contract.js';
+
 export const isExtension = typeof chrome !== 'undefined' && !!(chrome.runtime && chrome.runtime.id);
 export const isUserscript = !isExtension && (typeof GM !== 'undefined' || typeof GM_setValue !== 'undefined');
 
@@ -133,6 +135,65 @@ export async function requestWebhookHostPermission(url) {
       : { ok: false, supported: true, granted: false, errorCode: 'webhook.permission-denied' };
   } catch {
     return { ok: false, supported: true, granted: false, errorCode: 'webhook.permission-failed' };
+  }
+}
+
+/** Request only the exact optional origin used by one configured API provider. */
+export async function requestApiProviderHostPermission(provider) {
+  return changeApiProviderHostPermission(provider, { request: true });
+}
+
+/** Inspect one provider origin without opening a permission prompt. */
+export async function getApiProviderHostPermission(provider) {
+  return changeApiProviderHostPermission(provider, { request: false });
+}
+
+/** Revoke one provider origin when its local credential is removed. */
+export async function removeApiProviderHostPermission(provider) {
+  const pattern = API_PROVIDER_HOSTS[provider];
+  if (!pattern) return { ok: false, supported: true, granted: false, errorCode: 'api.host-unknown' };
+  const permissions = (typeof browser !== 'undefined' && browser.permissions)
+    || (typeof chrome !== 'undefined' && chrome.permissions)
+    || null;
+  if (!permissions?.remove) return { ok: true, supported: false, granted: false, skipped: true };
+  try {
+    const removed = await invokeWebExtension(permissions, 'remove', [{ origins: [pattern] }]);
+    return removed === false
+      ? { ok: false, supported: true, granted: true, errorCode: 'api.host-remove-denied' }
+      : { ok: true, supported: true, granted: false };
+  } catch {
+    return { ok: false, supported: true, granted: true, errorCode: 'api.host-remove-failed' };
+  }
+}
+
+async function changeApiProviderHostPermission(provider, { request }) {
+  const pattern = API_PROVIDER_HOSTS[provider];
+  if (!pattern) return { ok: false, supported: true, granted: false, errorCode: 'api.host-unknown' };
+  const permissions = (typeof browser !== 'undefined' && browser.permissions)
+    || (typeof chrome !== 'undefined' && chrome.permissions)
+    || null;
+  if (!permissions) {
+    return (!!runtime?.id)
+      ? { ok: false, supported: false, granted: false, errorCode: 'api.host-permission-unavailable' }
+      : { ok: true, supported: false, granted: true, skipped: true };
+  }
+
+  try {
+    if (permissions.contains) {
+      const alreadyGranted = await invokeWebExtension(permissions, 'contains', [{ origins: [pattern] }]);
+      if (alreadyGranted === true) return { ok: true, supported: true, granted: true, alreadyGranted: true };
+    } else if (!request) {
+      return { ok: false, supported: true, granted: false, errorCode: 'api.host-status-unavailable' };
+    }
+    if (!request || !permissions.request) {
+      return { ok: false, supported: true, granted: false, errorCode: 'api.host-permission-denied' };
+    }
+    const granted = await invokeWebExtension(permissions, 'request', [{ origins: [pattern] }]);
+    return granted === true
+      ? { ok: true, supported: true, granted: true }
+      : { ok: false, supported: true, granted: false, errorCode: 'api.host-permission-denied' };
+  } catch {
+    return { ok: false, supported: true, granted: false, errorCode: 'api.host-permission-failed' };
   }
 }
 

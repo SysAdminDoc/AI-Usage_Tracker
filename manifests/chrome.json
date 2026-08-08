@@ -93,16 +93,16 @@
 
   "host_permissions": [
     "https://claude.ai/*",
-    "https://chatgpt.com/*",
+    "https://chatgpt.com/*"
+  ],
+
+  "optional_host_permissions": [
     "https://api.anthropic.com/*",
     "https://api.openai.com/*",
     "https://api.github.com/*",
     "https://api.cursor.com/*",
     "https://monitoring.googleapis.com/*",
-    "https://openrouter.ai/*"
-  ],
-
-  "optional_host_permissions": [
+    "https://openrouter.ai/*",
     "http://*/*",
     "https://*/*"
   ],

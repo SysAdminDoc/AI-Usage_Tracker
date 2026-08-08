@@ -3,6 +3,14 @@
 // metric payload instead of pretending token counts are quota percentages.
 
 export const API_PROVIDER_IDS = Object.freeze(['anthropic-api', 'openai-api', 'github-copilot', 'cursor', 'gemini', 'openrouter']);
+export const API_PROVIDER_HOSTS = Object.freeze({
+  'anthropic-api': 'https://api.anthropic.com/*',
+  'openai-api': 'https://api.openai.com/*',
+  'github-copilot': 'https://api.github.com/*',
+  cursor: 'https://api.cursor.com/*',
+  gemini: 'https://monitoring.googleapis.com/*',
+  openrouter: 'https://openrouter.ai/*',
+});
 
 export const API_REQUEST_TIMEOUT_MS = 15_000;
 export const API_MAX_REQUEST_TIMEOUT_MS = 60_000;

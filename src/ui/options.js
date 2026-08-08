@@ -36,8 +36,11 @@ import { normalizeThresholds } from '../lib/countdown.js';
 import { clearChildren } from '../lib/dom.js';
 import {
   getNotificationPermission,
+  getApiProviderHostPermission,
   notify,
   requestNotificationPermission,
+  requestApiProviderHostPermission,
+  removeApiProviderHostPermission,
   requestWebhookHostPermission,
 } from '../lib/browser.js';
 import { normalizeBudgetCap, resetSessionBudget } from '../lib/budget.js';
@@ -182,13 +185,18 @@ async function renderApiCredentials() {
   const state = await loadState();
   const settings = normalizeSettings(state.settings);
   const statuses = await getApiCredentialStatus();
+  const hostPermissions = Object.fromEntries(await Promise.all(API_PROVIDER_IDS.map(async (id) => [
+    id,
+    await getApiProviderHostPermission(id),
+  ])));
   clearChildren(wrap);
   const configured = API_PROVIDER_IDS.filter((id) => statuses[id]?.configured).length;
   if (statusWrap) {
+    const missingPermission = API_PROVIDER_IDS.filter((id) => statuses[id]?.configured && !hostPermissions[id]?.ok).length;
     statusWrap.textContent = configured
-      ? `${configured} official provider credential${configured === 1 ? '' : 's'} configured locally.`
+      ? `${configured} official provider credential${configured === 1 ? '' : 's'} configured locally${missingPermission ? `; ${missingPermission} host permission${missingPermission === 1 ? '' : 's'} need attention` : ''}.`
       : 'No official provider credentials configured. Web usage tracking remains available without them.';
-    statusWrap.className = `opt-callout ${configured ? 'opt-callout--good' : ''}`;
+    statusWrap.className = `opt-callout ${missingPermission ? 'opt-callout--warn' : configured ? 'opt-callout--good' : ''}`;
   }
 
   for (const id of API_PROVIDER_IDS) {
@@ -273,7 +281,9 @@ async function renderApiCredentials() {
     const credentialStatus = document.createElement('p');
     credentialStatus.className = 'api-credential__status';
     credentialStatus.textContent = statuses[id]?.configured
-      ? 'Configured locally. The key value is never shown again.'
+      ? hostPermissions[id]?.ok
+        ? 'Configured locally; exact API host permission granted. The key value is never shown again.'
+        : 'Configured locally, but the exact API host permission is not granted. Save the key again to request it.'
       : 'Not configured.';
     credentialStatus.dataset.apiStatus = id;
     card.append(head, hint, costHint, input);
@@ -834,6 +844,16 @@ function bindHandlers() {
     let collaborationChanged = false;
     if (t.dataset.provider) {
       s.showProviders = { ...s.showProviders, [t.dataset.provider]: t.checked };
+      if (t.checked && API_PROVIDER_IDS.includes(t.dataset.provider)) {
+        const credentialStatus = await getApiCredentialStatus();
+        if (credentialStatus[t.dataset.provider]?.configured) {
+          const permission = await requestApiProviderHostPermission(t.dataset.provider);
+          if (!permission.ok) {
+            s.showProviders[t.dataset.provider] = false;
+            flash(`${API_PROVIDER_META[t.dataset.provider]?.label || t.dataset.provider} host permission was not granted`, 'bad');
+          }
+        }
+      }
     } else if (t.dataset.row) {
       s.showRows = { ...s.showRows, [t.dataset.row]: t.checked };
     } else if (t.dataset.notif) {
@@ -970,6 +990,11 @@ function bindHandlers() {
           state.settings = normalizeSettings(state.settings);
           state.settings.geminiProjectId = projectId;
         }
+        const permission = await requestApiProviderHostPermission(provider);
+        if (!permission.ok) {
+          flash(`${API_PROVIDER_META[provider]?.label || provider} host permission was not granted`, 'bad');
+          return;
+        }
         await saveApiCredential(provider, value);
         if (provider === 'github-copilot' || provider === 'gemini') await saveState(state);
         if (input) input.value = '';
@@ -978,6 +1003,8 @@ function bindHandlers() {
         else flash(`${API_PROVIDER_META[provider]?.label || provider} key saved`);
       } else if (action === 'revoke') {
         await removeApiCredential(provider);
+        const permission = await removeApiProviderHostPermission(provider);
+        if (!permission.ok) flash(`${API_PROVIDER_META[provider]?.label || provider} host permission could not be removed`, 'bad');
         state.snapshot.providers[provider] = null;
         if (provider === 'github-copilot') {
           state.settings = normalizeSettings(state.settings);

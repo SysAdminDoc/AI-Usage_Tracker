@@ -7,6 +7,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOST_MATRIX, isClaudeHost, isCodexHost, isSupportedHost } from '../src/lib/hosts.js';
+import { API_PROVIDER_HOSTS } from '../src/providers/api-contract.js';
 import { MANIFESTS, ROOT } from './common.mjs';
 
 export async function validateHostMatrix() {
@@ -28,17 +29,20 @@ export async function validateHostMatrix() {
     `https://${claude.apex}/*`,
     `https://${codex.apex}/*`,
   ];
-  const apiPermissions = [
-    'https://api.anthropic.com/*',
-    'https://api.openai.com/*',
-    'https://api.github.com/*',
-    'https://api.cursor.com/*',
-    'https://monitoring.googleapis.com/*',
-    'https://openrouter.ai/*',
-  ];
+  const apiPermissions = Object.values(API_PROVIDER_HOSTS);
 
   for (const [target, manifest] of [['chrome', chrome], ['firefox', firefox]]) {
-    assert.deepEqual(manifest.host_permissions, [...apexPermissions, ...apiPermissions], `${target} host permissions drifted`);
+    assert.deepEqual(manifest.host_permissions, apexPermissions, `${target} default host permissions drifted`);
+    assert.deepEqual(
+      manifest.optional_host_permissions?.slice(0, apiPermissions.length),
+      apiPermissions,
+      `${target} optional API host permissions drifted`,
+    );
+    assert.equal(
+      manifest.host_permissions.some((permission) => apiPermissions.includes(permission)),
+      false,
+      `${target} must not request API hosts by default`,
+    );
     assert.deepEqual(
       manifest.web_accessible_resources?.[0]?.matches,
       apexPermissions,
