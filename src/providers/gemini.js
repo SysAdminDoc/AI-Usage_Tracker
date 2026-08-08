@@ -30,6 +30,7 @@ export async function fetchGeminiData({ apiKey, projectId, now = new Date(), fet
   if (!output.ok && !requests.ok) {
     return apiFailure('gemini', 'usage.failed', 'usage-fetch-failed', {
       status: output.status || requests.status || null,
+      retryAfterMs: Math.max(output.retryAfterMs || 0, requests.retryAfterMs || 0),
       outputErrorCode: output.errorCode || null,
       requestsErrorCode: requests.errorCode || null,
     });

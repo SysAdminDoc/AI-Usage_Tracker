@@ -10,6 +10,7 @@ export const API_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 export const API_MAX_TOTAL_RESPONSE_BYTES = 8 * 1024 * 1024;
 export const API_MAX_PAGES = 64;
 export const API_MAX_ITEMS = 10_000;
+const API_MAX_RETRY_AFTER_MS = 15 * 60 * 1000;
 
 export const API_PROVIDER_META = Object.freeze({
   'anthropic-api': Object.freeze({
@@ -106,6 +107,7 @@ export async function readJSONResponse(fetchImpl, url, options, provider, errorP
     if (!response?.ok) {
       return apiFailure(provider, `${errorPrefix}.http`, `http-${response?.status || 'unknown'}`, {
         status: Number(response?.status) || null,
+        retryAfterMs: parseRetryAfter(response),
       });
     }
     const body = await readJSONBody(response, maxResponseBytes);
@@ -121,16 +123,19 @@ export async function readJSONResponse(fetchImpl, url, options, provider, errorP
     if (error?.code === 'response-too-large') {
       return apiFailure(provider, `${errorPrefix}.response-too-large`, 'response-too-large', {
         status: Number(response?.status) || null,
+        retryAfterMs: parseRetryAfter(response),
       });
     }
     if (error?.code === 'invalid-json') {
       return apiFailure(provider, `${errorPrefix}.invalid-json`, 'invalid-json', {
         status: Number(response?.status) || null,
+        retryAfterMs: parseRetryAfter(response),
       });
     }
     if (error?.code === 'response-body-unavailable') {
       return apiFailure(provider, `${errorPrefix}.body-unavailable`, 'response-body-unavailable', {
         status: Number(response?.status) || null,
+        retryAfterMs: parseRetryAfter(response),
       });
     }
     return apiFailure(provider, `${errorPrefix}.fetch-failed`, 'fetch-failed');
@@ -201,6 +206,24 @@ function boundedInteger(value, fallback, minimum, maximum) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(maximum, Math.max(minimum, Math.floor(number)));
+}
+
+function parseRetryAfter(response) {
+  const value = response?.headers?.get?.('retry-after');
+  if (!value) return 0;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return boundedMilliseconds(seconds * 1000, 0, API_MAX_RETRY_AFTER_MS);
+
+  const timestamp = Date.parse(String(value));
+  if (!Number.isFinite(timestamp)) return 0;
+  return boundedMilliseconds(timestamp - Date.now(), 0, API_MAX_RETRY_AFTER_MS);
+}
+
+function boundedMilliseconds(value, fallback, maximum) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(maximum, Math.max(0, Math.round(number)));
 }
 
 function createRequestBudget(options, timeoutMs) {

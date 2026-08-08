@@ -17,6 +17,13 @@ assert.equal(normal.ok, true);
 assert.equal(normal.data.data[0].id, 'ok');
 assert.ok(observedSignal, 'provider requests should receive an abort signal');
 
+const retryAfter = await readJSONResponse(
+  async () => new Response('', { status: 429, headers: { 'retry-after': '90' } }),
+  'https://example.test/rate-limit', {}, 'test-provider', 'rate-limit',
+);
+assert.equal(retryAfter.status, 429);
+assert.equal(retryAfter.retryAfterMs, 90_000);
+
 const oversized = await readJSONResponse(
   async () => new Response('x'.repeat(32), { status: 200, headers: { 'content-length': '32' } }),
   'https://example.test/large', {}, 'test-provider', 'large', { maxResponseBytes: 16 },

@@ -42,6 +42,9 @@ export interface ProviderSnapshot {
   lastErrorISO?: string | null;
   lastErrorCode?: string | null;
   lastErrorDetail?: string | null;
+  refreshBackoffLevel?: number;
+  nextRetryISO?: string | null;
+  refreshSkippedReason?: string | null;
   error?: string | null;
   errorCode?: string | null;
   stale?: boolean;

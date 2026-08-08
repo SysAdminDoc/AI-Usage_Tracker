@@ -41,6 +41,7 @@ export async function fetchCursorData({ apiKey, now = new Date(), fetchImpl = nu
   if (!dailyUsage.ok && !spend.ok) {
     return apiFailure('cursor', 'usage-and-spend.failed', 'usage-and-spend-failed', {
       status: dailyUsage.status || spend.status || null,
+      retryAfterMs: Math.max(dailyUsage.retryAfterMs || 0, spend.retryAfterMs || 0),
       dailyUsageErrorCode: dailyUsage.errorCode || null,
       spendErrorCode: spend.errorCode || null,
     });

@@ -30,6 +30,12 @@ import { forgetApiProvider, updateBudgetLedger } from './lib/budget.js';
 import { loadApiCredential } from './lib/storage.js';
 import { API_PROVIDER_IDS } from './providers/api-contract.js';
 import { fetchProviderUsage } from './providers/registry.js';
+import {
+  computeRetryBackoff,
+  createInFlightRegistry,
+  decideProviderRefresh,
+  isRetryableProviderError,
+} from './lib/refresh-coordinator.js';
 
 const ALARM_NAME = 'aut-refresh';
 const NOTIFICATION_ALARM_NAME = 'aut-notification';
@@ -37,6 +43,7 @@ const NOTIFICATION_ALARM_NAME = 'aut-notification';
 const STALE_MS = 10 * 60 * 1000;   // only force a silent-tab refresh if cached data is older than this
 
 let nativeWakeInFlight = null;
+const apiRefreshInFlight = createInFlightRegistry();
 
 init();
 
@@ -51,7 +58,7 @@ function bindMessageHandlers() {
     if (!msg || !msg.type) return null;
 
     if (msg.type === 'aut/refresh') {
-      await refreshNow({ allowSilentTab: true });
+      await refreshNow({ allowSilentTab: true, force: true });
       return { ok: true };
     }
     if (msg.type === 'aut/reschedule') {
@@ -91,7 +98,7 @@ function bindMessageHandlers() {
     }
     if (msg.type === 'aut/reset-claude-org') {
       clearClaudeOrgCache();
-      await refreshNow({ allowSilentTab: false });
+      await refreshNow({ allowSilentTab: false, force: true });
       return { ok: true };
     }
     return null;
@@ -114,7 +121,7 @@ async function reschedule() {
   await bindAlarm();
 }
 
-async function refreshNow({ allowSilentTab = false } = {}) {
+async function refreshNow({ allowSilentTab = false, force = false } = {}) {
   const now = new Date();
   let state = (await loadState()) || defaultState();
   const apiCredentials = await Promise.all(API_PROVIDER_IDS.map((provider) => loadApiCredential(provider)));
@@ -124,10 +131,18 @@ async function refreshNow({ allowSilentTab = false } = {}) {
     fetchClaude({ now }).catch((e) => ({ ok: false, provider: 'claude', error: String(e) })),
     fetchCodex({ now }).catch((e) =>  ({ ok: false, provider: 'codex',  error: String(e) })),
   ]);
-  const apiSnapshots = await Promise.all(API_PROVIDER_IDS.map((provider, index) => {
+  const apiSnapshots = await Promise.all(API_PROVIDER_IDS.map(async (provider, index) => {
     const credential = apiCredentials[index];
-    if (!credential) return null;
-    return fetchProviderUsage(provider, {
+    if (!credential) return { provider, credential: null, snapshot: null, skipped: false };
+
+    const decision = decideProviderRefresh(state.snapshot?.providers?.[provider], { now, force });
+    if (!decision.refresh) {
+      return { provider, credential, snapshot: null, skipped: true, decision };
+    }
+
+    const key = `${state.profileId || 'default'}:${provider}`;
+    const identity = `${credential}\u0000${provider}\u0000${providerRefreshSettingsKey(provider, state.settings)}`;
+    const snapshot = await apiRefreshInFlight.getOrCreate(key, identity, () => fetchProviderUsage(provider, {
       credential,
       settings: state.settings,
       now,
@@ -136,16 +151,18 @@ async function refreshNow({ allowSilentTab = false } = {}) {
       provider,
       error: 'api-refresh-failed',
       errorCode: `${provider}.refresh.failed`,
-    }));
+    })));
+    return { provider, credential, snapshot, skipped: false, decision };
   }));
   state = await mergeSnapshot(state, claude, { source: 'fetch', now });
   state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
-  for (const [index, provider] of API_PROVIDER_IDS.entries()) {
-    if (!apiCredentials[index]) {
-      state.snapshot.providers[provider] = null;
-      state.budget = forgetApiProvider(state.budget, provider, now);
+  for (const entry of apiSnapshots) {
+    if (!entry.credential) {
+      state.snapshot.providers[entry.provider] = null;
+      state.budget = forgetApiProvider(state.budget, entry.provider, now);
+    } else if (!entry.skipped) {
+      state = await mergeSnapshot(state, entry.snapshot, { source: 'api-key', now });
     }
-    else state = await mergeSnapshot(state, apiSnapshots[index], { source: 'api-key', now });
   }
   state.budget = updateBudgetLedger(state.budget, state.snapshot, { now }).ledger;
   await saveState(state);
@@ -243,12 +260,19 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   if (!providerSnapshot.ok && prev && prev.ok) {
     // Keep previous successful data, but stamp error freshness so the UI
     // can show that the latest fetch failed while displaying preserved data.
+    const retry = computeRetryBackoff(prev.refreshBackoffLevel, now, {
+      retryable: isRetryableProviderError(providerSnapshot),
+      retryAfterMs: providerSnapshot.retryAfterMs,
+    });
     next.snapshot.providers[providerKey] = {
       ...prev,
       lastErrorISO: nowISO,
       lastErrorDetail: providerSnapshot.error || 'unknown',
       lastErrorCode: providerSnapshot.errorCode || null,
       stale: true,
+      refreshBackoffLevel: retry.level,
+      nextRetryISO: retry.nextRetryISO,
+      refreshSkippedReason: retry.nextRetryISO ? 'backoff' : null,
     };
   } else if (providerSnapshot.ok) {
     next.snapshot.providers[providerKey] = {
@@ -259,15 +283,25 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
       lastErrorDetail: prev?.lastErrorDetail || null,
       lastErrorCode: prev?.lastErrorCode || null,
       stale: false,
+      refreshBackoffLevel: 0,
+      nextRetryISO: null,
+      refreshSkippedReason: null,
     };
   } else {
     // No previous success and new fetch failed.
+    const retry = computeRetryBackoff(prev?.refreshBackoffLevel, now, {
+      retryable: isRetryableProviderError(providerSnapshot),
+      retryAfterMs: providerSnapshot.retryAfterMs,
+    });
     next.snapshot.providers[providerKey] = {
       ...providerSnapshot,
       lastErrorISO: nowISO,
       lastErrorDetail: providerSnapshot.error || 'unknown',
       lastErrorCode: providerSnapshot.errorCode || null,
       stale: true,
+      refreshBackoffLevel: retry.level,
+      nextRetryISO: retry.nextRetryISO,
+      refreshSkippedReason: retry.nextRetryISO ? 'backoff' : null,
     };
   }
 
@@ -305,6 +339,14 @@ function mergeProviderBuckets(previous, next) {
     orgId: next.orgId || previous.orgId || null,
     buckets: [...buckets.values()],
   };
+}
+
+function providerRefreshSettingsKey(provider, settings = {}) {
+  if (provider === 'github-copilot') {
+    return `${settings.githubCopilotOrganization || ''}:${settings.githubCopilotUsername || ''}`;
+  }
+  if (provider === 'gemini') return String(settings.geminiProjectId || '');
+  return '';
 }
 
 async function fireNotifications(state, now) {

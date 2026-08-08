@@ -25,6 +25,7 @@ export async function fetchOpenRouterData({ apiKey, now = new Date(), fetchImpl 
   if (!key.ok && !credits.ok) {
     return apiFailure('openrouter', 'usage-and-credits.failed', 'usage-and-credits-failed', {
       status: key.status || credits.status || null,
+      retryAfterMs: Math.max(key.retryAfterMs || 0, credits.retryAfterMs || 0),
       keyErrorCode: key.errorCode || null,
       creditsErrorCode: credits.errorCode || null,
     });

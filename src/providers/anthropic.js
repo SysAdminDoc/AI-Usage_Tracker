@@ -47,6 +47,7 @@ export async function fetchAnthropicData({ apiKey, now = new Date(), fetchImpl =
   if (!usage.ok && !costs.ok) {
     return apiFailure('anthropic-api', 'usage-and-costs.failed', 'usage-and-costs-failed', {
       status: usage.status || costs.status || null,
+      retryAfterMs: Math.max(usage.retryAfterMs || 0, costs.retryAfterMs || 0),
       usageErrorCode: usage.errorCode || null,
       costsErrorCode: costs.errorCode || null,
     });
