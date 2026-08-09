@@ -1,16 +1,32 @@
 import assert from 'node:assert/strict';
-import { createI18n, localeLabel, resolveLocale, SUPPORTED_LOCALES } from '../src/lib/i18n.js';
+import { createI18n, localeLabel, resolveLocale, SUPPORTED_LOCALES, isRtlLocale, applyDocumentLocale } from '../src/lib/i18n.js';
 
-assert.deepEqual(SUPPORTED_LOCALES, ['en', 'es', 'fr', 'de']);
+assert.deepEqual(SUPPORTED_LOCALES, ['en', 'es', 'fr', 'de', 'ar']);
 assert.equal(resolveLocale('fr-CA'), 'fr');
 assert.equal(resolveLocale('xx'), 'en');
 assert.equal(localeLabel('de'), 'German');
+assert.equal(resolveLocale('ar-EG'), 'ar');
+assert.equal(isRtlLocale('ar-EG'), true);
+assert.equal(isRtlLocale('fr'), false);
 const english = createI18n('en');
 const spanish = createI18n('es');
 const french = createI18n('fr');
+const arabic = createI18n('ar');
 assert.equal(english.t('overview.mostConstrained'), 'Most constrained');
 assert.equal(spanish.t('overview.mostConstrained'), 'Más limitado');
 assert.equal(french.t('overview.used', { percent: french.formatPercent(50) }), '50 % utilisé');
+assert.equal(arabic.direction, 'rtl');
+assert.equal(arabic.t('error.waiting'), 'بانتظار قراءة مسجّل الدخول');
+assert.equal(english.tp('plural.member', 1), '1 member');
+assert.equal(english.tp('plural.member', 2), '2 members');
+assert.equal(spanish.tp('plural.member', 2), '2 members');
+assert.match(arabic.formatNumber(1234567), /[\d٬,]/);
+assert.match(french.formatCurrency(12.5), /12,50/);
 assert.notEqual(english.formatDateTime('2026-08-03T12:00:00Z'), french.formatDateTime('2026-08-03T12:00:00Z'));
 assert.match(english.formatRelative(new Date(Date.now() - 5 * 60_000).toISOString()), /5 minutes ago/);
+
+const document = { documentElement: { lang: 'en', dir: 'ltr' } };
+applyDocumentLocale(arabic, document);
+assert.equal(document.documentElement.lang, 'ar');
+assert.equal(document.documentElement.dir, 'rtl');
 console.log('i18n locale and Intl formatting smoke: OK');
