@@ -30,22 +30,22 @@ function codexFailure(source, errorCode, error, extra = {}) {
   };
 }
 
-export async function fetchCodex({ now = new Date(), fetchImpl = null } = {}) {
-  const api = await fetchCodexApi({ now, fetchImpl });
+export async function fetchCodex({ now = new Date(), fetchImpl = null, signal = null } = {}) {
+  const api = await fetchCodexApi({ now, fetchImpl, signal });
   if (api.ok) return api;
 
-  const page = await fetchCodexAnalyticsPage({ now, fetchImpl });
+  const page = await fetchCodexAnalyticsPage({ now, fetchImpl, signal });
   if (page.ok && isSchemaDrift(api)) return sourceDisagreement('codex', api, page);
   if (page.ok) return page;
 
   return { ...api, fallbackError: page.error };
 }
 
-export async function fetchCodexApi({ now = new Date(), fetchImpl = null } = {}) {
+export async function fetchCodexApi({ now = new Date(), fetchImpl = null, signal = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return codexFailure('api', 'fetch.unavailable', 'fetch-unavailable');
 
-  const auth = await getChatGptAuthContext({ fetchImpl: doFetch });
+  const auth = await getChatGptAuthContext({ fetchImpl: doFetch, signal });
   const headers = { Accept: 'application/json' };
   if (auth.accessToken) headers.Authorization = `Bearer ${auth.accessToken}`;
   if (auth.accountId) headers['ChatGPT-Account-Id'] = auth.accountId;
@@ -54,6 +54,7 @@ export async function fetchCodexApi({ now = new Date(), fetchImpl = null } = {})
     const res = await doFetch(CODEX_USAGE_API_URL, {
       credentials: 'include',
       headers,
+      signal,
     });
     if (!res.ok) {
       return codexFailure('api', 'usage.http', `usage-http-${res.status}${auth.error ? `; ${auth.error}` : ''}`, {
@@ -70,7 +71,7 @@ export async function fetchCodexApi({ now = new Date(), fetchImpl = null } = {})
   }
 }
 
-export async function getChatGptAuthContext({ fetchImpl = null } = {}) {
+export async function getChatGptAuthContext({ fetchImpl = null, signal = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return codexFailure('auth', 'auth.fetch-unavailable', 'fetch-unavailable');
 
@@ -78,6 +79,7 @@ export async function getChatGptAuthContext({ fetchImpl = null } = {}) {
     const res = await doFetch(CODEX_AUTH_SESSION_URL, {
       credentials: 'include',
       headers: { Accept: 'application/json' },
+      signal,
     });
     if (!res.ok) return codexFailure('auth', 'auth.http', `auth-http-${res.status}`, { status: res.status });
 
@@ -210,12 +212,12 @@ export function parseCodexUsageApi(data, { now = new Date(), accountId = null, a
   };
 }
 
-async function fetchCodexAnalyticsPage({ now, fetchImpl }) {
+async function fetchCodexAnalyticsPage({ now, fetchImpl, signal }) {
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return codexFailure('html', 'page.fetch-unavailable', 'fetch-unavailable');
 
   try {
-    const res = await doFetch(CODEX_URL, { credentials: 'include' });
+    const res = await doFetch(CODEX_URL, { credentials: 'include', signal });
     if (!res.ok) return codexFailure('html', 'page.http', `HTTP ${res.status}`, { status: res.status });
     const html = await res.text();
     const parsed = parseCodex(html, { now });

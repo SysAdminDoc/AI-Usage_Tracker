@@ -33,11 +33,11 @@ function claudeFailure(source, errorCode, error, extra = {}) {
   };
 }
 
-export async function fetchClaude({ now = new Date(), fetchImpl = null } = {}) {
-  const api = await fetchClaudeApi({ now, fetchImpl });
+export async function fetchClaude({ now = new Date(), fetchImpl = null, signal = null } = {}) {
+  const api = await fetchClaudeApi({ now, fetchImpl, signal });
   if (api.ok) return api;
 
-  const page = await fetchClaudeUsagePage({ now, fetchImpl });
+  const page = await fetchClaudeUsagePage({ now, fetchImpl, signal });
   if (page.ok && isSchemaDrift(api)) return sourceDisagreement('claude', api, page);
   if (page.ok) return page;
 
@@ -46,17 +46,18 @@ export async function fetchClaude({ now = new Date(), fetchImpl = null } = {}) {
   return { ...api, fallbackError: page.error };
 }
 
-export async function fetchClaudeApi({ now = new Date(), fetchImpl = null } = {}) {
+export async function fetchClaudeApi({ now = new Date(), fetchImpl = null, signal = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return claudeFailure('api', 'fetch.unavailable', 'fetch-unavailable');
 
-  const org = await getClaudeOrgId({ fetchImpl: doFetch });
+  const org = await getClaudeOrgId({ fetchImpl: doFetch, signal });
   if (!org.ok) return { ...org, provider: 'claude', source: 'api' };
 
   try {
     const res = await doFetch(`${CLAUDE_ORGS_URL}/${encodeURIComponent(org.orgId)}/usage`, {
       credentials: 'include',
       headers: { Accept: 'application/json' },
+      signal,
     });
     if (!res.ok) {
       return claudeFailure('api', 'usage.http', `usage-http-${res.status}`, { status: res.status, orgId: org.orgId });
@@ -68,7 +69,7 @@ export async function fetchClaudeApi({ now = new Date(), fetchImpl = null } = {}
   }
 }
 
-export async function getClaudeOrgId({ fetchImpl = null } = {}) {
+export async function getClaudeOrgId({ fetchImpl = null, signal = null } = {}) {
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return claudeFailure('account', 'account.fetch-unavailable', 'fetch-unavailable');
 
@@ -81,6 +82,7 @@ export async function getClaudeOrgId({ fetchImpl = null } = {}) {
     const res = await doFetch(CLAUDE_ORGS_URL, {
       credentials: 'include',
       headers: { Accept: 'application/json' },
+      signal,
     });
     if (!res.ok) return claudeFailure('account', 'account.http', `orgs-http-${res.status}`, { status: res.status });
 
@@ -136,12 +138,12 @@ export function parseClaudeUsageApi(data, { now = new Date(), orgId = null } = {
   };
 }
 
-async function fetchClaudeUsagePage({ now, fetchImpl }) {
+async function fetchClaudeUsagePage({ now, fetchImpl, signal }) {
   const doFetch = resolveFetch(fetchImpl);
   if (!doFetch) return claudeFailure('html', 'page.fetch-unavailable', 'fetch-unavailable');
 
   try {
-    const res = await doFetch(CLAUDE_URL, { credentials: 'include' });
+    const res = await doFetch(CLAUDE_URL, { credentials: 'include', signal });
     if (!res.ok) return claudeFailure('html', 'page.http', `HTTP ${res.status}`, { status: res.status });
     const html = await res.text();
     const parsed = parseClaude(html, { now });
