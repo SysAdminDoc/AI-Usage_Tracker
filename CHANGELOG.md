@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Refreshes now stage provider merges, history, budget, notification retries, and diagnostics before one coherent state commit; sync writes serialize/coalesce identical concurrent payloads and expose safe attempt/byte counters for quota tests.
 - Notification candidates now use explicit reset, warning, bad, success, snooze, and delivery-failure tones; failed event deliveries persist a bounded retry/backoff ledger instead of re-firing on every refresh.
 - Rebuild the notification deadline alarm whenever settings or snooze state changes, so service-worker refreshes do not leave stale one-shot schedules behind.
 - Bound provider request time, response bodies, pagination, item counts, cancellation, and safe error reporting at the shared API contract.

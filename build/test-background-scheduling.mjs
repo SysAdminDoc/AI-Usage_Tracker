@@ -15,6 +15,13 @@ assert.match(background, /notificationRetries: state\.notificationRetries \|\| \
 assert.match(background, /maxAttempts: 1/);
 assert.match(background, /nextNotificationRetry\(/);
 assert.match(background, /pruneNotificationRetries/);
+assert.match(background, /persist: false, publish: false, recordHistory: false/);
+assert.match(background, /state = recordRefreshHistory\(state, now\);/);
+assert.match(background, /await fireNotifications\(state, now, \{ persist: false, schedule: false \}\);/);
+assert.match(background, /await commitState\(state\);/);
+const mergeSnapshot = background.match(/async function mergeSnapshot\([\s\S]*?\n\}\n\nfunction recordRefreshHistory/)?.[0] || '';
+assert.match(mergeSnapshot, /if \(persist\) await saveState\(next\);/);
+assert.doesNotMatch(mergeSnapshot, /await saveState\(next\);\n  await updateToolbarBadge/);
 
 const bindAlarm = background.match(/async function bindAlarm\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
 assert.match(bindAlarm, /await scheduleNotificationAlarm\(state, new Date\(\)\);/);

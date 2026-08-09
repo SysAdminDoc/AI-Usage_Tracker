@@ -174,18 +174,30 @@ async function refreshNow({ allowSilentTab = false, force = false } = {}) {
     })));
     return { provider, credential, snapshot, skipped: false, decision };
   }));
-  state = await mergeSnapshot(state, claude, { source: 'fetch', now });
-  state = await mergeSnapshot(state, codex,  { source: 'fetch', now });
+  state = await mergeSnapshot(state, claude, {
+    source: 'fetch', now, persist: false, publish: false, recordHistory: false,
+  });
+  state = await mergeSnapshot(state, codex, {
+    source: 'fetch', now, persist: false, publish: false, recordHistory: false,
+  });
   for (const entry of apiSnapshots) {
     if (!entry.credential) {
-      state.snapshot.providers[entry.provider] = null;
+      state = {
+        ...state,
+        snapshot: {
+          ...state.snapshot,
+          providers: { ...(state.snapshot?.providers || {}), [entry.provider]: null },
+        },
+      };
       state.budget = forgetApiProvider(state.budget, entry.provider, now);
     } else if (!entry.skipped) {
-      state = await mergeSnapshot(state, entry.snapshot, { source: 'api-key', now });
+      state = await mergeSnapshot(state, entry.snapshot, {
+        source: 'api-key', now, persist: false, publish: false, recordHistory: false,
+      });
     }
   }
+  state = recordRefreshHistory(state, now);
   state.budget = updateBudgetLedger(state.budget, state.snapshot, { now }).ledger;
-  await saveState(state);
 
   // 2) For any provider that's still stale, optionally ask a silent tab to refresh.
   if (allowSilentTab && state.settings?.silentTabRefresh === true) {
@@ -197,7 +209,9 @@ async function refreshNow({ allowSilentTab = false, force = false } = {}) {
     // we don't await it here. Notifications will evaluate on that ingest.
   }
 
-  await fireNotifications(state, now);
+  await fireNotifications(state, now, { persist: false, schedule: false });
+  await commitState(state);
+  await scheduleNotificationAlarm(state, now);
   return state;
 }
 
@@ -248,8 +262,13 @@ async function silentTabRefresh(provider) {
 async function ingestProviderSnapshot(parsed, { source, now = new Date() } = {}) {
   if (!parsed || !parsed.provider) return;
   let state = (await loadState()) || defaultState();
-  state = await mergeSnapshot(state, parsed, { source, now });
-  await fireNotifications(state, now);
+  state = await mergeSnapshot(state, parsed, {
+    source, now, persist: false, publish: false, recordHistory: false,
+  });
+  state = recordRefreshHistory(state, now);
+  await fireNotifications(state, now, { persist: false, schedule: false });
+  await commitState(state);
+  await scheduleNotificationAlarm(state, now);
 }
 
 async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now = new Date() } = {}) {
@@ -259,9 +278,15 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now =
     let failedState = (await loadState()) || defaultState();
     if (cacheTimer) failedState = mergeCacheTimer(failedState, cacheTimer);
     if (parsed.provider) {
-      await mergeSnapshot(failedState, parsed, { source, now });
+      failedState = await mergeSnapshot(failedState, parsed, {
+        source, now, persist: false, publish: false, recordHistory: false,
+      });
+      failedState = recordRefreshHistory(failedState, now);
+      await fireNotifications(failedState, now, { persist: false, schedule: false });
+      await commitState(failedState);
+      await scheduleNotificationAlarm(failedState, now);
     } else if (cacheTimer) {
-      await saveState(failedState);
+      await commitState(failedState);
     }
     return;
   }
@@ -270,15 +295,29 @@ async function ingestClaudeUsageWindows(messageLimit, { source = 'stream', now =
   const previous = state.snapshot?.providers?.claude;
   const merged = mergeProviderBuckets(previous, { ...parsed, source });
   state = mergeCacheTimer(state, cacheTimer);
-  state = await mergeSnapshot(state, merged, { source, now });
-  await fireNotifications(state, now);
+  state = await mergeSnapshot(state, merged, {
+    source, now, persist: false, publish: false, recordHistory: false,
+  });
+  state = recordRefreshHistory(state, now);
+  await fireNotifications(state, now, { persist: false, schedule: false });
+  await commitState(state);
+  await scheduleNotificationAlarm(state, now);
 }
 
-async function mergeSnapshot(state, providerSnapshot, { source, now }) {
+async function mergeSnapshot(
+  state,
+  providerSnapshot,
+  { source, now, persist = true, publish = true, recordHistory = true } = {},
+) {
   if (!providerSnapshot || !providerSnapshot.provider) return state;
-  const next = { ...state };
+  const next = {
+    ...state,
+    snapshot: {
+      ...(state.snapshot || { fetchedAtISO: null, providers: {} }),
+      providers: { ...(state.snapshot?.providers || {}) },
+    },
+  };
   const providerKey = providerSnapshot.provider;
-  next.snapshot = next.snapshot || { fetchedAtISO: null, providers: {} };
 
   const prev = next.snapshot.providers[providerKey];
   const nowISO = now.toISOString();
@@ -304,21 +343,40 @@ async function mergeSnapshot(state, providerSnapshot, { source, now }) {
   }
 
   next.snapshot.fetchedAtISO = nowISO;
-  next.history = recordSnapshot(next.history || [], next.snapshot, {
+  if (recordHistory) next.history = recordSnapshot(next.history || [], next.snapshot, {
     now,
     retentionDays: next.settings?.historyRetentionDays,
   });
-  await saveState(next);
-  await updateToolbarBadge(next);
+  if (persist) await saveState(next);
+  if (publish) await publishSnapshot(next);
+  return next;
+}
+
+function recordRefreshHistory(state, now) {
+  return {
+    ...state,
+    history: recordSnapshot(state.history || [], state.snapshot, {
+      now,
+      retentionDays: state.settings?.historyRetentionDays,
+    }),
+  };
+}
+
+async function commitState(state) {
+  await saveState(state);
+  await publishSnapshot(state);
+}
+
+async function publishSnapshot(state) {
+  await updateToolbarBadge(state);
   // Forward to QuotaGlass desktop widget (no-op if NMH not installed).
   try {
     const version = chrome.runtime?.getManifest?.()?.version;
-    if (!isIncognitoContext()) pushSnapshot(next, version);
+    if (!isIncognitoContext()) pushSnapshot(state, version);
   } catch (e) {
     // Bridge failures must never break the extension's own data path.
     console.info('[AUT] bridge push failed:', e?.message || e);
   }
-  return next;
 }
 
 async function refreshToolbarBadge() {
@@ -358,7 +416,7 @@ function rejectBackgroundMessage(validation) {
   return validation;
 }
 
-async function fireNotifications(state, now) {
+async function fireNotifications(state, now, { persist = true, schedule = true } = {}) {
   const toFire = evaluateRules({
     snapshot: state.snapshot,
     history:  state.history,
@@ -406,8 +464,8 @@ async function fireNotifications(state, now) {
   }
   state.firedRules = pruneFired(state.firedRules, now);
   state.notificationRetries = pruneNotificationRetries(state.notificationRetries, now);
-  await saveState(state);
-  await scheduleNotificationAlarm(state, now);
+  if (persist) await saveState(state);
+  if (schedule) await scheduleNotificationAlarm(state, now);
 }
 
 function recordWebhookStatus(state, result, now) {

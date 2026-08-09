@@ -38,6 +38,7 @@ export function buildSupportBundle({ state = {}, usage = {}, version = 'unknown'
       source: usage.source || 'unavailable',
       degraded: usage.degraded === true,
       warningCode: typeof usage.warningCode === 'string' ? usage.warningCode : null,
+      writes: writeDiagnosticsSummary(usage.writes),
       history: usage.history ? {
         sampleCount: Number(usage.history.sampleCount) || 0,
         byteCount: Number(usage.history.byteCount) || 0,
@@ -52,6 +53,21 @@ export function buildSupportBundle({ state = {}, usage = {}, version = 'unknown'
       identifiers: 'shortened to first/last characters where needed',
     },
   };
+}
+
+function writeDiagnosticsSummary(writes) {
+  if (!writes || typeof writes !== 'object') return null;
+  const summarize = (entry) => {
+    if (!entry || typeof entry !== 'object') return null;
+    return {
+      attempts: Math.max(0, Number(entry.attempts) || 0),
+      successes: Math.max(0, Number(entry.successes) || 0),
+      failures: Math.max(0, Number(entry.failures) || 0),
+      bytes: Math.max(0, Number(entry.bytes) || 0),
+      lastBytes: Math.max(0, Number(entry.lastBytes) || 0),
+    };
+  };
+  return { state: summarize(writes.state), sync: summarize(writes.sync) };
 }
 
 function providerSupportSummary(snapshot) {

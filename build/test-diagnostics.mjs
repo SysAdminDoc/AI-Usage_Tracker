@@ -35,6 +35,10 @@ const bundle = buildSupportBundle({
     source: 'webext',
     degraded: true,
     warningCode: 'history-budget',
+    writes: {
+      state: { attempts: 2, successes: 1, failures: 1, bytes: 900, lastBytes: 500 },
+      sync: { attempts: 1, successes: 1, failures: 0, bytes: 120, lastBytes: 120 },
+    },
     history: { sampleCount: 4001, byteCount: 600000, maxSamples: 4000, maxBytes: 524288, degraded: true },
   },
   version: '0.2.3',
@@ -50,6 +54,8 @@ assert.equal(bundle.snapshot.providers.claude.buckets[0].metric.costSource, 'pri
 assert.equal(bundle.snapshot.providers.claude.buckets[0].metric.pricingVersion, '2026-08-03');
 assert.equal(bundle.storage.degraded, true);
 assert.equal(bundle.storage.warningCode, 'history-budget');
+assert.equal(bundle.storage.writes.state.failures, 1);
+assert.equal(bundle.storage.writes.sync.bytes, 120);
 assert.equal(bundle.storage.history.maxSamples, 4000);
 const serialized = JSON.stringify(bundle);
 assert.doesNotMatch(serialized, /token-secret|org-secret-1234|account-secret-5678|secret-history|lastErrorDetail/);

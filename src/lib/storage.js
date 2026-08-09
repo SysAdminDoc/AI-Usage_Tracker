@@ -179,6 +179,40 @@ export function getSyncSettingsStorageKey(scope = getStorageScope()) {
 }
 
 const syncReadCache = new Map();
+const storageWriteDiagnostics = {
+  state: { attempts: 0, successes: 0, failures: 0, bytes: 0, lastBytes: 0 },
+  sync: { attempts: 0, successes: 0, failures: 0, bytes: 0, lastBytes: 0 },
+};
+let syncWriteQueue = Promise.resolve();
+
+export function resetStorageWriteDiagnostics() {
+  for (const entry of Object.values(storageWriteDiagnostics)) {
+    entry.attempts = 0;
+    entry.successes = 0;
+    entry.failures = 0;
+    entry.bytes = 0;
+    entry.lastBytes = 0;
+  }
+}
+
+export function getStorageWriteDiagnostics() {
+  return cloneJSON(storageWriteDiagnostics);
+}
+
+function recordStorageWriteAttempt(kind, bytes) {
+  const entry = storageWriteDiagnostics[kind];
+  if (!entry) return;
+  const size = Number.isFinite(Number(bytes)) ? Math.max(0, Math.floor(Number(bytes))) : 0;
+  entry.attempts += 1;
+  entry.bytes += size;
+  entry.lastBytes = size;
+}
+
+function recordStorageWriteResult(kind, ok) {
+  const entry = storageWriteDiagnostics[kind];
+  if (!entry) return;
+  entry[ok ? 'successes' : 'failures'] += 1;
+}
 
 function cloneSyncedSettings(settings) {
   return settings ? JSON.parse(JSON.stringify(settings)) : null;
@@ -267,20 +301,35 @@ export async function saveSyncedSettings(settings, profileId = null) {
   const id = profileId || await getActiveProfileId();
   const payload = pickSyncSettings(settings);
   const fingerprint = `${id}:${JSON.stringify(payload)}`;
-  if (fingerprint === lastSyncFingerprint) return { supported: true, synced: false, unchanged: true };
   const key = getSyncSettingsStorageKey();
-  await invokeWebExtension(sync, 'set', [{
-    [key]: {
+  return enqueueSyncWrite(async () => {
+    if (fingerprint === lastSyncFingerprint) return { supported: true, synced: false, unchanged: true };
+    const record = {
       schema: SYNC_SETTINGS_SCHEMA,
       schemaVersion: SYNC_SETTINGS_VERSION,
       profileId: id,
       settings: payload,
       updatedAtISO: new Date().toISOString(),
-    },
-  }]);
-  lastSyncFingerprint = fingerprint;
-  syncReadCache.delete(`${getSyncSettingsStorageKey()}:${id}`);
-  return { supported: true, synced: true };
+    };
+    const values = { [key]: record };
+    recordStorageWriteAttempt('sync', encodedByteLength(JSON.stringify(values)));
+    try {
+      await invokeWebExtension(sync, 'set', [values]);
+      recordStorageWriteResult('sync', true);
+    } catch (error) {
+      recordStorageWriteResult('sync', false);
+      throw error;
+    }
+    lastSyncFingerprint = fingerprint;
+    syncReadCache.delete(`${getSyncSettingsStorageKey()}:${id}`);
+    return { supported: true, synced: true };
+  });
+}
+
+function enqueueSyncWrite(task) {
+  const work = syncWriteQueue.catch(() => {}).then(task);
+  syncWriteQueue = work.catch(() => {});
+  return work;
 }
 
 export async function clearSyncedSettings() {
@@ -339,6 +388,7 @@ function withStorageDiagnostics(usage, history, state) {
   return {
     ...usage,
     history,
+    writes: getStorageWriteDiagnostics(),
     degraded: history.degraded || nearQuota || !!state?.historyDiagnostics?.warningCode,
     warningCode,
   };
@@ -735,9 +785,13 @@ export async function saveState(state) {
     retentionDays: null,
   });
   state.history = normalizedHistory;
+  const stateBytes = () => encodedByteLength(JSON.stringify(state));
+  recordStorageWriteAttempt('state', stateBytes());
   try {
     await adapter.set(stateKey, state);
+    recordStorageWriteResult('state', true);
   } catch (error) {
+    recordStorageWriteResult('state', false);
     // A busy profile or a browser with a smaller quota gets one tighter,
     // recoverable retry before the write is surfaced to the caller.
     const tighterHistory = compactHistoryToBudget(state.history, {
@@ -747,9 +801,12 @@ export async function saveState(state) {
     });
     if (JSON.stringify(tighterHistory) === JSON.stringify(state.history)) throw error;
     state.history = tighterHistory;
+    recordStorageWriteAttempt('state', stateBytes());
     try {
       await adapter.set(stateKey, state);
+      recordStorageWriteResult('state', true);
     } catch (retryError) {
+      recordStorageWriteResult('state', false);
       console.warn('[AUT] State write remains over storage quota after history compaction.');
       throw retryError;
     }
