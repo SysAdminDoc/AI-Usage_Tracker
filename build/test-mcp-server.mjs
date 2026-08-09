@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { exportMcpState } from '../src/lib/mcp-state.js';
+import { VERSION } from './common.mjs';
 
 const fixedNow = new Date('2026-08-15T00:00:00.000Z');
 const state = {
@@ -62,6 +63,7 @@ const request = async (id, method, params = {}) => {
 
 const initialize = await request(1, 'initialize');
 assert.equal(initialize.result.serverInfo.name, 'ai-usage-tracker-local');
+assert.equal(initialize.result.serverInfo.version, VERSION, 'MCP server version must match the package version');
 const tools = await request(2, 'tools/list');
 assert.deepEqual(tools.result.tools.map((tool) => tool.name), ['get_usage', 'forecast', 'time_to_reset']);
 

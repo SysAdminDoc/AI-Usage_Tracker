@@ -15,8 +15,10 @@ export const MANIFESTS = path.join(ROOT, 'manifests');
 export const DIST = path.join(ROOT, 'dist');
 export const ICONS = path.join(SRC, 'icons');
 
-// Source of truth for the version string.
-export const VERSION = '0.2.3';
+// package.json is the only maintained application version value. Every build
+// surface imports VERSION from here or receives it through a stamped template.
+const PACKAGE_JSON = JSON.parse(fss.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+export const VERSION = PACKAGE_JSON.version;
 
 let cachedEsbuild = null;
 
@@ -44,6 +46,15 @@ export async function ensureDir(dir) {
 export async function copyFile(src, dest) {
   await ensureDir(path.dirname(dest));
   await fs.copyFile(src, dest);
+}
+
+export function stampVersion(text) {
+  return text.replaceAll('__AUT_VERSION__', VERSION);
+}
+
+export async function copyVersionedFile(src, dest) {
+  const text = await fs.readFile(src, 'utf8');
+  await writeText(dest, stampVersion(text));
 }
 
 export async function copyDir(src, dest) {

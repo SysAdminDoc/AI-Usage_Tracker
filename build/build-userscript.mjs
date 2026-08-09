@@ -8,7 +8,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  ROOT, SRC, DIST, loadEsbuild, clean, ensureDir, writeText, log, VERSION,
+  ROOT, SRC, DIST, loadEsbuild, clean, ensureDir, stampVersion, writeText, log, VERSION,
 } from './common.mjs';
 
 const ENTRY  = path.join(ROOT, 'userscript', 'entry.js');
@@ -24,15 +24,17 @@ async function main() {
   const themeCSS  = await fs.readFile(path.join(SRC, 'ui', 'theme.css'),  'utf8');
   const widgetCSS = await fs.readFile(path.join(SRC, 'ui', 'widget.css'), 'utf8');
   const optionsCSS = await fs.readFile(path.join(SRC, 'ui', 'options.css'), 'utf8');
-  const header    = await fs.readFile(HEADER, 'utf8');
+  const header    = stampVersion(await fs.readFile(HEADER, 'utf8'));
 
   const inlineCss = `
   (function () {
     var g = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : (typeof window !== 'undefined' ? window : globalThis));
+    g.__AUT_VERSION__ = ${JSON.stringify(VERSION)};
     g.__AUT_THEME_CSS__  = ${JSON.stringify(themeCSS)};
     g.__AUT_WIDGET_CSS__ = ${JSON.stringify(widgetCSS)};
     g.__AUT_OPTIONS_CSS__ = ${JSON.stringify(optionsCSS)};
     if (typeof globalThis !== 'undefined') {
+      globalThis.__AUT_VERSION__ = ${JSON.stringify(VERSION)};
       globalThis.__AUT_THEME_CSS__  = ${JSON.stringify(themeCSS)};
       globalThis.__AUT_WIDGET_CSS__ = ${JSON.stringify(widgetCSS)};
       globalThis.__AUT_OPTIONS_CSS__ = ${JSON.stringify(optionsCSS)};

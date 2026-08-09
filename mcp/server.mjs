@@ -2,10 +2,11 @@
 
 import fs from 'node:fs/promises';
 import readline from 'node:readline';
+import rootPackage from '../package.json' with { type: 'json' };
 import { forecastMonthEnd } from '../src/lib/forecast.js';
 import { normalizeMcpState } from '../src/lib/mcp-state.js';
 
-const SERVER_VERSION = '0.2.3';
+const SERVER_VERSION = rootPackage.version;
 const args = parseArgs(process.argv.slice(2));
 
 if (!args.state) {

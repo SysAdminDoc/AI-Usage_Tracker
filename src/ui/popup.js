@@ -10,19 +10,19 @@ import {
   setSafeAttribute,
 } from '../lib/dom.js';
 import { applyDocumentLocale, createI18n } from '../lib/i18n.js';
+import { APP_VERSION } from '../lib/version.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 import { forecastMonthEnd } from '../lib/forecast.js';
 import { buildPlanRecommendations } from '../lib/optimization.js';
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.2.3';
 
 const dashboard = document.getElementById('dashboard');
 const updatedEl = document.getElementById('updated');
 const refreshBtn = document.getElementById('refresh');
 const versionEl = document.querySelector('.version');
-if (versionEl) versionEl.textContent = `v${VERSION}`;
+if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 
 refreshBtn.addEventListener('click', async () => {
   refreshBtn.disabled = true;

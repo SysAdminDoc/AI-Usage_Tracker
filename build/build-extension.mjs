@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import {
   ROOT, SRC, MANIFESTS, DIST, ICONS,
-  loadEsbuild, clean, ensureDir, copyFile, copyDir, readJSON, writeJSON,
+  loadEsbuild, clean, ensureDir, copyFile, copyVersionedFile, copyDir, readJSON, writeJSON,
   log, VERSION,
 } from './common.mjs';
 
@@ -47,11 +47,11 @@ export async function buildExtension({ target, bridge = false }) {
   }
 
   // 2) Copy static HTML / CSS / icons.
-  await copyFile(path.join(SRC, 'ui', 'popup.html'),  path.join(outDir, 'ui', 'popup.html'));
+  await copyVersionedFile(path.join(SRC, 'ui', 'popup.html'),  path.join(outDir, 'ui', 'popup.html'));
   await copyFile(path.join(SRC, 'ui', 'popup.css'),   path.join(outDir, 'ui', 'popup.css'));
-  await copyFile(path.join(SRC, 'ui', 'sidepanel.html'), path.join(outDir, 'ui', 'sidepanel.html'));
+  await copyVersionedFile(path.join(SRC, 'ui', 'sidepanel.html'), path.join(outDir, 'ui', 'sidepanel.html'));
   await copyFile(path.join(SRC, 'ui', 'sidepanel.css'), path.join(outDir, 'ui', 'sidepanel.css'));
-  await copyFile(path.join(SRC, 'ui', 'options.html'),path.join(outDir, 'ui', 'options.html'));
+  await copyVersionedFile(path.join(SRC, 'ui', 'options.html'),path.join(outDir, 'ui', 'options.html'));
   await copyFile(path.join(SRC, 'ui', 'options.css'), path.join(outDir, 'ui', 'options.css'));
   await copyFile(path.join(SRC, 'ui', 'theme.css'),   path.join(outDir, 'ui', 'theme.css'));
   await copyFile(path.join(SRC, 'ui', 'widget.css'),  path.join(outDir, 'ui', 'widget.css'));

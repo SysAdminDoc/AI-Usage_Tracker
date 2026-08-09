@@ -15,6 +15,7 @@ import {
   setStaticMarkup,
 } from '../lib/dom.js';
 import { applyElementLocale, createI18n } from '../lib/i18n.js';
+import { APP_VERSION } from '../lib/version.js';
 
 function openAnalytics(which) {
   if (hasExtensionRuntime()) {
@@ -26,7 +27,6 @@ function openAnalytics(which) {
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
-const VERSION = '0.2.3';
 
 let rootEl = null;
 let tickHandle = null;
@@ -204,7 +204,7 @@ async function render({ onRefresh, onOpenSettings, mobile = false }) {
     const ago = formatAgo(snapshot.fetchedAtISO, i18n);
     appendChildren(foot, [
       createElement('span', { text: i18n.t('widget.footer', { relative: ago }) }),
-      createElement('span', { text: i18n.t('app.version', { version: VERSION.slice(1) }) }),
+      createElement('span', { text: i18n.t('app.version', { version: APP_VERSION.replace(/^v/, '') }) }),
     ]);
     wrap.appendChild(foot);
   }

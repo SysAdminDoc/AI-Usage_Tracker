@@ -63,8 +63,7 @@ import { apiBreakdownToCSV, buildApiBreakdown } from '../lib/api-breakdown.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
 import { applyDocumentLocale, createI18n } from '../lib/i18n.js';
-
-const VERSION = '0.2.3';
+import { APP_VERSION } from '../lib/version.js';
 
 const saveStatus = document.getElementById('saveStatus');
 let activeI18n = createI18n('en');
@@ -85,7 +84,7 @@ export async function init() {
   const initialState = await loadState();
   setActiveLocale(initialState.settings?.locale);
   document.querySelector('.opt-head__sub').textContent = t('options.header', {
-    version: t('app.version', { version: VERSION.slice(1) }),
+    version: t('app.version', { version: APP_VERSION.replace(/^v/, '') }),
   });
   if (isIncognitoContext()) document.querySelector('.opt-head__sub').textContent = `${t('app.incognito')} · ${document.querySelector('.opt-head__sub').textContent}`;
   saveStatus.textContent = t('app.ready');
@@ -1624,7 +1623,7 @@ export function buildDiagnostics(state, usage = {}) {
     .reduce((sum, ps) => sum + (ps.buckets?.length || 0), 0);
   const historyWarning = usage.warningCode ? `; ${usage.warningCode}` : '';
   return {
-    version: VERSION,
+    version: APP_VERSION,
     snapshot: state.snapshot?.fetchedAtISO ? t('updated.prefix', { relative: formatAgo(state.snapshot.fetchedAtISO) }) : t('sidepanel.noSnapshot'),
     providers: Object.fromEntries(Object.entries(providers).map(([provider, snapshot]) => [
       provider,
@@ -1651,7 +1650,7 @@ export function buildDiagnosticsBundle(state, usage = {}) {
   return buildSupportBundle({
     state,
     usage,
-    version: manifest?.version || VERSION,
+    version: manifest?.version || APP_VERSION,
     channel: manifest ? 'extension' : 'settings-page',
     manifest,
   });

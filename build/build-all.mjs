@@ -27,6 +27,7 @@ async function main() {
   });
   if (us.status !== 0) process.exit(us.status || 1);
 
+  await validateReleaseProvenance({ checkBuiltArtifacts: true });
   await writeReleaseChecksums();
   console.log('\n[build] All targets built.');
 }
