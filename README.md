@@ -179,6 +179,7 @@ npm test
 ```
 
 Runtime has no external services. Builds use Node 20 and the local esbuild dev dependency. `npm test` runs isolated linkedom UI permutations plus Chrome callback/Firefox promise WebExtension contract fixtures, so UI and runtime compatibility checks do not open a browser window.
+For packaged-browser lifecycle coverage, run `npm run test:runtime`; it rebuilds Chrome and Firefox artifacts and exercises them with fresh isolated profiles under the invisible browser-testing contract.
 
 The model boundary is also checked with TypeScript 7 in strict mode: provider snapshots, settings, history samples, and tracker-state guards compile before tests and release packaging.
 
