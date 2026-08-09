@@ -22,12 +22,21 @@ import {
   clearSyncedSettings,
   loadSyncedSettings,
   mergeSyncedSettings,
+  clearHistoryArchive,
+  loadHistoryArchive,
+  saveHistoryArchive,
 } from '../lib/storage.js';
 import {
   compactHistory,
   historyStats,
   historyToCSV,
 } from '../lib/history.js';
+import {
+  createHistoryArchive,
+  historyArchiveStats,
+  mergeHistoryArchives,
+  parseHistoryArchive,
+} from '../lib/history-archive.js';
 import {
   defaultRowEnabled,
   listRowOptions,
@@ -1210,6 +1219,42 @@ function bindHandlers() {
     flash(t('options.historyDownload'));
   });
 
+  document.getElementById('exportHistoryArchive')?.addEventListener('click', async () => {
+    const now = new Date();
+    const state = await loadState();
+    const live = createHistoryArchive(state.history || [], { now, channel: 'extension' });
+    const stored = await loadHistoryArchive();
+    const archive = stored ? mergeHistoryArchives(stored, live, { now }) : live;
+    downloadHistoryArchive(archive);
+    flash(t('options.archiveDownload'));
+  });
+
+  const historyArchiveImportFile = document.getElementById('historyArchiveImportFile');
+  document.getElementById('importHistoryArchive')?.addEventListener('click', () => historyArchiveImportFile?.click());
+  historyArchiveImportFile?.addEventListener('change', async () => {
+    const file = historyArchiveImportFile.files?.[0];
+    if (!file) return;
+    try {
+      const now = new Date();
+      const incoming = parseHistoryArchive(await file.text());
+      const stored = await loadHistoryArchive();
+      await saveHistoryArchive(stored ? mergeHistoryArchives(stored, incoming, { now }) : incoming);
+      await renderHistoryStatus();
+      flash(t('options.archiveImported'));
+    } catch (error) {
+      flash(t('options.archiveImportRejected', { error: error?.message || t('app.invalidFile') }), 'bad');
+    } finally {
+      historyArchiveImportFile.value = '';
+    }
+  });
+
+  document.getElementById('clearHistoryArchive')?.addEventListener('click', async () => {
+    if (!confirmAction(t('options.clearArchiveConfirm'))) return;
+    await clearHistoryArchive();
+    await renderHistoryStatus();
+    flash(t('options.archiveCleared'));
+  });
+
   document.getElementById('exportApiBreakdown')?.addEventListener('click', async () => {
     const state = await loadState();
     const breakdown = buildApiBreakdown(state.snapshot);
@@ -1470,6 +1515,22 @@ async function renderHistoryStatus() {
     storage: formatStorageUsage(usage),
     warning: warningText,
   });
+  const archiveWrap = document.getElementById('historyArchiveStatus');
+  if (archiveWrap) {
+    const archive = await loadHistoryArchive();
+    if (!archive) {
+      archiveWrap.textContent = t('options.archiveOff');
+      archiveWrap.className = 'opt-callout';
+    } else {
+      const archiveStats = historyArchiveStats(archive);
+      archiveWrap.textContent = t('options.archiveStatus', {
+        samples: activeI18n.tp('plural.sample', archiveStats.sampleCount),
+        oldest: activeI18n.formatDateTime(archiveStats.oldestISO),
+        newest: activeI18n.formatDateTime(archiveStats.newestISO),
+      });
+      archiveWrap.className = 'opt-callout opt-callout--good';
+    }
+  }
   wrap.className = `opt-callout ${warning ? 'opt-callout--warn' : 'opt-callout--good'}`;
 }
 
@@ -1483,6 +1544,23 @@ function downloadHistory(history) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadHistoryArchive(archive) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    flash(t('app.downloadUnavailable'), 'bad');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(archive, null, 2) + '\n'], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'ai-usage-tracker-history-archive-' + new Date().toISOString().slice(0, 10) + '.json';
   anchor.hidden = true;
   document.body.appendChild(anchor);
   anchor.click();

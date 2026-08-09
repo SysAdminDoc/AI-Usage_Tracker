@@ -10,6 +10,9 @@ import {
   listProfiles,
   renameProfile,
   switchProfile,
+  clearHistoryArchive,
+  loadHistoryArchive,
+  saveHistoryArchive,
 } from '../lib/storage.js';
 import {
   compactHistory,
@@ -17,6 +20,12 @@ import {
   historyToCSV,
   HISTORY_RETENTION_OPTIONS,
 } from '../lib/history.js';
+import {
+  createHistoryArchive,
+  historyArchiveStats,
+  mergeHistoryArchives,
+  parseHistoryArchive,
+} from '../lib/history-archive.js';
 import {
   defaultRowEnabled,
   listRowOptions,
@@ -567,6 +576,28 @@ function buildHistoryControls(parent) {
   const clearButton = historyActionButton(t('options.clearHistory'));
   actions.append(exportButton, compactButton, clearButton);
   parent.appendChild(actions);
+  const archiveHint = document.createElement('p');
+  archiveHint.className = 'aut-inline-settings__hint';
+  archiveHint.textContent = t('options.archiveHint');
+  parent.appendChild(archiveHint);
+  const archiveStatus = document.createElement('p');
+  archiveStatus.className = 'aut-inline-settings__hint';
+  archiveStatus.setAttribute('role', 'status');
+  archiveStatus.setAttribute('aria-live', 'polite');
+  archiveStatus.textContent = t('options.archiveOff');
+  parent.appendChild(archiveStatus);
+  const archiveActions = document.createElement('div');
+  archiveActions.className = 'aut-inline-settings__history-actions';
+  const exportArchiveButton = historyActionButton(t('options.exportArchive'));
+  const importArchiveButton = historyActionButton(t('options.importArchive'));
+  const clearArchiveButton = historyActionButton(t('options.clearArchive'));
+  const archiveImportFile = document.createElement('input');
+  archiveImportFile.type = 'file';
+  archiveImportFile.accept = 'application/json,.json';
+  archiveImportFile.setAttribute('aria-label', t('options.selectArchive'));
+  archiveImportFile.hidden = true;
+  archiveActions.append(exportArchiveButton, importArchiveButton, clearArchiveButton, archiveImportFile);
+  parent.appendChild(archiveActions);
   const backupToggle = document.createElement('label');
   backupToggle.className = 'aut-inline-settings__toggle';
   const includeHistory = document.createElement('input');
@@ -598,6 +629,11 @@ function buildHistoryControls(parent) {
     exportButton,
     compactButton,
     clearButton,
+    archiveStatus,
+    exportArchiveButton,
+    importArchiveButton,
+    clearArchiveButton,
+    archiveImportFile,
     includeHistory,
     exportSettingsButton,
     importSettingsButton,
@@ -651,12 +687,54 @@ async function updateHistorySummary(controls, state) {
     bytes: formatBytes(usage.bytes),
     source: storageSourceLabel(usage.source),
   });
+  const archive = await loadHistoryArchive();
+  if (!archive) {
+    controls.archiveStatus.textContent = t('options.archiveOff');
+  } else {
+    const archiveStats = historyArchiveStats(archive);
+    controls.archiveStatus.textContent = t('options.archiveStatus', {
+      samples: activeI18n.tp('plural.sample', archiveStats.sampleCount),
+      oldest: activeI18n.formatDateTime(archiveStats.oldestISO),
+      newest: activeI18n.formatDateTime(archiveStats.newestISO),
+    });
+  }
 }
 
 function bindHistoryActions(controls, foot, getState, setState) {
   controls.exportButton.addEventListener('click', () => {
     downloadHistory(getState().history || []);
     foot.status.textContent = t('inline.csvStarted');
+  });
+  controls.exportArchiveButton.addEventListener('click', async () => {
+    const now = new Date();
+    const live = createHistoryArchive(getState().history || [], { now, channel: 'userscript' });
+    const stored = await loadHistoryArchive();
+    const archive = stored ? mergeHistoryArchives(stored, live, { now }) : live;
+    downloadHistoryArchive(archive);
+    foot.status.textContent = t('options.archiveDownload');
+  });
+  controls.importArchiveButton.addEventListener('click', () => controls.archiveImportFile.click());
+  controls.archiveImportFile.addEventListener('change', async () => {
+    const file = controls.archiveImportFile.files?.[0];
+    if (!file) return;
+    try {
+      const now = new Date();
+      const incoming = parseHistoryArchive(await file.text());
+      const stored = await loadHistoryArchive();
+      await saveHistoryArchive(stored ? mergeHistoryArchives(stored, incoming, { now }) : incoming);
+      await updateHistorySummary(controls, getState());
+      foot.status.textContent = t('options.archiveImported');
+    } catch (error) {
+      foot.status.textContent = t('options.archiveImportRejected', { error: error?.message || t('app.invalidFile') });
+    } finally {
+      controls.archiveImportFile.value = '';
+    }
+  });
+  controls.clearArchiveButton.addEventListener('click', async () => {
+    if (!confirmAction(t('options.clearArchiveConfirm'))) return;
+    await clearHistoryArchive();
+    await updateHistorySummary(controls, getState());
+    foot.status.textContent = t('options.archiveCleared');
   });
   controls.exportSettingsButton.addEventListener('click', () => {
     downloadSettings(exportSettings(getState(), { includeHistory: controls.includeHistory.checked }));
@@ -718,6 +796,21 @@ function downloadHistory(history) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `ai-usage-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.style.display = 'none';
+  document.documentElement.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadHistoryArchive(archive) {
+  if (typeof document === 'undefined' || typeof Blob === 'undefined'
+      || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+  const blob = new Blob([JSON.stringify(archive, null, 2) + '\n'], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'ai-usage-tracker-history-archive-' + new Date().toISOString().slice(0, 10) + '.json';
   anchor.style.display = 'none';
   document.documentElement.appendChild(anchor);
   anchor.click();

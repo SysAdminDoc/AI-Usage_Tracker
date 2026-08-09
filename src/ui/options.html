@@ -287,6 +287,14 @@
         <button id="compactHistory" class="opt-btn" data-i18n="options.compactHistory"></button>
         <button id="clearHistory" class="opt-btn opt-btn--quiet" data-i18n="options.clearHistory"></button>
       </div>
+      <p class="opt-hint" data-i18n="options.archiveHint"></p>
+      <div id="historyArchiveStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.archiveOff"></div>
+      <div class="opt-row opt-row--wrap">
+        <button id="exportHistoryArchive" class="opt-btn" data-i18n="options.exportArchive"></button>
+        <button id="importHistoryArchive" class="opt-btn" data-i18n="options.importArchive"></button>
+        <button id="clearHistoryArchive" class="opt-btn opt-btn--quiet" data-i18n="options.clearArchive"></button>
+        <input id="historyArchiveImportFile" type="file" accept="application/json,.json" data-i18n-aria-label="options.selectArchive" hidden>
+      </div>
       <label class="opt-toggle"><input id="includeHistoryInSettings" type="checkbox"><span data-i18n="options.includeHistory"></span></label>
       <div class="opt-row opt-row--wrap">
         <button id="exportSettings" class="opt-btn" data-i18n="options.exportSettings"></button>

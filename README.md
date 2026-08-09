@@ -51,6 +51,7 @@ Both Claude and Codex throttle you with daily and weekly quotas. The reset count
 - **Locale-aware dashboard** — English, Spanish, French, and German labels plus `Intl` percent, date, and relative-time formatting; add another locale in the string table without changing render logic.
 - **Rolling local history** (30-day default, configurable) with sparklines, persists across browser restart.
 - **Portable history controls** — export CSV, choose retention length, compact representative samples, or clear history with an explicit confirmation.
+- **Opt-in long-horizon archives** — export/import a versioned redacted JSON archive with deterministic compaction and freshness metadata; archive storage is separate from operational history, settings sync, snapshots, credentials, and quotas.
 - **Local profile manager** — create, rename, switch, and delete independent personal/work profiles with separate settings, snapshots, history, and API credentials.
 - **Credential lifecycle controls** — API credentials default to browser session or memory-only storage, show the recovery tradeoff and capability fallback, and require an explicit persistent-local compatibility choice to survive restarts.
 - **Optional settings sync** — opt in to browser sync for display and alert preferences only; history, provider snapshots, API keys, and bridge data remain local.
@@ -263,6 +264,8 @@ The dashboard is opt-in and file-based. It never uploads, syncs, inspects Git, o
 **What happens in an incognito window?** Chromium split-incognito windows get an independent Default/profile registry, state, history, and API-key namespace, and the widget/popup label the context “Incognito.” The Firefox package does not run in private windows because its platform cannot provide the same split behavior.
 
 **What does settings sync include?** Only display, locale, row-visibility, refresh, retention, threshold, and notification-rule preferences for the active profile. It never syncs history, quota/provider snapshots, API keys, credentials, bridge configuration, or native scheduler configuration, and it is off by default.
+
+**How do long-horizon archives work?** History → **Export long-horizon archive** creates a bounded, redacted JSON file from operational samples; importing it stores only the archive in a separate profile/incognito key and merges samples deterministically. It never changes settings, snapshots, credentials, notification ledgers, budgets, or operational retention. Malformed, secret-bearing, oversized, or unsupported-schema files are rejected.
 
 **How do I disable background page fallback?** It is off by default. If enabled for a debugging case, turn off “Use hidden fallback tabs when API refresh fails” in Settings; the extension does not silently enable it.
 

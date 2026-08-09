@@ -15,10 +15,12 @@ import {
   HISTORY_MAX_BYTES,
   HISTORY_MAX_SAMPLES,
 } from './history.js';
+import { parseHistoryArchive } from './history-archive.js';
 
 const LEGACY_STORE_KEY = 'aut.state.v1';
 export const PROFILE_REGISTRY_KEY = 'aut.profiles.v1';
 export const PROFILE_STATE_PREFIX = 'aut.state.v1.profile.';
+export const PROFILE_HISTORY_ARCHIVE_PREFIX = 'aut.history-archive.v1.profile.';
 const API_CREDENTIALS_KEY = 'aut.api-credentials.v1';
 const PROFILE_CREDENTIALS_PREFIX = 'aut.api-credentials.v1.profile.';
 export const INCOGNITO_STORAGE_PREFIX = 'aut.incognito.';
@@ -525,6 +527,13 @@ export function profileStateStorageKey(profileId) {
   return `${getProfileStateStoragePrefix()}${id}`;
 }
 
+/** @param {string} profileId @returns {string} */
+export function profileHistoryArchiveStorageKey(profileId) {
+  const id = normalizeProfileId(profileId);
+  if (!id) throw new Error('Invalid profile id: ' + String(profileId));
+  return scopedStorageKey(PROFILE_HISTORY_ARCHIVE_PREFIX) + id;
+}
+
 function profileCredentialsStorageKey(profileId) {
   return `${getProfileCredentialsStoragePrefix()}${profileStateStorageKey(profileId).slice(getProfileStateStoragePrefix().length)}`;
 }
@@ -707,6 +716,7 @@ export async function deleteProfile(profileId) {
   };
   await adapter.set(getProfileRegistryStorageKey(), next);
   if (typeof adapter.remove === 'function') await adapter.remove(profileStateStorageKey(id));
+  if (typeof adapter.remove === 'function') await adapter.remove(profileHistoryArchiveStorageKey(id));
   await clearApiCredentialCopies(id);
   return cloneJSON(next);
 }
@@ -817,6 +827,42 @@ export async function saveState(state) {
     }
   } else {
     lastSyncFingerprint = '';
+  }
+}
+
+/**
+ * Long-horizon archives live in a separate profile-scoped key. They are not
+ * part of TrackerState, settings sync, credentials, or operational history
+ * quota retries.
+ */
+/** @param {string|null} [profileId=null] @returns {Promise<unknown>} */
+export async function loadHistoryArchive(profileId = null) {
+  const id = profileId || await getActiveProfileId();
+  if (!id) throw new Error('No active profile for history archive');
+  try {
+    const raw = await adapter.get(profileHistoryArchiveStorageKey(id));
+    return raw ? parseHistoryArchive(raw) : null;
+  } catch (error) {
+    console.warn('[AUT] History archive read rejected:', String(error));
+    return null;
+  }
+}
+
+/** @param {unknown} archive @param {string|null} [profileId=null] @returns {Promise<unknown>} */
+export async function saveHistoryArchive(archive, profileId = null) {
+  const id = profileId || await getActiveProfileId();
+  if (!id) throw new Error('No active profile for history archive');
+  const parsed = parseHistoryArchive(archive);
+  await adapter.set(profileHistoryArchiveStorageKey(id), parsed);
+  return cloneJSON(parsed);
+}
+
+/** @param {string|null} [profileId=null] @returns {Promise<void>} */
+export async function clearHistoryArchive(profileId = null) {
+  const id = profileId || await getActiveProfileId();
+  if (!id) throw new Error('No active profile for history archive');
+  if (typeof adapter.remove === 'function') {
+    await adapter.remove(profileHistoryArchiveStorageKey(id));
   }
 }
 
