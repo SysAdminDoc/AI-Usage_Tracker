@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/types.ts",
+    "src/type-contracts.ts",
+    "src/background.js",
+    "src/lib/message-contract.js",
+    "src/lib/notify.js",
+    "src/lib/storage.js",
+    "src/providers/api-contract.js",
+    "src/providers/registry.js"
+  ],
+  "exclude": [
+    "build",
+    "dist",
+    "node_modules"
+  ]
+}
