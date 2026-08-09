@@ -38,7 +38,7 @@ html, body {
   border-color: rgba(250, 179, 135, 0.36);
 }
 .popup-actions {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   gap: 4px;
 }
@@ -280,7 +280,7 @@ html, body {
   color: var(--aut-text);
 }
 .popup-provider__meta {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;

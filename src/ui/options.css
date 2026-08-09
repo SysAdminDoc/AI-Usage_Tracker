@@ -19,7 +19,7 @@ html, body {
   color: var(--aut-text);
 }
 .opt-head__sub {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 11px;
   color: var(--aut-subtext0);
   font-variant-numeric: tabular-nums;
@@ -604,7 +604,7 @@ html, body {
 
   .opt-head__sub {
     width: 100%;
-    margin-left: 18px;
+    margin-inline-start: 18px;
   }
 
   .opt-shell {

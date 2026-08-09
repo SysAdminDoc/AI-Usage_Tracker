@@ -74,7 +74,7 @@ The current packaged experience is shown here across the persistent widget, popu
 
 ## Accessibility
 
-The widget, popup, options page, and userscript settings support keyboard focus, live reset timers, reduced-motion preferences, 44 px touch targets, and an opt-in high-contrast palette with text/pattern status cues. `npm test` runs the accessibility contract smoke checks, including high-contrast AA/AAA color ratios and the required live-region/focus hooks.
+The widget, popup, options page, side panel, and userscript settings support keyboard focus, live reset timers, reduced-motion preferences, 44 px touch targets, and an opt-in high-contrast palette with text/pattern status cues. They share the locale catalog, use `Intl` for number/date/plural formatting, and honor Arabic RTL direction with logical layout rules. `npm test` runs the accessibility contract smoke checks, including high-contrast AA/AAA color ratios and the required live-region/focus hooks.
 
 ## Install
 

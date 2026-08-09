@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AI Usage Tracker</title>
+  <title data-i18n="app.name"></title>
   <link rel="stylesheet" href="theme.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body class="aut-root">
   <header class="popup-head">
     <span class="aut-widget__brand-dot"></span>
-    <h1>AI Usage Tracker</h1>
-    <span id="profileName" class="popup-profile" title="Active local profile">Default</span>
+    <h1 data-i18n="app.name"></h1>
+    <span id="profileName" class="popup-profile" data-i18n="app.defaultProfile"></span>
     <div class="popup-actions">
-      <button id="refresh" class="aut-iconbtn" title="Refresh now" aria-label="Refresh">
+      <button id="refresh" class="aut-iconbtn" data-i18n-title="app.refreshNow" data-i18n-aria-label="app.refresh">
         <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 4 21 9 16 9"/></svg>
       </button>
-      <button id="settings" class="aut-iconbtn" title="Settings" aria-label="Settings">
+      <button id="settings" class="aut-iconbtn" data-i18n-title="app.settings" data-i18n-aria-label="app.settings">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </div>
@@ -27,7 +27,7 @@
   </main>
 
   <footer class="popup-foot">
-    <span id="updated">Never updated</span>
+    <span id="updated" data-i18n="updated.never"></span>
     <span class="version">v0.2.3</span>
   </footer>
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { parseHTML } from 'linkedom';
 import { createI18n, localeLabel, resolveLocale, SUPPORTED_LOCALES, isRtlLocale, applyDocumentLocale } from '../src/lib/i18n.js';
 
 assert.deepEqual(SUPPORTED_LOCALES, ['en', 'es', 'fr', 'de', 'ar']);
@@ -19,6 +20,9 @@ assert.equal(arabic.direction, 'rtl');
 assert.equal(arabic.t('error.waiting'), 'بانتظار قراءة مسجّل الدخول');
 assert.equal(english.tp('plural.member', 1), '1 member');
 assert.equal(english.tp('plural.member', 2), '2 members');
+assert.equal(english.tp('options.everyMinute', 1), 'Every 1 minute');
+assert.equal(english.tp('options.everyMinute', 5), 'Every 5 minutes');
+assert.equal(english.tp('options.days', 7), '7 days');
 assert.equal(spanish.tp('plural.member', 2), '2 members');
 assert.match(arabic.formatNumber(1234567), /[\d٬,]/);
 assert.match(french.formatCurrency(12.5), /12,50/);
@@ -29,4 +33,12 @@ const document = { documentElement: { lang: 'en', dir: 'ltr' } };
 applyDocumentLocale(arabic, document);
 assert.equal(document.documentElement.lang, 'ar');
 assert.equal(document.documentElement.dir, 'rtl');
+
+const fixture = parseHTML('<!doctype html><html lang="en"><body><button data-i18n="app.refresh" data-i18n-title="app.refreshNow"></button><option data-i18n="options.days" data-i18n-count="1"></option></body></html>');
+applyDocumentLocale(arabic, fixture.document);
+assert.equal(fixture.document.documentElement.lang, 'ar');
+assert.equal(fixture.document.documentElement.dir, 'rtl');
+assert.equal(fixture.document.querySelector('button').textContent, arabic.t('app.refresh'));
+assert.equal(fixture.document.querySelector('button').getAttribute('title'), arabic.t('app.refreshNow'));
+assert.equal(fixture.document.querySelector('option').textContent, arabic.tp('options.days', 1));
 console.log('i18n locale and Intl formatting smoke: OK');

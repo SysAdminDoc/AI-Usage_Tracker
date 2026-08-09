@@ -10,6 +10,7 @@
 - Userscript refreshes now fetch only the provider represented by the current first-party page, use same-origin fetch without privileged GM cross-origin requests, and keep only exact first-party `@connect` entries.
 - Provider scrapers and API adapters now emit source-specific schema markers, fail closed on unknown shapes or truncated pagination, reject web/API disagreement, and preserve last-good data with timestamped stale reasons and diagnostics.
 - Packaged Chrome and Firefox runtime smoke now runs against fresh isolated browser profiles, covering extension startup, UI pages, worker restart, content messaging, permissions, stale state, split-incognito state, and notification seams.
+- Popup, options, side-panel, widget, and userscript settings surfaces now use the shared locale catalog with Intl number/date/plural formatting, language metadata, Arabic RTL direction, and logical layout properties.
 
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 

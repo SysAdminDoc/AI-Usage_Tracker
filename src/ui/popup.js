@@ -9,7 +9,7 @@ import {
   createSvgElement,
   setSafeAttribute,
 } from '../lib/dom.js';
-import { createI18n } from '../lib/i18n.js';
+import { applyDocumentLocale, createI18n } from '../lib/i18n.js';
 import { API_PROVIDER_IDS } from '../providers/api-contract.js';
 import { forecastMonthEnd } from '../lib/forecast.js';
 import { buildPlanRecommendations } from '../lib/optimization.js';
@@ -60,16 +60,20 @@ function updateCountdowns() {
 export async function render() {
   const state = await loadState();
   const activeProfile = await getActiveProfile();
+  const i18n = createI18n(state.settings.locale);
+  applyDocumentLocale(i18n);
   const profileName = document.getElementById('profileName');
   const incognito = isIncognitoContext();
   if (profileName) {
-    const name = activeProfile?.name || 'Default';
-    profileName.textContent = incognito ? `Incognito · ${name}` : name;
-    profileName.title = `Active local profile: ${name}${incognito ? ' (Incognito)' : ''}`;
+    const name = activeProfile?.name || i18n.t('app.defaultProfile');
+    profileName.textContent = incognito ? i18n.t('app.incognitoProfile', { name }) : name;
+    profileName.title = i18n.t('widget.profileTitle', {
+      name,
+      incognito: incognito ? ` (${i18n.t('app.incognito')})` : '',
+    });
     profileName.classList.toggle('popup-profile--incognito', incognito);
   }
   const { snapshot, settings, history, cache } = state;
-  const i18n = createI18n(settings.locale);
   applyTheme(settings);
   const thresholds = normalizeThresholds(settings.thresholds);
 
@@ -79,9 +83,9 @@ export async function render() {
   const forecast = forecastMonthEnd(snapshot);
   if (forecast.providers.length) dashboard.appendChild(renderForecast(forecast, i18n));
   const optimization = buildPlanRecommendations(snapshot, forecast);
-  if (optimization.recommendations.length) dashboard.appendChild(renderOptimization(optimization));
+  if (optimization.recommendations.length) dashboard.appendChild(renderOptimization(optimization, i18n));
   const cacheAnalytics = buildCacheAnalytics(cache, new Date());
-  if (cacheAnalytics.week.eventCount) dashboard.appendChild(renderCacheReuse(cacheAnalytics));
+  if (cacheAnalytics.week.eventCount) dashboard.appendChild(renderCacheReuse(cacheAnalytics, i18n));
 
   let drew = false;
   for (const provider of providerKeys(snapshot)) {
@@ -131,7 +135,7 @@ export async function render() {
 function renderOverview(overview, i18n) {
   const wrap = createElement('section', {
     className: `popup-overview popup-overview--${overview.tone}`,
-    attrs: { 'aria-label': 'Usage overview' },
+    attrs: { 'aria-label': i18n.t('overview.aria') },
   });
   const copy = createElement('div', { className: 'popup-overview__copy' });
   appendChildren(copy, [
@@ -159,28 +163,28 @@ function buildCacheAnalytics(cache, now) {
   };
 }
 
-function renderCacheReuse(analytics) {
+function renderCacheReuse(analytics, i18n = createI18n('en')) {
   const wrap = createElement('section', {
     className: 'popup-cache-reuse',
-    attrs: { 'aria-label': 'Claude cache reuse' },
+    attrs: { 'aria-label': i18n.t('cache.aria') },
   });
   const windows = createElement('div', { className: 'popup-cache-reuse__windows' });
-  for (const [label, stats] of [['24 hours', analytics.day], ['7 days', analytics.week]]) {
+  for (const [label, stats] of [[i18n.tp('plural.hour', 24), analytics.day], [i18n.tp('plural.day', 7), analytics.week]]) {
     const card = createElement('div', { className: 'popup-cache-reuse__window' });
-    const percent = stats.reusePercent == null ? 'No data' : `${Math.round(stats.reusePercent)}% inferred reuse`;
+    const percent = stats.reusePercent == null ? i18n.t('app.noData') : i18n.t('cache.inferredReuse', { percent: i18n.formatPercent(stats.reusePercent) });
     card.append(
       createElement('strong', { text: percent }),
       createElement('span', { text: label }),
-      createElement('small', { text: stats.eventCount ? `${stats.reuseCount} of ${stats.eventCount} stream events` : 'No observed events' }),
+      createElement('small', { text: stats.eventCount ? i18n.t('cache.reuseMeta', { used: stats.reuseCount, total: stats.eventCount }) : i18n.t('app.noData') }),
     );
     windows.appendChild(card);
   }
   wrap.append(
-    createElement('div', { className: 'popup-cache-reuse__head', text: 'Claude cache reuse' }),
+    createElement('div', { className: 'popup-cache-reuse__head', text: i18n.t('cache.aria') }),
     windows,
     createElement('p', {
       className: 'popup-cache-reuse__note',
-      text: 'Inferred from successive Claude stream observations, not a provider-reported hit rate. Missed refreshes are not reconstructed.',
+      text: i18n.t('cache.reuseNote'),
     }),
   );
   return wrap;
@@ -228,7 +232,7 @@ function renderForecast(forecast, i18n) {
     });
     const meta = createElement('span', {
       className: 'popup-forecast__meta',
-      text: `${entry.sourceLabel} · ${entry.confidenceLabel} confidence${entry.stale ? ' · stale' : ''}`,
+      text: `${entry.sourceLabel} · ${i18n.t('forecast.confidence', { label: entry.confidenceLabel })}${entry.stale ? ` · ${i18n.t('status.staleShort').toLowerCase()}` : ''}`,
     });
     row.append(provider, value, meta);
     wrap.appendChild(row);
@@ -242,16 +246,16 @@ function renderForecast(forecast, i18n) {
   return wrap;
 }
 
-function renderOptimization(optimization) {
+function renderOptimization(optimization, i18n = createI18n('en')) {
   const wrap = createElement('section', {
     className: 'popup-optimization',
-    attrs: { 'aria-label': 'Plan guidance' },
+    attrs: { 'aria-label': i18n.t('forecast.planGuidance') },
   });
   appendChildren(wrap, [
-    createElement('div', { className: 'popup-optimization__label', text: 'Plan guidance' }),
+    createElement('div', { className: 'popup-optimization__label', text: i18n.t('forecast.planGuidance') }),
     createElement('p', {
       className: 'popup-optimization__hint',
-      text: 'Review prompts use provider-reported limits or seat mix; they do not name or price plans for you.',
+      text: i18n.t('forecast.planHint'),
     }),
   ]);
   for (const recommendation of optimization.recommendations) {
@@ -259,7 +263,7 @@ function renderOptimization(optimization) {
     const head = createElement('div', { className: 'popup-optimization__head' });
     appendChildren(head, [
       createElement('strong', { text: recommendation.title }),
-      createElement('span', { text: `${recommendation.confidenceLabel} confidence` }),
+      createElement('span', { text: i18n.t('optimization.confidence', { label: recommendation.confidenceLabel }) }),
     ]);
     appendChildren(row, [
       head,
@@ -291,7 +295,7 @@ function renderProvider(providerKey, ps, buckets, history, thresholds, i18n) {
   if (ps.source) {
     const source = document.createElement('span');
     source.className = 'popup-provider__source aut-status-label aut-status-label--good';
-    source.textContent = sourceLabel(ps.lastSuccessSource || ps.source);
+    source.textContent = sourceLabel(ps.lastSuccessSource || ps.source, i18n);
     meta.appendChild(source);
   }
   if (ps.stale) {
@@ -301,8 +305,8 @@ function renderProvider(providerKey, ps, buckets, history, thresholds, i18n) {
       ? i18n.t('status.stale', { relative: i18n.formatRelative(ps.lastSuccessISO) })
       : i18n.t('status.staleShort');
     staleLabel.title = ps.lastErrorDetail
-      ? `Last error: ${ps.lastErrorDetail}`
-      : 'Preserved from a previous successful fetch';
+      ? `${i18n.t('status.lastRefreshFailed')}: ${ps.lastErrorDetail}`
+      : i18n.t('status.staleData');
     if (ps.staleReason) staleLabel.title += ` (${ps.staleReason})`;
     meta.appendChild(staleLabel);
   }
@@ -377,7 +381,7 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
   const sub = createElement('div', { className: subClass });
   if (b.resetISO) {
     appendChildren(sub, [
-      createElement('span', { text: `Resets ${formatResetAbsolute(b.resetISO, i18n.locale)} - ` }),
+      createElement('span', { text: `${i18n.t('bucket.resetAt', { time: formatResetAbsolute(b.resetISO, i18n.locale) })} - ` }),
       createElement('span', {
         className: 'popup-bucket__countdown',
         text: formatCountdown(b.resetISO),
@@ -390,10 +394,10 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
       }),
     ]);
   } else {
-    sub.textContent = b.rawResetText || 'Reset not published';
+    sub.textContent = b.rawResetText || i18n.t('bucket.resetNotPublished');
   }
   appendChildren(main, [
-    createElement('div', { className: 'popup-bucket__label', text: humanBucketLabel(b) }),
+    createElement('div', { className: 'popup-bucket__label', text: humanBucketLabel(b, i18n) }),
     sub,
   ]);
   row.appendChild(main);
@@ -403,7 +407,11 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
   buildSparkline(spark, history, b.id, i18n);
   row.appendChild(spark);
   const paceText = projection ? `. ${paceAriaLabel(projection, i18n)}` : '';
-  setSafeAttribute(row, 'aria-label', `${humanBucketLabel(b)}: ${Math.round(percent)} percent used${paceText}`);
+  setSafeAttribute(row, 'aria-label', i18n.t('bucket.aria', {
+    label: humanBucketLabel(b, i18n),
+    percent: Math.round(percent),
+    pace: paceText,
+  }));
 
   return row;
 }
@@ -437,11 +445,11 @@ function buildOverview(snapshot, settings, thresholds, i18n = createI18n('en')) 
   buckets.sort((a, b) => b.percent - a.percent);
   const best = buckets[0];
   const reset = best.bucket.resetISO
-    ? `${formatCountdown(best.bucket.resetISO)} until reset`
-    : 'Reset time not published';
+    ? `${formatCountdown(best.bucket.resetISO)} ${i18n.t('bucket.untilReset')}`
+    : i18n.t('bucket.resetTimeNotPublished');
   return {
-    title: `${i18n.t(`provider.${best.provider}`)} ${humanBucketLabel(best.bucket)}`,
-    detail: `${i18n.formatPercent(100 - best.percent)} remaining - ${reset}`,
+    title: `${i18n.t(`provider.${best.provider}`)} ${humanBucketLabel(best.bucket, i18n)}`,
+    detail: `${i18n.t('overview.remaining', { percent: i18n.formatPercent(100 - best.percent) })} - ${reset}`,
     percent: Math.round(best.percent),
     tone: statusTone(best.percent, thresholds),
   };
@@ -495,7 +503,10 @@ function attachSparklineTooltip(host, samples, i18n) {
   host.appendChild(tip);
 
   const show = (sample, x = host.clientWidth / 2) => {
-    tip.textContent = `${i18n.formatPercent(sample.percentUsed, 1)} used - ${formatHistoryTime(sample.ts, i18n)}`;
+    tip.textContent = i18n.t('sparkline.tooltip', {
+      percent: i18n.formatPercent(sample.percentUsed, 1),
+      time: formatHistoryTime(sample.ts, i18n),
+    });
     const safeX = Math.max(34, Math.min(host.clientWidth - 34, x));
     tip.style.left = `${safeX}px`;
     tip.classList.add('is-visible');
@@ -515,17 +526,15 @@ function attachSparklineTooltip(host, samples, i18n) {
 
 function sparklineAriaLabel(samples, i18n = createI18n('en')) {
   const latest = samples[samples.length - 1];
-  return `Usage history sparkline, latest ${i18n.formatPercent(latest.percentUsed, 1)} at ${formatHistoryTime(latest.ts, i18n)}`;
-}
-
-function formatHistoryPercent(percentUsed) {
-  const n = Number(percentUsed) || 0;
-  return `${n.toFixed(Math.abs(n - Math.round(n)) < 0.05 ? 0 : 1)}%`;
+  return i18n.t('sparkline.aria', {
+    percent: i18n.formatPercent(latest.percentUsed, 1),
+    time: formatHistoryTime(latest.ts, i18n),
+  });
 }
 
 function formatHistoryTime(ts, i18n = createI18n('en')) {
   const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return 'unknown time';
+  if (Number.isNaN(d.getTime())) return i18n.t('app.timeUnavailable');
   return i18n.formatDateTime(d.toISOString());
 }
 
@@ -553,7 +562,7 @@ function renderError(provider, error, i18n = createI18n('en')) {
     createElement('div', {
       text: waiting
         ? i18n.t('empty.body')
-        : (error || 'Unknown error'),
+        : (error || i18n.t('error.unknown')),
     }),
     openButton ? createElement('div', { className: 'popup-error__actions', children: [openButton] }) : null,
   ]);
@@ -562,11 +571,11 @@ function renderError(provider, error, i18n = createI18n('en')) {
   return wrap;
 }
 
-function humanBucketLabel(b) {
-  if (b.kind === 'api') return b.label || 'API usage';
-  if (b.kind === 'session') return 'Current session (5 hr)';
-  if (b.kind === '5h')      return b.model === 'all' ? '5-hour limit' : `${titleModel(b.model)} (5 hr)`;
-  if (b.kind === 'weekly')  return b.model === 'all' ? 'Weekly limit' : `${titleModel(b.model)} (weekly)`;
+function humanBucketLabel(b, i18n = createI18n('en')) {
+  if (b.kind === 'api') return b.label || i18n.t('bucket.apiUsage');
+  if (b.kind === 'session') return i18n.t('bucket.currentSession');
+  if (b.kind === '5h')      return b.model === 'all' ? i18n.t('bucket.fiveHour') : i18n.t('bucket.modelFiveHour', { model: titleModel(b.model) });
+  if (b.kind === 'weekly')  return b.model === 'all' ? i18n.t('bucket.weekly') : i18n.t('bucket.modelWeekly', { model: titleModel(b.model) });
   return b.label;
 }
 
@@ -578,25 +587,20 @@ function titleModel(model) {
     .join(' ');
 }
 
-function formatAgo(iso) {
+function formatAgo(iso, i18n = createI18n('en')) {
   const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return `${h}h ago`;
+  return Number.isFinite(ms) ? i18n.formatRelative(iso) : i18n.t('app.timeUnavailable');
 }
 
-function sourceLabel(source) {
-  if (source === 'api') return 'API';
-  if (source === 'dom') return 'Page';
-  if (source === 'html') return 'HTML';
-  if (source === 'live') return 'Live';
-  if (source === 'fetch') return 'Fetch';
-  if (source === 'stream') return 'Stream';
-  if (source === 'headers') return 'Headers';
-  if (source === 'api-key') return 'API key';
+function sourceLabel(source, i18n = createI18n('en')) {
+  if (source === 'api') return i18n.t('source.api');
+  if (source === 'dom') return i18n.t('source.dom');
+  if (source === 'html') return i18n.t('source.html');
+  if (source === 'live') return i18n.t('source.live');
+  if (source === 'fetch') return i18n.t('source.fetch');
+  if (source === 'stream') return i18n.t('source.stream');
+  if (source === 'headers') return i18n.t('source.headers');
+  if (source === 'api-key') return i18n.t('source.apiKey');
   return String(source).slice(0, 12);
 }
 
@@ -615,79 +619,64 @@ function renderMetric(metric, i18n) {
 }
 
 function formatMetricValue(metric, i18n) {
-  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
-  if (metric.kind === 'activity') return metric.active ? 'Active' : 'No activity';
+  if (metric.kind === 'activity') return metric.active ? i18n.t('metric.activity') : i18n.t('metric.noActivity');
   if (metric.kind === 'requests') {
-    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(metric.requests) || 0)} requests`;
+    return i18n.t('metric.requests', { value: i18n.formatNumber(metric.requests) });
   }
   if (metric.kind === 'currency') {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
-      .format(Number(metric.costUSD) || 0);
+    return i18n.formatCurrency(metric.costUSD, 'USD', 4);
   }
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(metric.totalTokens) || 0)} tokens`;
+  return i18n.t('metric.tokens', { value: i18n.formatNumber(metric.totalTokens) });
 }
 
 function formatMetricDetail(metric, i18n) {
-  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
-  const number = (value) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Number(value) || 0);
+  const number = (value) => i18n.formatNumber(value);
   const parts = [];
   if (metric.kind === 'activity') {
-    if (metric.lastActivityISO) parts.push(`Last activity ${i18n.formatDateTime(metric.lastActivityISO)}`);
+    if (metric.lastActivityISO) parts.push(i18n.t('metric.lastActivity', { time: i18n.formatDateTime(metric.lastActivityISO) }));
     if (metric.lastActivityEditor) parts.push(metric.lastActivityEditor);
-    return parts.join(' · ') || 'No Copilot activity reported';
+    return parts.join(' · ') || i18n.t('metric.noCopilotActivity');
   }
   if (metric.kind === 'requests') {
-    if (metric.subscriptionIncludedReqs != null) parts.push(`${number(metric.subscriptionIncludedReqs)} included`);
-    if (metric.usageBasedReqs != null) parts.push(`${number(metric.usageBasedReqs)} usage-based`);
-    if (metric.apiKeyReqs != null) parts.push(`${number(metric.apiKeyReqs)} API key`);
-    if (metric.activeDays != null) parts.push(`${number(metric.activeDays)} active days`);
-    if (metric.lastActivityISO) parts.push(`Last activity ${i18n.formatDateTime(metric.lastActivityISO)}`);
-    return parts.join(' · ') || `${number(metric.requests)} requests`;
+    if (metric.subscriptionIncludedReqs != null) parts.push(i18n.t('metric.included', { value: number(metric.subscriptionIncludedReqs) }));
+    if (metric.usageBasedReqs != null) parts.push(i18n.t('metric.usageBased', { value: number(metric.usageBasedReqs) }));
+    if (metric.apiKeyReqs != null) parts.push(i18n.t('metric.apiKey', { value: number(metric.apiKeyReqs) }));
+    if (metric.activeDays != null) parts.push(i18n.t('metric.activeDays', { value: number(metric.activeDays) }));
+    if (metric.lastActivityISO) parts.push(i18n.t('metric.lastActivity', { time: i18n.formatDateTime(metric.lastActivityISO) }));
+    return parts.join(' · ') || i18n.t('metric.requests', { value: number(metric.requests) });
   }
   if (metric.kind === 'currency') {
-    if (metric.limitUSD != null) parts.push(`${currency(metric.limitUSD, locale)} limit`);
-    if (metric.remainingUSD != null) parts.push(`${currency(metric.remainingUSD, locale)} remaining`);
-    if (metric.usageDailyUSD != null) parts.push(`${currency(metric.usageDailyUSD, locale)} today`);
-    if (metric.usageWeeklyUSD != null) parts.push(`${currency(metric.usageWeeklyUSD, locale)} this week`);
-    if (metric.totalCreditsUSD != null) parts.push(`${currency(metric.totalCreditsUSD, locale)} purchased`);
-    if (metric.remainingCreditsUSD != null) parts.push(`${currency(metric.remainingCreditsUSD, locale)} remaining`);
-    if (metric.costSource === 'official') parts.push('Official provider cost');
-    return parts.join(' · ') || 'Usage and credits';
+    if (metric.limitUSD != null) parts.push(i18n.t('metric.limit', { value: i18n.formatCurrency(metric.limitUSD, 'USD', 4) }));
+    if (metric.remainingUSD != null) parts.push(i18n.t('metric.remaining', { value: i18n.formatCurrency(metric.remainingUSD, 'USD', 4) }));
+    if (metric.usageDailyUSD != null) parts.push(i18n.t('metric.today', { value: i18n.formatCurrency(metric.usageDailyUSD, 'USD', 4) }));
+    if (metric.usageWeeklyUSD != null) parts.push(i18n.t('metric.week', { value: i18n.formatCurrency(metric.usageWeeklyUSD, 'USD', 4) }));
+    if (metric.totalCreditsUSD != null) parts.push(i18n.t('metric.purchased', { value: i18n.formatCurrency(metric.totalCreditsUSD, 'USD', 4) }));
+    if (metric.remainingCreditsUSD != null) parts.push(i18n.t('metric.remaining', { value: i18n.formatCurrency(metric.remainingCreditsUSD, 'USD', 4) }));
+    if (metric.costSource === 'official') parts.push(i18n.t('metric.officialCost'));
+    return parts.join(' · ') || i18n.t('metric.usageCredits');
   }
-  if (metric.inputTokens != null) parts.push(`${number(metric.inputTokens)} in`);
-  if (metric.outputTokens != null) parts.push(`${number(metric.outputTokens)} out`);
-  if (metric.cachedInputTokens != null) parts.push(`${number(metric.cachedInputTokens)} cached`);
-  if (metric.requests != null) parts.push(`${number(metric.requests)} requests`);
+  if (metric.inputTokens != null) parts.push(i18n.t('metric.in', { value: number(metric.inputTokens) }));
+  if (metric.outputTokens != null) parts.push(i18n.t('metric.out', { value: number(metric.outputTokens) }));
+  if (metric.cachedInputTokens != null) parts.push(i18n.t('metric.cached', { value: number(metric.cachedInputTokens) }));
+  if (metric.requests != null) parts.push(i18n.t('metric.requests', { value: number(metric.requests) }));
   if (metric.costUSD != null && metric.kind !== 'currency') {
-    const label = metric.costSource === 'pricing-table' ? 'estimated' : 'reported';
-    parts.push(`${new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
-      .format(Number(metric.costUSD) || 0)} ${label}`);
+    const label = metric.costSource === 'pricing-table' ? i18n.t('metric.costEstimated') : i18n.t('metric.costReported');
+    parts.push(`${i18n.formatCurrency(metric.costUSD, 'USD', 4)} ${label}`);
   }
   if (metric.webSearchRequests != null && Number(metric.webSearchRequests) > 0) {
-    parts.push(`${number(metric.webSearchRequests)} web searches`);
+    parts.push(i18n.t('metric.webSearches', { value: number(metric.webSearchRequests) }));
   }
-  return parts.join(' · ') || 'Month to date';
+  return parts.join(' · ') || i18n.t('metric.monthToDate');
 }
 
 function formatForecastUSD(value, i18n) {
-  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  }).format(Number(value) || 0);
+  return i18n.formatCurrency(value, 'USD', 2);
 }
 
 function formatForecastDate(iso, i18n) {
   const date = new Date(iso);
-  if (!Number.isFinite(date.getTime())) return 'month end';
-  const locale = i18n.locale === 'en' ? 'en-US' : i18n.locale;
-  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date);
-}
-
-function currency(value, locale) {
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 })
-    .format(Number(value) || 0);
+  if (!Number.isFinite(date.getTime())) return i18n.t('forecast.monthEnd');
+  return i18n.formatDate(iso, { month: 'short', day: 'numeric' });
 }
 
 function applyTheme(settings = {}) {

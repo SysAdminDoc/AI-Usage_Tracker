@@ -33,7 +33,7 @@ html, body {
 }
 
 .sidepanel-diagnostics__head a {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--aut-blue);
   font-size: 11px;
 }
@@ -55,12 +55,12 @@ html, body {
 .sidepanel-diagnostic strong {
   color: var(--aut-text);
   font-weight: 650;
-  text-align: right;
+  text-align: end;
 }
 
 @media (max-width: 420px) {
   .sidepanel-diagnostics__head { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .sidepanel-diagnostics__head a { margin-left: 0; }
+  .sidepanel-diagnostics__head a { margin-inline-start: 0; }
   .sidepanel-diagnostic { align-items: flex-start; flex-direction: column; gap: 2px; }
-  .sidepanel-diagnostic strong { text-align: left; }
+  .sidepanel-diagnostic strong { text-align: start; }
 }

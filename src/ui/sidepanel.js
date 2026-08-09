@@ -2,6 +2,7 @@ import { render as renderDashboard } from './popup.js';
 import { loadState } from '../lib/storage.js';
 import { clearChildren, createElement } from '../lib/dom.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
+import { createI18n } from '../lib/i18n.js';
 
 const diagnostics = document.getElementById('sidepanelDiagnostics');
 
@@ -12,20 +13,22 @@ async function renderSidepanelDiagnostics() {
   const state = await loadState();
   if (!diagnostics) return;
   clearChildren(diagnostics);
+  const i18n = createI18n(state.settings?.locale);
   const snapshot = state.snapshot || {};
-  addDiagnostic('Snapshot', snapshot.fetchedAtISO ? formatAge(snapshot.fetchedAtISO) : 'No successful snapshot yet');
+  addDiagnostic(i18n.t('sidepanel.snapshot'), snapshot.fetchedAtISO ? formatAge(snapshot.fetchedAtISO, i18n) : i18n.t('sidepanel.noSnapshot'));
   for (const provider of ['claude', 'codex', ...API_PROVIDER_IDS]) {
     const ps = snapshot.providers?.[provider];
-    const source = ps?.lastSuccessSource || ps?.source || 'no source';
-    const freshness = ps?.lastSuccessISO ? formatAge(ps.lastSuccessISO) : 'never successful';
-    const code = ps?.lastErrorCode ? ` · ${ps.lastErrorCode}` : '';
-    const label = provider === 'claude' ? 'Claude'
-      : provider === 'codex' ? 'Codex'
-        : API_PROVIDER_META[provider]?.label || provider;
-    addDiagnostic(label, `${source} · ${freshness}${ps?.stale ? ' · stale' : ''}${code}`);
+    const source = sourceLabel(ps?.lastSuccessSource || ps?.source, i18n);
+    const freshness = ps?.lastSuccessISO ? formatAge(ps.lastSuccessISO, i18n) : i18n.t('sidepanel.neverSuccessful');
+    const stale = ps?.stale ? i18n.t('sidepanel.staleSuffix') : '';
+    const code = ps?.lastErrorCode ? i18n.t('sidepanel.errorCode', { code: ps.lastErrorCode }) : '';
+    const label = i18n.t(`provider.${provider}`) !== `provider.${provider}`
+      ? i18n.t(`provider.${provider}`)
+      : API_PROVIDER_META[provider]?.label || provider;
+    addDiagnostic(label, i18n.t('sidepanel.providerStatus', { source, freshness, stale, code }));
   }
-  addDiagnostic('History', `${state.history?.length || 0} local samples`);
-  addDiagnostic('Storage', 'Local only');
+  addDiagnostic(i18n.t('sidepanel.history'), i18n.t('sidepanel.localSamples', { count: state.history?.length || 0 }));
+  addDiagnostic(i18n.t('sidepanel.storage'), i18n.t('app.localOnly'));
 }
 
 function addDiagnostic(label, value) {
@@ -37,13 +40,13 @@ function addDiagnostic(label, value) {
   diagnostics.appendChild(row);
 }
 
-function formatAge(iso) {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return 'time unavailable';
-  const minutes = Math.max(0, Math.floor(ms / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+function formatAge(iso, i18n) {
+  return i18n.formatRelative(iso);
+}
+
+function sourceLabel(source, i18n) {
+  if (!source) return i18n.t('sidepanel.noSource');
+  return i18n.t(`source.${source}`) === `source.${source}`
+    ? i18n.t('common.source', { source })
+    : i18n.t(`source.${source}`);
 }

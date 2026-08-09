@@ -2,13 +2,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { normalizeSettings } from '../src/lib/settings.js';
 
-const [theme, widget, popup, options, inline, userscript] = await Promise.all([
+const [theme, widget, popup, options, inline, userscript, widgetCss, optionsCss, popupCss, sidepanelCss] = await Promise.all([
   fs.readFile(new URL('../src/ui/theme.css', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/widget.js', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/popup.js', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/options.html', import.meta.url), 'utf8'),
   fs.readFile(new URL('../src/ui/inline-settings.js', import.meta.url), 'utf8'),
   fs.readFile(new URL('../userscript/entry.js', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../src/ui/widget.css', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../src/ui/options.css', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../src/ui/popup.css', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../src/ui/sidepanel.css', import.meta.url), 'utf8'),
 ]);
 
 assert.match(theme, /prefers-reduced-motion:\s*reduce/, 'reduced-motion rules must remain present');
@@ -27,6 +31,16 @@ assert.match(inline, /setAttribute\('aria-modal', 'true'\)/, 'userscript setting
 assert.match(inline, /highContrast/, 'userscript settings must expose high contrast');
 assert.match(widget, /enableDrag\(wrap, \{ disabled: mobile \}\)/, 'mobile mode must disable drag listeners');
 assert.match(userscript, /isMobileViewport\(\)/, 'userscript must detect narrow or coarse-pointer viewports');
+for (const [name, css] of Object.entries({ widgetCss, optionsCss, popupCss, sidepanelCss })) {
+  assert.doesNotMatch(css, /(?:margin|padding)-(?:left|right)\s*:/, `${name} should use logical spacing properties`);
+  assert.doesNotMatch(css, /text-align:\s*(?:left|right)/, `${name} should use logical text alignment`);
+}
+assert.doesNotMatch(inline, /(?:margin|padding)-(?:left|right)\s*:/, 'inline settings should use logical spacing properties');
+assert.doesNotMatch(inline, /text-align:\s*(?:left|right)/, 'inline settings should use logical text alignment');
+assert.match(widgetCss, /margin-inline-start/, 'widget actions need direction-aware spacing');
+assert.match(optionsCss, /margin-inline-start/, 'options header needs direction-aware spacing');
+assert.match(popupCss, /margin-inline-start/, 'popup actions need direction-aware spacing');
+assert.match(sidepanelCss, /text-align:\s*end/, 'side panel diagnostics need direction-aware alignment');
 
 assert.equal(normalizeSettings({ highContrast: true }).highContrast, true);
 assert.equal(normalizeSettings({ highContrast: 1 }).highContrast, false);

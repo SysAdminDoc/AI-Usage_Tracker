@@ -3,317 +3,318 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AI Usage Tracker - Settings</title>
+  <title data-i18n="app.settingsTitle"></title>
   <link rel="stylesheet" href="theme.css" />
   <link rel="stylesheet" href="options.css" />
 </head>
 <body class="aut-root">
   <header class="opt-head">
     <span class="aut-widget__brand-dot"></span>
-    <h1>AI Usage Tracker</h1>
-    <span class="opt-head__sub">Settings - v0.2.3</span>
+    <h1 data-i18n="app.name"></h1>
+    <span class="opt-head__sub">v0.2.3</span>
   </header>
 
   <main class="opt-shell">
-    <nav class="opt-nav" aria-label="Settings sections">
-      <a href="#profiles">Profiles</a>
-      <a href="#sync">Sync</a>
-      <a href="#providers">Providers</a>
-      <a href="#api">API access</a>
-      <a href="#forecast">Forecast</a>
-      <a href="#collaboration">Team</a>
-      <a href="#rows">Rows</a>
-      <a href="#refresh">Refresh</a>
-      <a href="#appearance">Appearance</a>
-      <a href="#notifications">Alerts</a>
-      <a href="#history">History</a>
-      <a href="#widget">Widget</a>
-      <a href="#status">Status</a>
+    <nav class="opt-nav" data-i18n-aria-label="options.sections">
+      <a href="#profiles" data-i18n="options.profiles"></a>
+      <a href="#sync" data-i18n="options.sync"></a>
+      <a href="#providers" data-i18n="options.providers"></a>
+      <a href="#api" data-i18n="options.apiAccess"></a>
+      <a href="#forecast" data-i18n="options.forecast"></a>
+      <a href="#collaboration" data-i18n="options.team"></a>
+      <a href="#rows" data-i18n="options.rows"></a>
+      <a href="#refresh" data-i18n="options.refresh"></a>
+      <a href="#appearance" data-i18n="options.appearance"></a>
+      <a href="#notifications" data-i18n="options.alerts"></a>
+      <a href="#history" data-i18n="options.history"></a>
+      <a href="#widget" data-i18n="options.widget"></a>
+      <a href="#status" data-i18n="options.status"></a>
     </nav>
 
     <div class="opt-main">
     <section id="profiles" class="opt-card">
-      <h2>Local profiles</h2>
-      <p class="opt-hint">Keep personal, work, or client accounts separate without switching provider accounts for you. Each profile has its own settings, quota snapshot, history, and API keys.</p>
-      <div id="profileStatus" class="opt-callout" role="status" aria-live="polite">Loading local profiles...</div>
+      <h2 data-i18n="options.localProfiles"></h2>
+      <p class="opt-hint" data-i18n="options.localProfilesHint"></p>
+      <div id="profileStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingProfiles"></div>
       <div id="profileList" class="profile-list"></div>
       <div class="opt-row opt-row--wrap">
-        <label for="newProfileName">New profile</label>
-        <input id="newProfileName" class="opt-text" type="text" maxlength="48" autocomplete="off" placeholder="e.g. Work" aria-label="New profile name">
-        <button id="createProfile" class="opt-btn">Create profile</button>
+        <label for="newProfileName" data-i18n="options.newProfile"></label>
+        <input id="newProfileName" class="opt-text" type="text" maxlength="48" autocomplete="off" data-i18n-placeholder="options.newProfilePlaceholder" data-i18n-aria-label="inline.newProfile">
+        <button id="createProfile" class="opt-btn" data-i18n="options.createProfile"></button>
       </div>
     </section>
 
     <section id="sync" class="opt-card">
-      <h2>Optional settings sync</h2>
-      <p class="opt-hint">Opt in to browser sync for display and alert preferences only. History, quota snapshots, provider data, API keys, and bridge configuration never leave local storage.</p>
-      <label class="opt-toggle"><input id="syncSettings" type="checkbox"> Sync non-sensitive settings across browsers</label>
-      <div id="syncStatus" class="opt-callout" role="status" aria-live="polite">Checking sync availability...</div>
+      <h2 data-i18n="options.optionalSync"></h2>
+      <p class="opt-hint" data-i18n="options.syncHint"></p>
+      <label class="opt-toggle"><input id="syncSettings" type="checkbox"><span data-i18n="options.syncToggle"></span></label>
+      <div id="syncStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.checkingSync"></div>
       <div class="opt-row opt-row--wrap">
-        <button id="clearSyncedSettings" class="opt-btn opt-btn--quiet" type="button">Clear synced copy</button>
+        <button id="clearSyncedSettings" class="opt-btn opt-btn--quiet" type="button" data-i18n="options.clearSynced"></button>
       </div>
     </section>
 
     <section id="providers" class="opt-card">
-      <h2>Providers</h2>
-      <p class="opt-hint">Choose which accounts appear in the widget and popup.</p>
+      <h2 data-i18n="options.providers"></h2>
+      <p class="opt-hint" data-i18n="options.providersHint"></p>
       <div id="provider-toggles" class="opt-grid"></div>
     </section>
 
     <section id="api" class="opt-card">
-      <h2>Official API access</h2>
-      <p class="opt-hint">Optional organization analytics. Keys stay in this browser's local storage, are sent directly to the provider, and are omitted from settings and diagnostics exports. Local extension storage is not a password vault.</p>
-      <div id="apiCredentialsStatus" class="opt-callout" role="status" aria-live="polite">Loading API credential status...</div>
+      <h2 data-i18n="options.apiTitle"></h2>
+      <p class="opt-hint" data-i18n="options.apiHint"></p>
+      <div id="apiCredentialsStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingCredentials"></div>
       <div id="api-credentials" class="api-credential-grid"></div>
       <div class="opt-divider"></div>
-      <h3>Redacted API breakdown</h3>
-      <p class="opt-hint">Group official API rows by provider, workspace, project, or shortened API-key ID. Credential values are stored separately and are never included.</p>
-      <div id="apiBreakdownStatus" class="opt-callout" role="status" aria-live="polite">Loading API breakdown...</div>
+      <h3 data-i18n="options.redactedBreakdown"></h3>
+      <p class="opt-hint" data-i18n="options.breakdownHint"></p>
+      <div id="apiBreakdownStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingBreakdown"></div>
       <div id="apiBreakdown" class="api-breakdown"></div>
       <div class="opt-row opt-row--wrap">
-        <button id="exportApiBreakdown" class="opt-btn opt-btn--quiet">Export redacted API CSV</button>
+        <button id="exportApiBreakdown" class="opt-btn opt-btn--quiet" data-i18n="options.exportApiCSV"></button>
       </div>
     </section>
 
     <section id="forecast" class="opt-card">
-      <h2>Month-end forecast</h2>
-      <p class="opt-hint">Projects cost-bearing API-provider spend from month-to-date observations. Official totals and pricing-table estimates are labelled separately.</p>
-      <div id="forecastStatus" class="opt-callout" role="status" aria-live="polite">Loading forecast details...</div>
+      <h2 data-i18n="forecast.title"></h2>
+      <p class="opt-hint" data-i18n="options.forecastHint"></p>
+      <div id="forecastStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingForecast"></div>
       <div id="forecastBreakdown" class="forecast-breakdown"></div>
       <div class="opt-divider"></div>
-      <h3>Plan guidance</h3>
-      <p class="opt-hint">Guidance appears only after seven days of fresh cost coverage and never claims to know current provider plan prices.</p>
-      <div id="optimizationStatus" class="opt-callout" role="status" aria-live="polite">Loading plan guidance...</div>
+      <h3 data-i18n="forecast.planGuidance"></h3>
+      <p class="opt-hint" data-i18n="options.planHint"></p>
+      <div id="optimizationStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingPlan"></div>
       <div id="optimizationBreakdown" class="forecast-breakdown"></div>
     </section>
 
     <section id="collaboration" class="opt-card">
-      <h2>Local team dashboard</h2>
-      <p class="opt-hint">Opt in to aggregate user-provided redacted contributions on this device. The base contract includes team/member labels and provider cost, token, and request totals only; prompts, code, credentials, paths, and branch names never enter it.</p>
-      <label class="opt-toggle"><input id="collaborationEnabled" type="checkbox"> Enable local team dashboard</label>
+      <h2 data-i18n="options.teamTitle"></h2>
+      <p class="opt-hint" data-i18n="options.teamHint"></p>
+      <label class="opt-toggle"><input id="collaborationEnabled" type="checkbox"><span data-i18n="options.enableTeam"></span></label>
       <div class="opt-grid collaboration-config">
-        <label>Team label
-          <input id="collaborationTeamName" class="opt-text" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Product team">
+        <label><span data-i18n="options.teamLabel"></span>
+          <input id="collaborationTeamName" class="opt-text" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="options.teamPlaceholder">
         </label>
-        <label>Member label for exports
-          <input id="collaborationMemberName" class="opt-text" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Ada">
+        <label><span data-i18n="options.memberLabel"></span>
+          <input id="collaborationMemberName" class="opt-text" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="options.memberPlaceholder">
         </label>
       </div>
-      <label class="opt-toggle"><input id="collaborationAttributionEnabled" type="checkbox"> Include opt-in client, project, and Git branch labels for invoicing</label>
+      <label class="opt-toggle"><input id="collaborationAttributionEnabled" type="checkbox"><span data-i18n="options.attributionToggle"></span></label>
       <div class="opt-grid collaboration-config">
-        <label>Client label
-          <input id="collaborationClientName" class="opt-text collaboration-attribution-field" type="text" maxlength="64" autocomplete="off" placeholder="e.g. Acme">
+        <label><span data-i18n="options.clientLabel"></span>
+          <input id="collaborationClientName" class="opt-text collaboration-attribution-field" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="options.clientPlaceholder">
         </label>
-        <label>Project label
-          <input id="collaborationProjectName" class="opt-text collaboration-attribution-field" type="text" maxlength="64" autocomplete="off" placeholder="e.g. tracker-app">
+        <label><span data-i18n="options.projectLabel"></span>
+          <input id="collaborationProjectName" class="opt-text collaboration-attribution-field" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="options.projectPlaceholder">
         </label>
-        <label>Git branch label
-          <input id="collaborationBranchName" class="opt-text collaboration-attribution-field" type="text" maxlength="64" autocomplete="off" placeholder="e.g. billing/main">
+        <label><span data-i18n="options.branchLabel"></span>
+          <input id="collaborationBranchName" class="opt-text collaboration-attribution-field" type="text" maxlength="64" autocomplete="off" data-i18n-placeholder="options.branchPlaceholder">
         </label>
       </div>
-      <div id="collaborationStatus" class="opt-callout" role="status" aria-live="polite">Local team dashboard is off.</div>
+      <div id="collaborationStatus" class="opt-callout" role="status" aria-live="polite"></div>
       <div id="collaborationBreakdown" class="collaboration-breakdown"></div>
       <div class="opt-row opt-row--wrap">
-        <button id="exportCollaborationContribution" class="opt-btn">Export redacted contribution</button>
-        <button id="importCollaboration" class="opt-btn">Import contribution or ledger</button>
-        <button id="exportCollaborationLedger" class="opt-btn opt-btn--quiet">Export local ledger</button>
-        <button id="exportCollaborationInvoice" class="opt-btn opt-btn--quiet">Export invoicing CSV</button>
-        <button id="clearCollaboration" class="opt-btn opt-btn--quiet">Clear local ledger</button>
-        <input id="collaborationImportFile" type="file" accept="application/json,.json" aria-label="Select collaboration JSON file" hidden>
+        <button id="exportCollaborationContribution" class="opt-btn" data-i18n="options.exportContribution"></button>
+        <button id="importCollaboration" class="opt-btn" data-i18n="options.importContribution"></button>
+        <button id="exportCollaborationLedger" class="opt-btn opt-btn--quiet" data-i18n="options.exportLedger"></button>
+        <button id="exportCollaborationInvoice" class="opt-btn opt-btn--quiet" data-i18n="options.exportInvoice"></button>
+        <button id="clearCollaboration" class="opt-btn opt-btn--quiet" data-i18n="options.clearLedger"></button>
+        <input id="collaborationImportFile" type="file" accept="application/json,.json" data-i18n-aria-label="options.selectCollaboration" hidden>
       </div>
-      <p class="opt-hint">Share JSON through a channel you control, or merge it with a self-hosted/user-provided process. Attribution is manual and opt-in; this extension does not inspect Git, upload, sync, or fetch team data.</p>
+      <p class="opt-hint" data-i18n="options.teamShareHint"></p>
     </section>
 
     <section id="rows" class="opt-card">
-      <h2>Quota rows</h2>
-      <p class="opt-hint">Keep the dashboard compact or add per-model quota rows when you need detail.</p>
+      <h2 data-i18n="options.quotaRows"></h2>
+      <p class="opt-hint" data-i18n="options.rowsHint"></p>
       <div id="row-toggles" class="opt-grid"></div>
     </section>
 
     <section id="refresh" class="opt-card">
-      <h2>Refresh</h2>
-      <p class="opt-hint">Background refresh cadence for signed-in browser sessions.</p>
+      <h2 data-i18n="options.refresh"></h2>
+      <p class="opt-hint" data-i18n="options.refreshHint"></p>
       <div class="opt-row">
-        <label for="refreshMinutes">Refresh interval</label>
+        <label for="refreshMinutes" data-i18n="options.refreshInterval"></label>
         <select id="refreshMinutes" class="opt-select aut-field">
-          <option value="1">Every 1 minute</option>
-          <option value="5">Every 5 minutes</option>
-          <option value="15">Every 15 minutes</option>
-          <option value="30">Every 30 minutes</option>
+          <option value="1" data-i18n="options.everyMinute" data-i18n-count="1"></option>
+          <option value="5" data-i18n="options.everyMinute" data-i18n-count="5"></option>
+          <option value="15" data-i18n="options.everyMinute" data-i18n-count="15"></option>
+          <option value="30" data-i18n="options.everyMinute" data-i18n-count="30"></option>
         </select>
       </div>
       <div class="opt-row">
-        <label class="opt-toggle"><input id="silentTabRefresh" type="checkbox"> Use hidden fallback tabs when API refresh fails</label>
+        <label class="opt-toggle"><input id="silentTabRefresh" type="checkbox"><span data-i18n="options.hiddenFallback"></span></label>
       </div>
       <div class="opt-divider"></div>
-      <h3>Native scheduler helper</h3>
-      <p class="opt-hint">Optional local helper for refresh and daily-briefing wakeups when the MV3 service worker is asleep. It receives only the refresh interval and next notification deadline; it never receives quota data, credentials, prompts, or history. Install the bridge companion and register its host before enabling this.</p>
-      <label class="opt-toggle"><input id="nativeSchedulerEnabled" type="checkbox"> Use the local scheduler helper</label>
-      <div id="nativeSchedulerStatus" class="opt-callout" role="status" aria-live="polite">The scheduler helper is off.</div>
+      <h3 data-i18n="options.schedulerTitle"></h3>
+      <p class="opt-hint" data-i18n="options.schedulerHint"></p>
+      <label class="opt-toggle"><input id="nativeSchedulerEnabled" type="checkbox"><span data-i18n="options.schedulerToggle"></span></label>
+      <div id="nativeSchedulerStatus" class="opt-callout" role="status" aria-live="polite"></div>
     </section>
 
     <section id="appearance" class="opt-card">
-      <h2>Appearance</h2>
-      <p class="opt-hint">Tune the visual pressure scale without changing alert rules.</p>
+      <h2 data-i18n="options.appearance"></h2>
+      <p class="opt-hint" data-i18n="options.appearanceHint"></p>
       <div class="opt-row">
-        <label for="theme">Theme</label>
+        <label for="theme" data-i18n="options.theme"></label>
         <select id="theme" class="opt-select aut-field">
-          <option value="mocha">Mocha dark</option>
-          <option value="latte">Latte light</option>
-          <option value="system">Follow system</option>
+          <option value="mocha" data-i18n="options.mocha"></option>
+          <option value="latte" data-i18n="options.latte"></option>
+          <option value="system" data-i18n="options.system"></option>
         </select>
       </div>
       <div class="opt-row">
-        <label for="locale">Language</label>
+        <label for="locale" data-i18n="options.language"></label>
         <select id="locale" class="opt-select aut-field">
-          <option value="en">English</option>
-          <option value="es">Spanish</option>
-          <option value="fr">French</option>
-          <option value="de">German</option>
+          <option value="en" data-i18n="language.en"></option>
+          <option value="es" data-i18n="language.es"></option>
+          <option value="fr" data-i18n="language.fr"></option>
+          <option value="de" data-i18n="language.de"></option>
+          <option value="ar" data-i18n="language.ar"></option>
         </select>
       </div>
-      <p class="opt-hint">Dashboard labels and dates use this locale.</p>
+      <p class="opt-hint" data-i18n="options.languageHint"></p>
       <div class="opt-row">
-        <label class="opt-toggle"><input id="highContrast" type="checkbox"> Use high-contrast colors and non-color status cues</label>
+        <label class="opt-toggle"><input id="highContrast" type="checkbox"><span data-i18n="options.highContrast"></span></label>
       </div>
       <div class="opt-thresholds">
         <label class="opt-range">
-          <span>Warn at <strong id="warnAtValue">50%</strong></span>
+          <span><span data-i18n="options.warnAt"></span> <strong id="warnAtValue">50%</strong></span>
           <input id="warnAt" type="range" min="25" max="85" step="5">
         </label>
         <label class="opt-range">
-          <span>Danger at <strong id="dangerAtValue">80%</strong></span>
+          <span><span data-i18n="options.dangerAt"></span> <strong id="dangerAtValue">80%</strong></span>
           <input id="dangerAt" type="range" min="55" max="95" step="5">
         </label>
       </div>
     </section>
 
     <section id="notifications" class="opt-card">
-      <h2>Notifications</h2>
-      <p class="opt-hint">Quota alerts are deduped per reset window so notifications stay useful.</p>
-      <div id="notificationPermissionStatus" class="opt-callout" role="status" aria-live="polite">Checking notification permission...</div>
+      <h2 data-i18n="options.notifications"></h2>
+      <p class="opt-hint" data-i18n="options.notificationsHint"></p>
+      <div id="notificationPermissionStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.checkingPermission"></div>
       <div class="opt-row opt-row--wrap">
-        <button id="testNotification" class="opt-btn">Request permission and send test</button>
+        <button id="testNotification" class="opt-btn" data-i18n="options.testNotification"></button>
       </div>
       <div id="snoozeStatus" class="opt-callout"></div>
       <div class="opt-row opt-row--wrap">
-        <button id="snoozeNotifications" class="opt-btn">Snooze for 1 hour</button>
-        <button id="clearSnooze" class="opt-btn opt-btn--quiet">Resume notifications</button>
+        <button id="snoozeNotifications" class="opt-btn" data-i18n="options.snoozeOneHour"></button>
+        <button id="clearSnooze" class="opt-btn opt-btn--quiet" data-i18n="options.resumeNotifications"></button>
       </div>
       <div class="opt-grid">
-        <label class="opt-toggle"><input type="checkbox" data-notif="R1-60"> Renewal - 60 min before reset</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="R1-15"> Renewal - 15 min before reset</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="R1-0">  Renewal - at reset moment</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="R2">    On-reset positive - "fresh quota!"</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="U1-75"> Threshold - 75% used</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="U1-90"> Threshold - 90% used</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="U1-95"> Threshold - 95% used</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="U2">    Burn-rate forecast - weekly</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="U3">    Spike/anomaly - sudden usage jump</label>
-        <label class="opt-toggle"><input type="checkbox" data-notif="D1">    Daily briefing</label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R1-60"><span data-i18n="options.renewal60"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R1-15"><span data-i18n="options.renewal15"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R1-0"><span data-i18n="options.renewal0"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="R2"><span data-i18n="options.resetPositive"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U1-75"><span data-i18n="options.threshold75"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U1-90"><span data-i18n="options.threshold90"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U1-95"><span data-i18n="options.threshold95"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U2"><span data-i18n="options.burnRate"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="U3"><span data-i18n="options.spike"></span></label>
+        <label class="opt-toggle"><input type="checkbox" data-notif="D1"><span data-i18n="options.dailyBriefing"></span></label>
       </div>
       <div class="opt-row">
-        <label for="anomalyThresholdPercent">Spike threshold</label>
+        <label for="anomalyThresholdPercent" data-i18n="options.spikeThreshold"></label>
         <select id="anomalyThresholdPercent" class="opt-select aut-field">
-          <option value="10">10 percentage points</option>
-          <option value="15">15 percentage points</option>
-          <option value="20">20 percentage points</option>
-          <option value="25">25 percentage points</option>
-          <option value="30">30 percentage points</option>
-          <option value="40">40 percentage points</option>
-          <option value="50">50 percentage points</option>
+          <option value="10" data-i18n="options.percentagePoints" data-i18n-count="10"></option>
+          <option value="15" data-i18n="options.percentagePoints" data-i18n-count="15"></option>
+          <option value="20" data-i18n="options.percentagePoints" data-i18n-count="20"></option>
+          <option value="25" data-i18n="options.percentagePoints" data-i18n-count="25"></option>
+          <option value="30" data-i18n="options.percentagePoints" data-i18n-count="30"></option>
+          <option value="40" data-i18n="options.percentagePoints" data-i18n-count="40"></option>
+          <option value="50" data-i18n="options.percentagePoints" data-i18n-count="50"></option>
         </select>
       </div>
-      <p class="opt-hint">Spike detection compares each new quota sample with the last five samples from the previous 48 hours.</p>
+      <p class="opt-hint" data-i18n="options.spikeHint"></p>
       <div class="opt-row">
-        <label for="dailyBriefingHour">Daily briefing time</label>
+        <label for="dailyBriefingHour" data-i18n="options.dailyBriefingTime"></label>
         <select id="dailyBriefingHour" class="opt-select aut-field"></select>
       </div>
       <div class="opt-divider"></div>
-      <h3>Webhook delivery</h3>
-      <p class="opt-hint">Off by default. When enabled, rule events POST directly to your HTTPS/HTTP endpoint. Provider and bucket details stay redacted unless you explicitly include them.</p>
-      <label class="opt-toggle"><input id="webhookEnabled" type="checkbox"> Send notification rule events to a webhook</label>
+      <h3 data-i18n="options.webhookTitle"></h3>
+      <p class="opt-hint" data-i18n="options.webhookHint"></p>
+      <label class="opt-toggle"><input id="webhookEnabled" type="checkbox"><span data-i18n="options.webhookToggle"></span></label>
       <div class="opt-row opt-row--wrap">
-        <label for="webhookURL">Webhook URL</label>
-        <input id="webhookURL" class="opt-input opt-input--wide" type="url" maxlength="2048" autocomplete="off" placeholder="https://example.test/ai-usage-alerts">
+        <label for="webhookURL" data-i18n="options.webhookURL"></label>
+        <input id="webhookURL" class="opt-input opt-input--wide" type="url" maxlength="2048" autocomplete="off" data-i18n-placeholder="options.webhookPlaceholder">
       </div>
-      <label class="opt-toggle"><input id="webhookIncludeDetails" type="checkbox"> Include provider and bucket details in webhook payloads</label>
+      <label class="opt-toggle"><input id="webhookIncludeDetails" type="checkbox"><span data-i18n="options.webhookInclude"></span></label>
       <div class="opt-row opt-row--wrap">
-        <button id="testWebhook" class="opt-btn opt-btn--quiet">Send redacted test webhook</button>
+        <button id="testWebhook" class="opt-btn opt-btn--quiet" data-i18n="options.testWebhook"></button>
       </div>
-      <div id="webhookStatus" class="opt-callout" role="status" aria-live="polite">Webhook delivery is off.</div>
+      <div id="webhookStatus" class="opt-callout" role="status" aria-live="polite"></div>
       <div class="opt-divider"></div>
-      <h3>API spend caps</h3>
-      <p class="opt-hint">Optional local alerts for observed increases in API-provider spend. The first month-to-date observation establishes a baseline; missed refreshes cannot be reconstructed.</p>
+      <h3 data-i18n="options.apiCapsTitle"></h3>
+      <p class="opt-hint" data-i18n="options.apiCapsHint"></p>
       <div class="opt-row opt-row--wrap">
-        <label for="sessionBudgetCap">Session cap (USD)</label>
-        <input id="sessionBudgetCap" class="opt-input opt-input--number" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Off">
+        <label for="sessionBudgetCap" data-i18n="options.sessionCap"></label>
+        <input id="sessionBudgetCap" class="opt-input opt-input--number" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" data-i18n-placeholder="options.off">
       </div>
       <div class="opt-row opt-row--wrap">
-        <label for="dailyBudgetCap">Daily cap (USD)</label>
-        <input id="dailyBudgetCap" class="opt-input opt-input--number" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Off">
+        <label for="dailyBudgetCap" data-i18n="options.dailyCap"></label>
+        <input id="dailyBudgetCap" class="opt-input opt-input--number" type="number" min="0" max="1000000" step="0.01" inputmode="decimal" data-i18n-placeholder="options.off">
       </div>
       <div class="opt-row opt-row--wrap">
-        <button id="resetBudgetSession" class="opt-btn opt-btn--quiet">Reset session spend baseline</button>
+        <button id="resetBudgetSession" class="opt-btn opt-btn--quiet" data-i18n="options.resetBudget"></button>
       </div>
-      <div id="budgetStatus" class="opt-callout" role="status" aria-live="polite">No API spend caps configured.</div>
+      <div id="budgetStatus" class="opt-callout" role="status" aria-live="polite"></div>
     </section>
 
     <section id="history" class="opt-card">
-      <h2>History</h2>
-      <p class="opt-hint">Export a CSV before compacting or clearing local samples. Downloads stay on your device.</p>
-      <div id="historyStatus" class="opt-callout" role="status" aria-live="polite">Loading local history details...</div>
+      <h2 data-i18n="options.history"></h2>
+      <p class="opt-hint" data-i18n="options.historyHint"></p>
+      <div id="historyStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingHistory"></div>
       <div class="opt-row">
-        <label for="historyRetentionDays">Keep samples for</label>
+        <label for="historyRetentionDays" data-i18n="options.keepSamples"></label>
         <select id="historyRetentionDays" class="opt-select aut-field">
-          <option value="7">7 days</option>
-          <option value="14">14 days</option>
-          <option value="30">30 days</option>
-          <option value="60">60 days</option>
-          <option value="90">90 days</option>
+          <option value="7" data-i18n="options.days" data-i18n-count="7"></option>
+          <option value="14" data-i18n="options.days" data-i18n-count="14"></option>
+          <option value="30" data-i18n="options.days" data-i18n-count="30"></option>
+          <option value="60" data-i18n="options.days" data-i18n-count="60"></option>
+          <option value="90" data-i18n="options.days" data-i18n-count="90"></option>
         </select>
       </div>
       <div class="opt-row opt-row--wrap">
-        <button id="exportHistory" class="opt-btn">Export CSV</button>
-        <button id="compactHistory" class="opt-btn">Compact history</button>
-        <button id="clearHistory" class="opt-btn opt-btn--quiet">Clear history</button>
+        <button id="exportHistory" class="opt-btn" data-i18n="options.exportCSV"></button>
+        <button id="compactHistory" class="opt-btn" data-i18n="options.compactHistory"></button>
+        <button id="clearHistory" class="opt-btn opt-btn--quiet" data-i18n="options.clearHistory"></button>
       </div>
-      <label class="opt-toggle"><input id="includeHistoryInSettings" type="checkbox"> Include history in the JSON settings backup</label>
+      <label class="opt-toggle"><input id="includeHistoryInSettings" type="checkbox"><span data-i18n="options.includeHistory"></span></label>
       <div class="opt-row opt-row--wrap">
-        <button id="exportSettings" class="opt-btn">Export settings JSON</button>
-        <button id="importSettings" class="opt-btn">Import settings JSON</button>
-        <input id="settingsImportFile" type="file" accept="application/json,.json" aria-label="Select settings JSON file" hidden>
+        <button id="exportSettings" class="opt-btn" data-i18n="options.exportSettings"></button>
+        <button id="importSettings" class="opt-btn" data-i18n="options.importSettings"></button>
+        <input id="settingsImportFile" type="file" accept="application/json,.json" data-i18n-aria-label="options.selectSettings" hidden>
       </div>
-      <div id="settingsTransferStatus" class="opt-callout" role="status" aria-live="polite">Settings backups omit history unless selected.</div>
+      <div id="settingsTransferStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.settingsBackupHint"></div>
     </section>
 
     <section id="widget" class="opt-card">
-      <h2>Widget</h2>
-      <p class="opt-hint">Restore the floating card if it was moved off-screen, minimized, or hidden for the current page session.</p>
+      <h2 data-i18n="options.widget"></h2>
+      <p class="opt-hint" data-i18n="options.widgetHint"></p>
       <div class="opt-row">
-        <button id="resetWidgetPosition" class="opt-btn">Reset widget to bottom-right</button>
+        <button id="resetWidgetPosition" class="opt-btn" data-i18n="options.resetWidget"></button>
       </div>
     </section>
 
     <section id="status" class="opt-card">
-      <h2>Status</h2>
-      <p class="opt-hint">Local snapshot health, collection path, and provider freshness.</p>
+      <h2 data-i18n="options.status"></h2>
+      <p class="opt-hint" data-i18n="options.statusHint"></p>
       <div id="diagnostics" class="opt-diagnostics"></div>
       <div class="opt-row opt-row--wrap">
-        <button id="refreshDiagnostics" class="opt-btn">Refresh now</button>
-        <button id="copyDiagnostics" class="opt-btn">Copy diagnostics</button>
-        <button id="exportDiagnostics" class="opt-btn">Export redacted bundle</button>
-        <button id="exportMcpState" class="opt-btn">Export MCP state</button>
-        <button id="resetClaudeOrg" class="opt-btn opt-btn--quiet" title="Clear the cached Claude organization ID and refresh. Use this after switching workspaces or teams.">Reset Claude org</button>
+        <button id="refreshDiagnostics" class="opt-btn" data-i18n="app.refreshNow"></button>
+        <button id="copyDiagnostics" class="opt-btn" data-i18n="options.copyDiagnostics"></button>
+        <button id="exportDiagnostics" class="opt-btn" data-i18n="options.exportDiagnostics"></button>
+        <button id="exportMcpState" class="opt-btn" data-i18n="options.exportMcp"></button>
+        <button id="resetClaudeOrg" class="opt-btn opt-btn--quiet" data-i18n-title="options.resetClaudeOrgTitle" data-i18n="options.resetClaudeOrg"></button>
       </div>
     </section>
     </div>
   </main>
 
   <footer class="opt-foot">
-    <span id="saveStatus" role="status" aria-live="polite">Saved.</span>
+    <span id="saveStatus" role="status" aria-live="polite" data-i18n="app.saved"></span>
     <span class="opt-foot__right">
-      <a href="https://github.com/SysAdminDoc/AI-Usage_Tracker" target="_blank">GitHub</a>
+      <a href="https://github.com/SysAdminDoc/AI-Usage_Tracker" target="_blank" data-i18n="options.github"></a>
     </span>
   </footer>
 

@@ -24,21 +24,21 @@ import {
   normalizeThemeValue,
 } from '../lib/settings.js';
 import { getNotificationPermission, notify, requestNotificationPermission } from '../lib/browser.js';
-import { SUPPORTED_LOCALES, localeLabel } from '../lib/i18n.js';
+import { applyElementLocale, createI18n, SUPPORTED_LOCALES, localeLabel } from '../lib/i18n.js';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
 const ANOMALY_THRESHOLD_OPTIONS = [10, 15, 20, 25, 30, 40, 50];
 const NOTIFICATION_OPTIONS = [
-  ['R1-60', 'Renewal - 60 min before reset'],
-  ['R1-15', 'Renewal - 15 min before reset'],
-  ['R1-0', 'Renewal - at reset moment'],
-  ['R2', 'On-reset positive - fresh quota'],
-  ['U1-75', 'Threshold - 75% used'],
-  ['U1-90', 'Threshold - 90% used'],
-  ['U1-95', 'Threshold - 95% used'],
-  ['U2', 'Burn-rate forecast - weekly'],
-  ['U3', 'Spike/anomaly - sudden usage jump'],
-  ['D1', 'Daily briefing'],
+  ['R1-60', 'options.renewal60'],
+  ['R1-15', 'options.renewal15'],
+  ['R1-0', 'options.renewal0'],
+  ['R2', 'options.resetPositive'],
+  ['U1-75', 'options.threshold75'],
+  ['U1-90', 'options.threshold90'],
+  ['U1-95', 'options.threshold95'],
+  ['U2', 'options.burnRate'],
+  ['U3', 'options.spike'],
+  ['D1', 'options.dailyBriefing'],
 ];
 
 const MODAL_CSS = `
@@ -93,7 +93,7 @@ const MODAL_CSS = `
 }
 .aut-inline-settings__head-copy { min-width: 0; }
 .aut-inline-settings__close {
-  margin-left: auto;
+  margin-inline-start: auto;
   width: 44px;
   height: 44px;
   border: 1px solid transparent;
@@ -185,7 +185,7 @@ const MODAL_CSS = `
   justify-content: flex-end;
   border-top: 1px solid var(--aut-border-subtle);
 }
-.aut-inline-settings__status { margin-right: auto; color: var(--aut-subtext0); font-size: 11px; }
+.aut-inline-settings__status { margin-inline-end: auto; color: var(--aut-subtext0); font-size: 11px; }
 .aut-inline-settings__button {
   min-height: 44px;
   padding: 8px 13px;
@@ -222,6 +222,11 @@ const MODAL_CSS = `
 `;
 
 let modalHost = null;
+let activeI18n = createI18n('en');
+
+function t(key, variables = {}) {
+  return activeI18n.t(key, variables);
+}
 
 export async function openInlineSettings({ onSaved } = {}) {
   if (modalHost) {
@@ -231,6 +236,7 @@ export async function openInlineSettings({ onSaved } = {}) {
 
   let state = await loadState();
   let draft = normalizeSettings(state.settings);
+  activeI18n = createI18n(draft.locale);
   const host = document.createElement('div');
   host.id = 'aut-inline-settings-host';
   host.style.cssText = 'all: initial;';
@@ -252,6 +258,7 @@ export async function openInlineSettings({ onSaved } = {}) {
   dialog.setAttribute('role', 'dialog');
   dialog.setAttribute('aria-modal', 'true');
   dialog.setAttribute('aria-labelledby', 'aut-inline-settings-title');
+  applyElementLocale(activeI18n, dialog);
   backdrop.appendChild(dialog);
 
   dialog.appendChild(buildHeader());
@@ -285,7 +292,7 @@ export async function openInlineSettings({ onSaved } = {}) {
     draft = readDraft(controls, draft);
     state.settings = normalizeSettings(draft);
     await saveState(state);
-    foot.status.textContent = 'Saved locally';
+    foot.status.textContent = t('inline.saved');
     if (onSaved) await onSaved(state.settings);
     setTimeout(() => { if (modalHost === host) close(); }, 260);
   };
@@ -293,11 +300,11 @@ export async function openInlineSettings({ onSaved } = {}) {
   dialog.addEventListener('change', () => {
     draft = readDraft(controls, draft);
     applyTheme(root, draft);
-    foot.status.textContent = 'Unsaved changes';
+    foot.status.textContent = t('inline.unsaved');
   });
   controls.warnAt.addEventListener('input', () => updateThresholdLabels(controls));
   controls.dangerAt.addEventListener('input', () => updateThresholdLabels(controls));
-  foot.save.addEventListener('click', () => save().catch(() => { foot.status.textContent = 'Save failed'; }));
+  foot.save.addEventListener('click', () => save().catch(() => { foot.status.textContent = t('inline.saveFailed'); }));
   foot.close.addEventListener('click', close);
   controls.notificationPermission.button.addEventListener('click', async () => {
     controls.notificationPermission.button.disabled = true;
@@ -306,16 +313,16 @@ export async function openInlineSettings({ onSaved } = {}) {
       const ok = permission.state === 'granted'
         && await notify({
           id: 'aut-test-notification',
-          title: 'AI Usage Tracker test alert',
-          body: 'Notification delivery is ready while this provider tab is open.',
+          title: t('inline.testAlertTitle'),
+          body: t('inline.testAlertBody'),
           tone: 'info',
         });
       controls.notificationPermission.status.textContent = ok
-        ? 'Test notification sent.'
-        : 'Permission was not granted; check the browser site settings.';
+        ? t('inline.testSent')
+        : t('inline.permissionNotGranted');
       await renderNotificationPermission(controls.notificationPermission);
     } catch {
-      controls.notificationPermission.status.textContent = 'Test notification failed.';
+      controls.notificationPermission.status.textContent = t('inline.testFailed');
     } finally {
       controls.notificationPermission.button.disabled = false;
     }
@@ -348,15 +355,15 @@ function buildHeader() {
   copy.className = 'aut-inline-settings__head-copy';
   const title = document.createElement('h2');
   title.id = 'aut-inline-settings-title';
-  title.textContent = 'AI Usage Tracker settings';
+  title.textContent = t('inline.title');
   const hint = document.createElement('p');
-  hint.textContent = 'Saved locally in your userscript manager';
+  hint.textContent = t('inline.savedLocally');
   copy.append(title, hint);
   header.appendChild(copy);
   const close = document.createElement('button');
   close.className = 'aut-inline-settings__close';
   close.type = 'button';
-  close.setAttribute('aria-label', 'Close settings');
+  close.setAttribute('aria-label', t('app.close'));
   close.textContent = '×';
   header.appendChild(close);
   return header;
@@ -364,39 +371,39 @@ function buildHeader() {
 
 function buildControls(body, state) {
   const controls = {};
-  body.appendChild(buildSection('Profiles', 'Keep personal, work, or client accounts separate. Profiles have independent settings, history, quota snapshots, and API credentials.', (section) => {
+  body.appendChild(buildSection(t('inline.profiles'), t('inline.profilesHint'), (section) => {
     controls.profiles = buildProfileControls(section);
   }));
-  body.appendChild(buildSection('Providers', 'Choose which providers appear in the widget.', (section) => {
+  body.appendChild(buildSection(t('inline.providers'), t('inline.providersHint'), (section) => {
     controls.providers = addToggleGrid(section, [
-      ['claude', 'Claude'],
-      ['codex', 'Codex'],
+      ['claude', t('provider.claude')],
+      ['codex', t('provider.codex')],
     ], 'provider');
   }));
-  body.appendChild(buildSection('Quota rows', 'Keep the dashboard compact or add model-specific rows.', (section) => {
+  body.appendChild(buildSection(t('options.quotaRows'), t('inline.rowsHint'), (section) => {
     controls.rows = addToggleGrid(section, listRowOptions(state).map((row) => [row.id, row.label]), 'row');
   }));
-  body.appendChild(buildSection('Refresh', 'Refresh cadence and the optional page fallback.', (section) => {
-    controls.refreshMinutes = addSelectRow(section, 'Refresh interval', REFRESH_OPTIONS.map((n) => [n, `Every ${n} minute${n === 1 ? '' : 's'}`]), 'refreshMinutes');
-    controls.silentTabRefresh = addCheckboxRow(section, 'Use hidden fallback tabs when API refresh fails', 'silentTabRefresh');
+  body.appendChild(buildSection(t('inline.refresh'), t('inline.refreshHint'), (section) => {
+    controls.refreshMinutes = addSelectRow(section, t('inline.refreshInterval'), REFRESH_OPTIONS.map((n) => [n, activeI18n.tp('inline.everyMinute', n)]), 'refreshMinutes');
+    controls.silentTabRefresh = addCheckboxRow(section, t('inline.hiddenFallback'), 'silentTabRefresh');
   }));
-  body.appendChild(buildSection('Appearance', 'Choose the surface theme and visual warning thresholds.', (section) => {
-    controls.theme = addSelectRow(section, 'Theme', [['mocha', 'Mocha dark'], ['latte', 'Latte light'], ['system', 'Follow system']], 'theme');
-    controls.locale = addSelectRow(section, 'Language', SUPPORTED_LOCALES.map((locale) => [locale, localeLabel(locale)]), 'locale');
-    controls.highContrast = addCheckboxRow(section, 'Use high-contrast colors and non-color status cues', 'highContrast');
+  body.appendChild(buildSection(t('inline.appearance'), t('inline.appearanceHint'), (section) => {
+    controls.theme = addSelectRow(section, t('options.theme'), [['mocha', t('options.mocha')], ['latte', t('options.latte')], ['system', t('options.system')]], 'theme');
+    controls.locale = addSelectRow(section, t('options.language'), SUPPORTED_LOCALES.map((locale) => [locale, localeLabel(locale)]), 'locale');
+    controls.highContrast = addCheckboxRow(section, t('options.highContrast'), 'highContrast');
     const thresholdWrap = document.createElement('div');
     thresholdWrap.className = 'aut-inline-settings__thresholds';
-    controls.warnAt = addRange(thresholdWrap, 'Warn at', 'warnAt', 25, 85, 5);
-    controls.dangerAt = addRange(thresholdWrap, 'Danger at', 'dangerAt', 55, 95, 5);
+    controls.warnAt = addRange(thresholdWrap, t('options.warnAt'), 'warnAt', 25, 85, 5);
+    controls.dangerAt = addRange(thresholdWrap, t('options.dangerAt'), 'dangerAt', 55, 95, 5);
     section.appendChild(thresholdWrap);
   }));
-  body.appendChild(buildSection('Notifications', 'Choose which alerts can fire while this tab is open.', (section) => {
+  body.appendChild(buildSection(t('inline.notifications'), t('inline.notificationsHint'), (section) => {
     controls.notifications = addToggleGrid(section, NOTIFICATION_OPTIONS, 'notification');
     controls.notificationPermission = buildNotificationPermissionControls(section);
-    controls.anomalyThresholdPercent = addSelectRow(section, 'Spike threshold', ANOMALY_THRESHOLD_OPTIONS.map((n) => [n, `${n} percentage points`]), 'anomalyThresholdPercent');
-    controls.dailyBriefingHour = addSelectRow(section, 'Daily briefing time', Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, '0')}:00`]), 'dailyBriefingHour');
+    controls.anomalyThresholdPercent = addSelectRow(section, t('options.spikeThreshold'), ANOMALY_THRESHOLD_OPTIONS.map((n) => [n, activeI18n.tp('options.percentagePoints', n)]), 'anomalyThresholdPercent');
+    controls.dailyBriefingHour = addSelectRow(section, t('options.dailyBriefingTime'), Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, '0')}:00`]), 'dailyBriefingHour');
   }));
-  body.appendChild(buildSection('History', 'Export a CSV before compacting or clearing local samples. History never leaves your browser unless you download it.', (section) => {
+  body.appendChild(buildSection(t('options.history'), t('inline.historyHint'), (section) => {
     controls.history = buildHistoryControls(section);
   }));
   return controls;
@@ -416,9 +423,9 @@ function buildProfileControls(parent) {
   input.type = 'text';
   input.maxLength = 48;
   input.autocomplete = 'off';
-  input.placeholder = 'New profile name';
-  input.setAttribute('aria-label', 'New profile name');
-  const create = historyActionButton('Create profile');
+  input.placeholder = t('inline.newProfile');
+  input.setAttribute('aria-label', t('inline.newProfile'));
+  const create = historyActionButton(t('options.createProfile'));
   row.append(input, create);
   parent.append(status, list, row);
   return { status, list, input, create };
@@ -439,7 +446,7 @@ async function renderProfileControls(controls) {
     name.textContent = profile.name;
     const meta = document.createElement('span');
     meta.className = 'aut-inline-settings__profile-meta';
-    meta.textContent = profile.id === active.id ? 'Active' : 'Local';
+    meta.textContent = profile.id === active.id ? t('inline.active') : t('inline.local');
     head.append(name, meta);
     const actions = document.createElement('div');
     actions.className = 'aut-inline-settings__profile-actions';
@@ -448,16 +455,16 @@ async function renderProfileControls(controls) {
     renameInput.type = 'text';
     renameInput.maxLength = 48;
     renameInput.value = profile.name;
-    renameInput.setAttribute('aria-label', `Rename ${profile.name}`);
+    renameInput.setAttribute('aria-label', t('options.renameProfile', { name: profile.name }));
     renameInput.dataset.profileRename = profile.id;
-    const switchButton = historyActionButton(profile.id === active.id ? 'Active' : 'Switch');
+    const switchButton = historyActionButton(profile.id === active.id ? t('inline.active') : t('app.switch'));
     switchButton.dataset.profileAction = 'switch';
     switchButton.dataset.profileId = profile.id;
     switchButton.disabled = profile.id === active.id;
-    const renameButton = historyActionButton('Rename');
+    const renameButton = historyActionButton(t('app.rename'));
     renameButton.dataset.profileAction = 'rename';
     renameButton.dataset.profileId = profile.id;
-    const deleteButton = historyActionButton('Delete');
+    const deleteButton = historyActionButton(t('app.delete'));
     deleteButton.dataset.profileAction = 'delete';
     deleteButton.dataset.profileId = profile.id;
     deleteButton.disabled = profiles.length <= 1;
@@ -465,7 +472,10 @@ async function renderProfileControls(controls) {
     item.append(head, actions);
     controls.list.appendChild(item);
   }
-  controls.status.textContent = `${active.name} is active. ${profiles.length} local profile${profiles.length === 1 ? '' : 's'} available.`;
+  controls.status.textContent = t('inline.activeSummary', {
+    name: active.name,
+    count: profiles.length,
+  });
 }
 
 function bindProfileControls(controls, reload) {
@@ -474,9 +484,9 @@ function bindProfileControls(controls, reload) {
     try {
       const profile = await createProfile(controls.input.value);
       await switchProfile(profile.id);
-      await reload(`Switched to ${profile.name}`);
+      await reload(t('options.switchedProfile', { name: profile.name }));
     } catch (error) {
-      controls.status.textContent = `Profile creation failed: ${error?.message || 'unknown error'}`;
+      controls.status.textContent = t('inline.profileCreationFailed', { error: error?.message || t('app.unknownError') });
     }
   });
   controls.list.addEventListener('click', async (event) => {
@@ -486,21 +496,21 @@ function bindProfileControls(controls, reload) {
     try {
       if (button.dataset.profileAction === 'switch') {
         const profile = await switchProfile(profileId);
-        await reload(`Switched to ${profile.name}`);
+        await reload(t('options.switchedProfile', { name: profile.name }));
       } else if (button.dataset.profileAction === 'rename') {
         const input = [...controls.list.querySelectorAll('input[data-profile-rename]')]
           .find((candidate) => candidate.dataset.profileRename === profileId);
         const profile = await renameProfile(profileId, input?.value || '');
-        await reload(`Renamed profile to ${profile.name}`);
+        await reload(t('options.renamedProfile', { name: profile.name }));
       } else if (button.dataset.profileAction === 'delete') {
         const profile = (await listProfiles()).find((candidate) => candidate.id === profileId);
-        if (!profile || !confirmAction(`Delete the local profile “${profile.name}” and its history and API keys?`)) return;
+        if (!profile || !confirmAction(t('inline.profileDeleteConfirm', { name: profile.name }))) return;
         const registry = await deleteProfile(profileId);
         const active = registry.profiles.find((candidate) => candidate.id === registry.activeId);
-        await reload(`Active profile: ${active?.name || 'Default'}`);
+        await reload(t('options.activeProfile', { name: active?.name || t('app.defaultProfile') }));
       }
     } catch (error) {
-      controls.status.textContent = `Profile update failed: ${error?.message || 'unknown error'}`;
+      controls.status.textContent = t('inline.profileUpdateFailed', { error: error?.message || t('app.unknownError') });
     }
   });
 }
@@ -508,20 +518,20 @@ function bindProfileControls(controls, reload) {
 function buildHistoryControls(parent) {
   const retentionDays = addSelectRow(
     parent,
-    'Keep samples for',
-    HISTORY_RETENTION_OPTIONS.map((days) => [days, `${days} days`]),
+    t('options.keepSamples'),
+    HISTORY_RETENTION_OPTIONS.map((days) => [days, activeI18n.tp('options.days', days)]),
     'historyRetentionDays',
   );
   const summary = document.createElement('p');
   summary.className = 'aut-inline-settings__hint';
   summary.setAttribute('role', 'status');
-  summary.textContent = 'Loading local history details…';
+  summary.textContent = t('inline.loadingHistory');
   parent.appendChild(summary);
   const actions = document.createElement('div');
   actions.className = 'aut-inline-settings__history-actions';
-  const exportButton = historyActionButton('Export CSV');
-  const compactButton = historyActionButton('Compact history');
-  const clearButton = historyActionButton('Clear history');
+  const exportButton = historyActionButton(t('options.exportCSV'));
+  const compactButton = historyActionButton(t('options.compactHistory'));
+  const clearButton = historyActionButton(t('options.clearHistory'));
   actions.append(exportButton, compactButton, clearButton);
   parent.appendChild(actions);
   const backupToggle = document.createElement('label');
@@ -529,17 +539,17 @@ function buildHistoryControls(parent) {
   const includeHistory = document.createElement('input');
   includeHistory.type = 'checkbox';
   const backupLabel = document.createElement('span');
-  backupLabel.textContent = 'Include history in the JSON settings backup';
+  backupLabel.textContent = t('inline.includeHistory');
   backupToggle.append(includeHistory, backupLabel);
   parent.appendChild(backupToggle);
   const backupActions = document.createElement('div');
   backupActions.className = 'aut-inline-settings__history-actions';
-  const exportSettingsButton = historyActionButton('Export settings JSON');
-  const importSettingsButton = historyActionButton('Import settings JSON');
+  const exportSettingsButton = historyActionButton(t('inline.exportSettings'));
+  const importSettingsButton = historyActionButton(t('inline.importSettings'));
   const importFile = document.createElement('input');
   importFile.type = 'file';
   importFile.accept = 'application/json,.json';
-  importFile.setAttribute('aria-label', 'Select settings JSON file');
+  importFile.setAttribute('aria-label', t('inline.selectSettings'));
   importFile.hidden = true;
   backupActions.append(exportSettingsButton, importSettingsButton, importFile);
   parent.appendChild(backupActions);
@@ -547,7 +557,7 @@ function buildHistoryControls(parent) {
   backupStatus.className = 'aut-inline-settings__hint';
   backupStatus.setAttribute('role', 'status');
   backupStatus.setAttribute('aria-live', 'polite');
-  backupStatus.textContent = 'Settings backups omit history unless selected.';
+  backupStatus.textContent = t('inline.backupHint');
   parent.appendChild(backupStatus);
   return {
     retentionDays,
@@ -570,7 +580,7 @@ function buildNotificationPermissionControls(parent) {
   status.className = 'aut-inline-settings__hint';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  const button = historyActionButton('Request permission and send test');
+  const button = historyActionButton(t('inline.notificationPermission'));
   wrap.append(status, button);
   parent.appendChild(wrap);
   return { wrap, status, button };
@@ -582,9 +592,9 @@ async function renderNotificationPermission(controls) {
   controls.status.textContent = capability.state === 'granted'
     ? capability.detail
     : capability.state === 'denied'
-      ? 'Notifications are blocked for this provider site; allow them in browser site settings.'
+      ? t('inline.permissionDenied')
       : capability.state === 'default'
-        ? 'Permission has not been requested yet. A test alert will ask once.'
+        ? t('inline.permissionPending')
         : capability.detail;
   controls.button.disabled = capability.state === 'unsupported';
 }
@@ -602,19 +612,24 @@ async function updateHistorySummary(controls, state) {
   const stats = historyStats(state.history || []);
   const usage = await getStorageUsage(state);
   controls.retentionDays.value = String(normalizeSettings(state.settings).historyRetentionDays);
-  controls.summary.textContent = `${stats.sampleCount} samples across ${stats.bucketCount} buckets; ${formatBytes(usage.bytes)} stored (${usage.source}).`;
+  controls.summary.textContent = t('inline.historySummary', {
+    samples: activeI18n.tp('plural.sample', stats.sampleCount),
+    buckets: activeI18n.tp('plural.bucket', stats.bucketCount),
+    bytes: formatBytes(usage.bytes),
+    source: storageSourceLabel(usage.source),
+  });
 }
 
 function bindHistoryActions(controls, foot, getState, setState) {
   controls.exportButton.addEventListener('click', () => {
     downloadHistory(getState().history || []);
-    foot.status.textContent = 'CSV download started';
+    foot.status.textContent = t('inline.csvStarted');
   });
   controls.exportSettingsButton.addEventListener('click', () => {
     downloadSettings(exportSettings(getState(), { includeHistory: controls.includeHistory.checked }));
     controls.backupStatus.textContent = controls.includeHistory.checked
-      ? 'Settings and history JSON download started.'
-      : 'Settings JSON download started; history was omitted.';
+      ? t('inline.settingsDownloadWithHistory')
+      : t('inline.settingsDownload');
   });
   controls.importSettingsButton.addEventListener('click', () => controls.importFile.click());
   controls.importFile.addEventListener('change', async () => {
@@ -625,34 +640,34 @@ function bindHistoryActions(controls, foot, getState, setState) {
       setState(next);
       await updateHistorySummary(controls, next);
       controls.backupStatus.textContent = controls.includeHistory.checked
-        ? 'Settings import applied, including history when present.'
-        : 'Settings import applied; existing history was preserved.';
-      foot.status.textContent = 'Settings imported';
+        ? t('inline.settingsImportWithHistory')
+        : t('inline.settingsImport');
+      foot.status.textContent = t('inline.settingsImported');
     } catch (error) {
-      controls.backupStatus.textContent = `Import rejected: ${error?.message || 'invalid file'}`;
-      foot.status.textContent = 'Settings import rejected';
+      controls.backupStatus.textContent = t('options.settingsImportRejected', { error: error?.message || t('app.invalidFile') });
+      foot.status.textContent = t('inline.settingsRejected');
     } finally {
       controls.importFile.value = '';
     }
   });
   controls.compactButton.addEventListener('click', async () => {
-    if (!confirmAction('Export a CSV before compacting? Compaction keeps representative samples and cannot be undone.')) return;
+    if (!confirmAction(t('inline.compactConfirm'))) return;
     const state = await loadState();
     const retentionDays = Number(controls.retentionDays.value);
     state.history = compactHistory(state.history || [], { retentionDays });
     await saveState(state);
     setState(state);
     await updateHistorySummary(controls, state);
-    foot.status.textContent = 'History compacted';
+    foot.status.textContent = t('inline.historyCompacted');
   });
   controls.clearButton.addEventListener('click', async () => {
-    if (!confirmAction('Clear all local history? Export a CSV first if you may need these samples later.')) return;
+    if (!confirmAction(t('inline.deleteHistoryConfirm'))) return;
     const state = await loadState();
     state.history = [];
     await saveState(state);
     setState(state);
     await updateHistorySummary(controls, state);
-    foot.status.textContent = 'History cleared';
+    foot.status.textContent = t('inline.historyCleared');
   });
 }
 
@@ -693,10 +708,17 @@ function downloadSettings(payload) {
 }
 
 function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return 'unknown size';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (!Number.isFinite(bytes)) return t('app.unknownSize');
+  if (bytes < 1024) return `${activeI18n.formatNumber(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${activeI18n.formatNumber(bytes / 1024, { maximumFractionDigits: 1 })} KB`;
+  return `${activeI18n.formatNumber(bytes / (1024 * 1024), { maximumFractionDigits: 1 })} MB`;
+}
+
+function storageSourceLabel(source) {
+  if (source === 'webext') return t('options.storageSource.webext');
+  if (source === 'unavailable') return t('options.storageSource.unavailable');
+  if (String(source || '').endsWith('-estimate')) return t('options.storageSource.estimate');
+  return t('options.storageSource.unknown', { source: source || t('app.unknown') });
 }
 
 function buildSection(titleText, hintText, fill) {
@@ -723,7 +745,8 @@ function addToggleGrid(parent, entries, kind) {
     input.type = 'checkbox';
     input.dataset[kind] = id;
     const text = document.createElement('span');
-    text.textContent = labelText;
+    const localized = t(labelText);
+    text.textContent = localized === labelText ? labelText : localized;
     label.append(input, text);
     grid.appendChild(label);
     controls[id] = input;
@@ -795,15 +818,15 @@ function buildFooter() {
   foot.status.className = 'aut-inline-settings__status';
   foot.status.setAttribute('role', 'status');
   foot.status.setAttribute('aria-live', 'polite');
-  foot.status.textContent = 'Changes are not saved yet';
+  foot.status.textContent = t('inline.changeUnsaved');
   foot.close = document.createElement('button');
   foot.close.className = 'aut-inline-settings__button';
   foot.close.type = 'button';
-  foot.close.textContent = 'Cancel';
+  foot.close.textContent = t('inline.cancel');
   foot.save = document.createElement('button');
   foot.save.className = 'aut-inline-settings__button aut-inline-settings__button--primary';
   foot.save.type = 'button';
-  foot.save.textContent = 'Save settings';
+  foot.save.textContent = t('inline.save');
   foot.append(foot.status, foot.close, foot.save);
   return foot;
 }

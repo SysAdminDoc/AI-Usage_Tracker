@@ -60,16 +60,33 @@ import {
 import { apiBreakdownToCSV, buildApiBreakdown } from '../lib/api-breakdown.js';
 import { API_PROVIDER_IDS, API_PROVIDER_META } from '../providers/api-contract.js';
 import { buildWebhookPayload, deliverWebhook, normalizeWebhookURL } from '../lib/notify.js';
+import { applyDocumentLocale, createI18n } from '../lib/i18n.js';
 
 const VERSION = '0.2.3';
 
 const saveStatus = document.getElementById('saveStatus');
+let activeI18n = createI18n('en');
+
+function t(key, variables = {}) {
+  return activeI18n.t(key, variables);
+}
+
+function setActiveLocale(locale) {
+  activeI18n = createI18n(locale);
+  applyDocumentLocale(activeI18n);
+  return activeI18n;
+}
 
 export const ready = init();
 
 export async function init() {
-  document.querySelector('.opt-head__sub').textContent = `${isIncognitoContext() ? 'Incognito · ' : ''}Settings - v${VERSION}`;
-  saveStatus.textContent = 'Ready';
+  const initialState = await loadState();
+  setActiveLocale(initialState.settings?.locale);
+  document.querySelector('.opt-head__sub').textContent = t('options.header', {
+    version: t('app.version', { version: VERSION.slice(1) }),
+  });
+  if (isIncognitoContext()) document.querySelector('.opt-head__sub').textContent = `${t('app.incognito')} · ${document.querySelector('.opt-head__sub').textContent}`;
+  saveStatus.textContent = t('app.ready');
 
   // Populate daily-briefing hour select
   const hourSelect = document.getElementById('dailyBriefingHour');
@@ -111,7 +128,7 @@ export async function renderProfiles() {
     name.textContent = profile.name;
     const meta = document.createElement('span');
     meta.className = 'profile-item__meta';
-    meta.textContent = profile.id === active.id ? 'Active profile' : 'Local profile';
+    meta.textContent = profile.id === active.id ? t('inline.active') : t('inline.local');
     identity.append(name, meta);
 
     const actions = document.createElement('div');
@@ -121,20 +138,24 @@ export async function renderProfiles() {
     rename.type = 'text';
     rename.maxLength = 48;
     rename.value = profile.name;
-    rename.setAttribute('aria-label', `Rename ${profile.name}`);
+    rename.setAttribute('aria-label', t('options.renameProfile', { name: profile.name }));
     rename.dataset.profileRename = profile.id;
-    const switchButton = profileButton('switch', profile.id, profile.id === active.id ? 'Active' : 'Switch');
+    const switchButton = profileButton('switch', profile.id, profile.id === active.id ? t('app.active') : t('app.switch'));
     switchButton.disabled = profile.id === active.id;
-    const renameButton = profileButton('rename', profile.id, 'Rename');
-    const deleteButton = profileButton('delete', profile.id, 'Delete', 'opt-btn--quiet');
+    const renameButton = profileButton('rename', profile.id, t('app.rename'));
+    const deleteButton = profileButton('delete', profile.id, t('app.delete'), 'opt-btn--quiet');
     deleteButton.disabled = registry.profiles.length <= 1;
     actions.append(rename, switchButton, renameButton, deleteButton);
     item.append(identity, actions);
     list.appendChild(item);
   }
   if (status) {
-    const scope = isIncognitoContext() ? 'Incognito context. ' : '';
-    status.textContent = `${scope}${active.name} is active. ${registry.profiles.length} local profile${registry.profiles.length === 1 ? '' : 's'} available.`;
+    const scope = isIncognitoContext() ? `${t('app.incognito')} · ` : '';
+    status.textContent = `${scope}${t('options.activeProfileStatus', {
+      name: active.name,
+      count: registry.profiles.length,
+      profiles: t('plural.member.other'),
+    })}`;
     status.className = 'opt-callout opt-callout--good';
   }
 }
@@ -170,9 +191,7 @@ async function renderProviders() {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.dataset.provider = id;
-    const labelText = id === 'claude' ? 'Claude'
-      : id === 'codex' ? 'Codex'
-        : API_PROVIDER_META[id]?.label || id;
+    const labelText = providerLabel(id);
     label.append(input, document.createTextNode(labelText));
     wrap.appendChild(label);
   }
@@ -194,8 +213,8 @@ async function renderApiCredentials() {
   if (statusWrap) {
     const missingPermission = API_PROVIDER_IDS.filter((id) => statuses[id]?.configured && !hostPermissions[id]?.ok).length;
     statusWrap.textContent = configured
-      ? `${configured} official provider credential${configured === 1 ? '' : 's'} configured locally${missingPermission ? `; ${missingPermission} host permission${missingPermission === 1 ? '' : 's'} need attention` : ''}.`
-      : 'No official provider credentials configured. Web usage tracking remains available without them.';
+      ? t('options.credentialsConfigured', { count: configured, missing: missingPermission ? t('options.missingPermissions', { count: missingPermission }) : '' })
+      : t('options.noCredentials');
     statusWrap.className = `opt-callout ${missingPermission ? 'opt-callout--warn' : configured ? 'opt-callout--good' : ''}`;
   }
 
@@ -206,51 +225,51 @@ async function renderApiCredentials() {
     const head = document.createElement('div');
     head.className = 'api-credential__head';
     const title = document.createElement('strong');
-    title.textContent = meta.label;
+    title.textContent = providerLabel(id);
     const docs = document.createElement('a');
     docs.href = meta.docsUrl;
     docs.target = '_blank';
     docs.rel = 'noreferrer';
-    docs.textContent = 'Official docs';
+    docs.textContent = t('app.officialDocs');
     head.append(title, docs);
     const hint = document.createElement('p');
     hint.className = 'api-credential__hint';
-    hint.textContent = meta.hint;
+    hint.textContent = providerMetaText(id, 'hint');
     const costHint = document.createElement('p');
     costHint.className = 'api-credential__cost-hint';
-    costHint.textContent = meta.costHint || '';
+    costHint.textContent = providerMetaText(id, 'costHint');
     const input = document.createElement('input');
     input.type = 'password';
     input.autocomplete = 'off';
     input.spellcheck = false;
-    input.placeholder = meta.placeholder;
+    input.placeholder = providerMetaText(id, 'placeholder');
     input.dataset.apiProvider = id;
-    input.setAttribute('aria-label', `${meta.credentialLabel} value`);
+    input.setAttribute('aria-label', t('options.credentialValue', { label: providerMetaText(id, 'credentialLabel') }));
     let providerConfig = null;
     if (id === 'github-copilot') {
       const config = document.createElement('div');
       config.className = 'opt-grid';
       const organizationLabel = document.createElement('label');
-      organizationLabel.textContent = 'GitHub organization';
+      organizationLabel.textContent = t('options.githubOrganization');
       const organization = document.createElement('input');
       organization.type = 'text';
       organization.autocomplete = 'off';
       organization.spellcheck = false;
-      organization.placeholder = 'your-org';
+      organization.placeholder = t('options.orgPlaceholder');
       organization.value = settings.githubCopilotOrganization || '';
       organization.dataset.apiConfig = 'githubCopilotOrganization';
-      organization.setAttribute('aria-label', 'GitHub Copilot organization');
+      organization.setAttribute('aria-label', t('options.githubCopilotOrganization'));
       organizationLabel.appendChild(organization);
       const usernameLabel = document.createElement('label');
-      usernameLabel.textContent = 'GitHub username';
+      usernameLabel.textContent = t('options.githubUsername');
       const username = document.createElement('input');
       username.type = 'text';
       username.autocomplete = 'off';
       username.spellcheck = false;
-      username.placeholder = 'your-username';
+      username.placeholder = t('options.usernamePlaceholder');
       username.value = settings.githubCopilotUsername || '';
       username.dataset.apiConfig = 'githubCopilotUsername';
-      username.setAttribute('aria-label', 'GitHub Copilot username');
+      username.setAttribute('aria-label', t('options.githubCopilotUsername'));
       usernameLabel.appendChild(username);
       config.append(organizationLabel, usernameLabel);
       providerConfig = config;
@@ -258,15 +277,15 @@ async function renderApiCredentials() {
       const config = document.createElement('div');
       config.className = 'opt-grid';
       const projectLabel = document.createElement('label');
-      projectLabel.textContent = 'Google Cloud project ID';
+      projectLabel.textContent = t('options.googleProject');
       const project = document.createElement('input');
       project.type = 'text';
       project.autocomplete = 'off';
       project.spellcheck = false;
-      project.placeholder = 'my-gemini-project';
+      project.placeholder = t('options.geminiProjectPlaceholder');
       project.value = settings.geminiProjectId || '';
       project.dataset.apiConfig = 'geminiProjectId';
-      project.setAttribute('aria-label', 'Gemini Google Cloud project ID');
+      project.setAttribute('aria-label', t('options.geminiProject'));
       projectLabel.appendChild(project);
       config.appendChild(projectLabel);
       providerConfig = config;
@@ -274,17 +293,17 @@ async function renderApiCredentials() {
     const actions = document.createElement('div');
     actions.className = 'api-credential__actions';
     actions.append(
-      apiButton('save', id, 'Save key'),
-      apiButton('refresh', id, 'Save and refresh'),
-      apiButton('revoke', id, 'Revoke locally', 'opt-btn--quiet'),
+      apiButton('save', id, t('app.saveKey')),
+      apiButton('refresh', id, t('app.saveAndRefresh')),
+      apiButton('revoke', id, t('app.revoke'), 'opt-btn--quiet'),
     );
     const credentialStatus = document.createElement('p');
     credentialStatus.className = 'api-credential__status';
     credentialStatus.textContent = statuses[id]?.configured
       ? hostPermissions[id]?.ok
-        ? 'Configured locally; exact API host permission granted. The key value is never shown again.'
-        : 'Configured locally, but the exact API host permission is not granted. Save the key again to request it.'
-      : 'Not configured.';
+        ? t('options.credentialConfigured')
+        : t('options.credentialPermissionMissing')
+      : t('options.credentialNotConfigured');
     credentialStatus.dataset.apiStatus = id;
     card.append(head, hint, costHint, input);
     if (providerConfig) card.appendChild(providerConfig);
@@ -371,17 +390,17 @@ export async function renderSyncSettings(state = null) {
   const result = await getSyncSettingsStatus(current.profileId);
   checkbox.disabled = !result.supported;
   if (!result.supported) {
-    status.textContent = 'Unavailable in this browser context. Settings remain local.';
+    status.textContent = t('options.syncUnavailable');
     status.className = 'opt-callout';
   } else if (current.settings?.syncSettings === true) {
     status.textContent = result.hasRemote
-      ? 'Enabled. Only non-sensitive display and alert settings are synced; history, provider data, API keys, and bridge data remain local.'
-      : 'Enabled. This profile will publish non-sensitive settings to browser sync.';
+      ? t('options.syncEnabled')
+      : t('options.syncPublishing');
     status.className = 'opt-callout opt-callout--good';
   } else {
     status.textContent = result.hasRemote
-      ? 'Available. A synced settings copy exists for this profile; enable sync to use it on this browser.'
-      : 'Off. Nothing is synced until you enable this option.';
+      ? t('options.syncAvailable')
+      : t('options.syncOff');
     status.className = 'opt-callout';
   }
   if (clearButton) clearButton.disabled = !result.supported || !result.hasRemote;
@@ -417,8 +436,8 @@ export function renderSnoozeStatus(settings = {}) {
   const ts = until ? new Date(until).getTime() : 0;
   const active = Number.isFinite(ts) && ts > Date.now();
   wrap.textContent = active
-    ? `Notifications are snoozed until ${new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`
-    : 'Notifications are active. Use snooze for a quiet hour without changing alert rules.';
+    ? t('options.snoozedUntil', { time: activeI18n.formatTime(new Date(ts).toISOString()) })
+    : t('options.notificationsActive');
   wrap.className = `opt-callout ${active ? 'opt-callout--warn' : 'opt-callout--good'}`;
   if (clearBtn) clearBtn.disabled = !active;
 }
@@ -427,16 +446,16 @@ export async function renderNotificationPermission(capability = getNotificationP
   const wrap = document.getElementById('notificationPermissionStatus');
   if (!wrap) return capability;
   const labels = {
-    extension: 'Ready: extension notifications are enabled by the installed package.',
-    'userscript-manager': 'Ready: the userscript manager can deliver notifications while this tab is open.',
+    extension: t('options.permissionExtension'),
+    'userscript-manager': t('options.permissionUserscript'),
     web: capability.state === 'granted'
-      ? 'Ready: this browser has granted page notifications for the current tab.'
+      ? t('options.permissionWebGranted')
       : capability.state === 'denied'
-        ? 'Blocked: allow notifications for this provider site in the browser site settings.'
-        : 'Not requested: send a test notification to ask the browser for permission.',
-    unavailable: 'Unavailable: this browser context does not expose notifications.',
+        ? t('options.permissionWebDenied')
+        : t('options.permissionWebPending'),
+    unavailable: t('options.permissionUnavailable'),
   };
-  wrap.textContent = labels[capability.source] || capability.detail || 'Notification status unavailable.';
+  wrap.textContent = labels[capability.source] || capability.detail || t('options.permissionUnknown');
   wrap.className = `opt-callout ${capability.state === 'granted' ? 'opt-callout--good' : capability.state === 'denied' ? 'opt-callout--warn' : ''}`;
   return capability;
 }
@@ -449,19 +468,19 @@ export function renderWebhookStatus(settings = {}) {
   const hasURL = !!normalizeWebhookURL(notifications.webhookURL);
   const attempts = Number(notifications.webhookLastAttempts) || 0;
   if (!enabled) {
-    wrap.textContent = 'Webhook delivery is off.';
+    wrap.textContent = t('options.webhookOff');
     wrap.className = 'opt-callout';
   } else if (!hasURL) {
-    wrap.textContent = 'Webhook is enabled, but no valid HTTP(S) URL is configured.';
+    wrap.textContent = t('options.webhookNoURL');
     wrap.className = 'opt-callout opt-callout--warn';
   } else if (notifications.webhookLastErrorCode) {
-    wrap.textContent = `Last webhook delivery failed after ${attempts || 1} attempt${attempts === 1 ? '' : 's'} (${notifications.webhookLastErrorCode}). Check the endpoint and try again.`;
+    wrap.textContent = t('options.webhookFailed', { attempts: attempts || 1, code: notifications.webhookLastErrorCode });
     wrap.className = 'opt-callout opt-callout--warn';
   } else if (notifications.webhookLastSuccessISO) {
-    wrap.textContent = `Webhook delivery is active with redacted payloads by default. Last delivered ${formatAgo(notifications.webhookLastSuccessISO)}.`;
+    wrap.textContent = t('options.webhookDelivered', { relative: formatAgo(notifications.webhookLastSuccessISO) });
     wrap.className = 'opt-callout opt-callout--good';
   } else {
-    wrap.textContent = 'Webhook delivery is enabled. The next matching rule will send a redacted event.';
+    wrap.textContent = t('options.webhookNext');
     wrap.className = 'opt-callout opt-callout--good';
   }
 }
@@ -473,13 +492,13 @@ export function renderNativeSchedulerStatus(settings = {}) {
   const runtime = getRuntime();
   const nativeMessagingAvailable = typeof runtime?.connectNative === 'function';
   if (!enabled) {
-    wrap.textContent = 'Off by default. The standard packages do not open a native-messaging pipe.';
+    wrap.textContent = t('options.schedulerOff');
     wrap.className = 'opt-callout';
   } else if (!nativeMessagingAvailable) {
-    wrap.textContent = 'Enabled locally, but this package has no native-messaging capability. Install the optional bridge package and register its scheduler host first.';
+    wrap.textContent = t('options.schedulerUnavailable');
     wrap.className = 'opt-callout opt-callout--warn';
   } else {
-    wrap.textContent = 'Enabled. The bridge package will send only schedule metadata to the registered local helper; browser alarms remain as a fallback.';
+    wrap.textContent = t('options.schedulerEnabled');
     wrap.className = 'opt-callout opt-callout--good';
   }
 }
@@ -491,14 +510,14 @@ export function renderBudgetStatus(settings = {}, budget = {}) {
   const sessionCap = normalizeBudgetCap(caps.sessionCapUSD);
   const dailyCap = normalizeBudgetCap(caps.dailyCapUSD);
   if (!sessionCap && !dailyCap) {
-    wrap.textContent = 'No API spend caps configured.';
+    wrap.textContent = t('options.noBudget');
     wrap.className = 'opt-callout';
     return;
   }
   const parts = [];
-  if (sessionCap) parts.push(`Session ${formatUSD(budget.sessionSpentUSD)} / ${formatUSD(sessionCap)}`);
-  if (dailyCap) parts.push(`Today ${formatUSD(budget.dailySpentUSD)} / ${formatUSD(dailyCap)}`);
-  wrap.textContent = `${parts.join(' · ')}. Alerts fire at 80% and 100% of each cap.`;
+  if (sessionCap) parts.push(t('options.sessionBudget', { spent: formatUSD(budget.sessionSpentUSD), cap: formatUSD(sessionCap) }));
+  if (dailyCap) parts.push(t('options.dailyBudget', { spent: formatUSD(budget.dailySpentUSD), cap: formatUSD(dailyCap) }));
+  wrap.textContent = t('options.budgetStatus', { parts: parts.join(' · ') });
   const over = (sessionCap && Number(budget.sessionSpentUSD) >= sessionCap)
     || (dailyCap && Number(budget.dailySpentUSD) >= dailyCap);
   const warn = (sessionCap && Number(budget.sessionSpentUSD) >= sessionCap * 0.8)
@@ -516,16 +535,21 @@ export async function renderForecastStatus() {
   clearChildren(breakdown);
 
   if (!forecast.providers.length) {
-    status.textContent = 'No cost-bearing API-provider snapshot yet. Anthropic, OpenAI, Cursor, or OpenRouter cost data will appear after a successful refresh.';
+    status.textContent = t('options.noForecast');
     status.className = 'opt-callout';
     return forecast;
   }
 
   const total = forecast.total;
   const projected = total.projectedUSD == null
-    ? 'Forecast is waiting for more than one full day of cost coverage.'
-    : `Projected ${formatUSD(total.projectedUSD)} by ${formatForecastDate(forecast.monthEndISO)} (${total.confidenceLabel} confidence).`;
-  status.textContent = `${projected} ${formatUSD(total.observedUSD)} observed across ${total.providerCount} cost-bearing API provider${total.providerCount === 1 ? '' : 's'}. ${forecast.assumptions.join(' ')}`;
+    ? t('forecast.waiting')
+    : `${t('forecast.projected', { amount: formatUSD(total.projectedUSD), date: formatForecastDate(forecast.monthEndISO) })} (${t('forecast.confidence', { label: total.confidenceLabel })}).`;
+  status.textContent = t('options.forecastStatus', {
+    projected,
+    observed: formatUSD(total.observedUSD),
+    count: total.providerCount,
+    assumptions: forecast.assumptions.join(' '),
+  });
   status.className = `opt-callout ${!total.confidence || total.confidence === 'low' ? 'opt-callout--warn' : 'opt-callout--good'}`;
 
   for (const entry of forecast.providers) {
@@ -537,17 +561,17 @@ export async function renderForecastStatus() {
     label.textContent = entry.label;
     const confidence = document.createElement('span');
     confidence.className = `forecast-provider__confidence forecast-provider__confidence--${entry.confidence}`;
-    confidence.textContent = `${entry.confidenceLabel} confidence`;
+    confidence.textContent = t('options.confidence', { label: entry.confidenceLabel });
     head.append(label, confidence);
     const observed = document.createElement('p');
-    observed.textContent = `Observed ${formatUSD(entry.observedUSD)} across ${entry.observedDays.toFixed(2)} days · ${entry.sourceLabel}.`;
+    observed.textContent = t('options.observedDays', { amount: formatUSD(entry.observedUSD), days: activeI18n.formatNumber(entry.observedDays, { maximumFractionDigits: 2 }), source: entry.sourceLabel });
     const projection = document.createElement('p');
     projection.textContent = entry.projectedUSD == null
-      ? 'Projection unavailable until coverage improves.'
-      : `Projected month end: ${formatUSD(entry.projectedUSD)}.`;
+      ? t('forecast.projectionUnavailable')
+      : t('forecast.projectedMonthEnd', { amount: formatUSD(entry.projectedUSD) });
     const assumptions = document.createElement('p');
     assumptions.className = 'forecast-provider__assumptions';
-    assumptions.textContent = `Assumptions: ${entry.assumptions.join(' ')}`;
+    assumptions.textContent = t('forecast.assumptions', { text: entry.assumptions.join(' ') });
     card.append(head, observed, projection, assumptions);
     breakdown.appendChild(card);
   }
@@ -564,11 +588,11 @@ export async function renderApiBreakdown() {
   clearChildren(wrap);
   if (exportButton) exportButton.disabled = breakdown.rows.length === 0;
   if (!breakdown.rows.length) {
-    status.textContent = 'No official API rows are available yet. Add a credential and refresh the provider first.';
+    status.textContent = t('options.breakdownNone');
     status.className = 'opt-callout';
     return breakdown;
   }
-  status.textContent = `${breakdown.rows.length} API row${breakdown.rows.length === 1 ? '' : 's'} grouped locally. Workspace, project, and API-key identifiers are shortened in this view and export.`;
+  status.textContent = t('options.breakdownStatus', { count: breakdown.rows.length });
   status.className = 'opt-callout opt-callout--good';
   for (const row of breakdown.rows) {
     const item = document.createElement('article');
@@ -587,8 +611,8 @@ export async function renderApiBreakdown() {
     const source = document.createElement('span');
     source.className = 'api-breakdown__source';
     source.textContent = [
-      row.model ? `Model ${row.model}` : '',
-      row.costSource ? (row.costSource === 'pricing-table' ? 'Pricing-table estimate' : 'Official cost') : 'Usage metric',
+      row.model ? t('options.model', { model: row.model }) : '',
+      row.costSource ? (row.costSource === 'pricing-table' ? t('options.pricingEstimate') : t('options.officialCost')) : t('options.usageMetric'),
     ].filter(Boolean).join(' · ');
     item.append(head, group, source);
     wrap.appendChild(item);
@@ -635,22 +659,27 @@ export async function renderCollaboration() {
   clearChildren(breakdown);
 
   if (dashboard.status === 'disabled') {
-    status.textContent = 'Off. Nothing is shared or aggregated until you explicitly enable this local dashboard.';
+    status.textContent = t('options.teamOff');
     status.className = 'opt-callout';
     return dashboard;
   }
   if (dashboard.status === 'empty') {
-    status.textContent = 'Enabled, but no contribution has been imported yet. Export a redacted contribution or import a user-provided ledger.';
+    status.textContent = t('options.teamEmpty');
     status.className = 'opt-callout opt-callout--warn';
     return dashboard;
   }
 
-  status.textContent = `${dashboard.teamName} · ${dashboard.memberCount} member${dashboard.memberCount === 1 ? '' : 's'} · ${dashboard.contributionCount} contribution${dashboard.contributionCount === 1 ? '' : 's'} · ${formatUSD(dashboard.total.costUSD)} observed. Aggregation stays local.`;
+  status.textContent = t('options.teamStatus', {
+    team: dashboard.teamName,
+    members: activeI18n.tp('plural.member', dashboard.memberCount),
+    contributions: activeI18n.tp('plural.contribution', dashboard.contributionCount),
+    cost: formatUSD(dashboard.total.costUSD),
+  });
   status.className = 'opt-callout opt-callout--good';
   const heading = document.createElement('article');
   heading.className = 'collaboration-summary';
   const headingTitle = document.createElement('strong');
-  headingTitle.textContent = 'Team total';
+  headingTitle.textContent = t('options.teamTotal');
   const headingValue = document.createElement('span');
   headingValue.textContent = formatCollaborationAggregate(dashboard.total);
   heading.append(headingTitle, headingValue);
@@ -674,25 +703,25 @@ function appendCollaborationAggregate(wrap, kind, aggregate) {
   const head = document.createElement('div');
   head.className = 'collaboration-row__head';
   const label = document.createElement('strong');
-  label.textContent = `${kind} · ${aggregate.label}`;
+  label.textContent = `${t(kind === 'Member' ? 'options.member' : 'options.provider')} · ${aggregate.label}`;
   const value = document.createElement('span');
   value.textContent = formatUSD(aggregate.costUSD);
   head.append(label, value);
   const meta = document.createElement('span');
   meta.className = 'collaboration-row__meta';
   meta.textContent = [
-    aggregate.totalTokens ? `${formatCount(aggregate.totalTokens)} tokens` : '',
-    aggregate.requests ? `${formatCount(aggregate.requests)} requests` : '',
-    aggregate.source ? (aggregate.source === 'mixed' ? 'Mixed cost sources' : `${aggregate.source} cost`) : '',
-  ].filter(Boolean).join(' · ') || 'No cost-bearing usage in this aggregate';
+    aggregate.totalTokens ? t('metric.tokens', { value: formatCount(aggregate.totalTokens) }) : '',
+    aggregate.requests ? t('metric.requests', { value: formatCount(aggregate.requests) }) : '',
+    aggregate.source ? (aggregate.source === 'mixed' ? t('options.mixedCostSources') : t('options.sourceCost', { source: aggregate.source })) : '',
+  ].filter(Boolean).join(' · ') || t('options.noCostRows');
   row.append(head, meta);
   wrap.appendChild(row);
 }
 
 function formatCollaborationAggregate(aggregate) {
   const parts = [formatUSD(aggregate.costUSD)];
-  if (aggregate.totalTokens) parts.push(`${formatCount(aggregate.totalTokens)} tokens`);
-  if (aggregate.requests) parts.push(`${formatCount(aggregate.requests)} requests`);
+  if (aggregate.totalTokens) parts.push(t('metric.tokens', { value: formatCount(aggregate.totalTokens) }));
+  if (aggregate.requests) parts.push(t('metric.requests', { value: formatCount(aggregate.requests) }));
   return parts.join(' · ');
 }
 
@@ -702,13 +731,16 @@ function appendCollaborationAttribution(wrap, row) {
   const head = document.createElement('div');
   head.className = 'collaboration-row__head';
   const label = document.createElement('strong');
-  label.textContent = [row.clientName, row.projectName, row.branchName].filter(Boolean).join(' · ') || 'Unlabelled attribution';
+  label.textContent = [row.clientName, row.projectName, row.branchName].filter(Boolean).join(' · ') || t('options.unlabelledAttribution');
   const value = document.createElement('span');
   value.textContent = formatUSD(row.costUSD);
   head.append(label, value);
   const meta = document.createElement('span');
   meta.className = 'collaboration-row__meta';
-  meta.textContent = `Invoice attribution · ${row.memberCount} member${row.memberCount === 1 ? '' : 's'} · ${formatCollaborationAggregate(row)}`;
+  meta.textContent = t('options.invoiceAttribution', {
+    members: activeI18n.tp('plural.member', row.memberCount),
+    aggregate: formatCollaborationAggregate(row),
+  });
   item.append(head, meta);
   wrap.appendChild(item);
 }
@@ -716,9 +748,9 @@ function appendCollaborationAttribution(wrap, row) {
 function apiMetricSummary(row) {
   const parts = [];
   if (row.costUSD != null) parts.push(formatUSD(row.costUSD));
-  if (row.totalTokens != null) parts.push(`${formatCount(row.totalTokens)} tokens`);
-  if (row.requests != null) parts.push(`${formatCount(row.requests)} requests`);
-  return parts.join(' · ') || 'Usage row';
+  if (row.totalTokens != null) parts.push(t('metric.tokens', { value: formatCount(row.totalTokens) }));
+  if (row.requests != null) parts.push(t('metric.requests', { value: formatCount(row.requests) }));
+  return parts.join(' · ') || t('options.usageRow');
 }
 
 export function renderOptimizationStatus(optimization = {}) {
@@ -728,22 +760,25 @@ export function renderOptimizationStatus(optimization = {}) {
   clearChildren(breakdown);
 
   if (optimization.status === 'no-data') {
-    status.textContent = 'No plan guidance yet. Connect a cost-bearing API provider first.';
+    status.textContent = t('options.noPlanGuidance');
     status.className = 'opt-callout';
     return;
   }
   if (optimization.status === 'insufficient-coverage') {
-    status.textContent = `No plan recommendation yet. Keep at least ${optimization.requiredDays} days of fresh cost coverage before changing a plan or routing policy.`;
+    status.textContent = t('options.noPlanRecommendation', { days: optimization.requiredDays });
     status.className = 'opt-callout opt-callout--warn';
     return;
   }
   if (!optimization.recommendations?.length) {
-    status.textContent = 'No provider limit or seat-mix signal supports a plan review from the current data.';
+    status.textContent = t('options.noPlanSignal');
     status.className = 'opt-callout opt-callout--good';
     return;
   }
 
-  status.textContent = `${optimization.recommendations.length} evidence-based plan review${optimization.recommendations.length === 1 ? '' : 's'} available. Verify current provider pricing and entitlements before acting. ${optimization.assumptions?.join(' ') || ''}`;
+  status.textContent = t('options.planStatus', {
+    count: optimization.recommendations.length,
+    assumptions: optimization.assumptions?.join(' ') || '',
+  });
   status.className = 'opt-callout opt-callout--warn';
   for (const recommendation of optimization.recommendations) {
     const card = document.createElement('article');
@@ -754,7 +789,7 @@ export function renderOptimizationStatus(optimization = {}) {
     title.textContent = recommendation.title;
     const confidence = document.createElement('span');
     confidence.className = `forecast-provider__confidence forecast-provider__confidence--${recommendation.confidence}`;
-    confidence.textContent = `${recommendation.confidenceLabel} confidence`;
+    confidence.textContent = t('options.confidence', { label: recommendation.confidenceLabel });
     head.append(title, confidence);
     const detail = document.createElement('p');
     detail.textContent = recommendation.detail;
@@ -771,8 +806,8 @@ export function renderOptimizationStatus(optimization = {}) {
 function formatForecastDate(iso) {
   const date = new Date(iso);
   return Number.isFinite(date.getTime())
-    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    : 'month end';
+    ? activeI18n.formatDate(iso, { month: 'short', day: 'numeric' })
+    : t('forecast.monthEnd');
 }
 
 function applyTheme(settings = {}) {
@@ -793,9 +828,9 @@ function bindHandlers() {
       const profile = await createProfile(name);
       await switchProfile(profile.id);
       if (input) input.value = '';
-      await refreshAfterProfileChange(`Switched to ${profile.name}`);
+      await refreshAfterProfileChange(t('options.switchedProfile', { name: profile.name }));
     } catch (error) {
-      flash(`Profile creation failed: ${error?.message || 'unknown error'}`, 'bad');
+      flash(t('options.profileCreationFailed', { error: error?.message || t('app.unknownError') }), 'bad');
     }
   });
 
@@ -807,128 +842,129 @@ function bindHandlers() {
     try {
       if (action === 'switch') {
         const profile = await switchProfile(profileId);
-        await refreshAfterProfileChange(`Switched to ${profile.name}`);
+        await refreshAfterProfileChange(t('options.switchedProfile', { name: profile.name }));
       } else if (action === 'rename') {
         const input = [...document.querySelectorAll('input[data-profile-rename]')]
           .find((candidate) => candidate.getAttribute('data-profile-rename') === profileId);
         const profile = await renameProfile(profileId, input?.value || '');
-        await refreshAfterProfileChange(`Renamed profile to ${profile.name}`);
+        await refreshAfterProfileChange(t('options.renamedProfile', { name: profile.name }));
       } else if (action === 'delete') {
         const profile = (await listProfiles()).find((candidate) => candidate.id === profileId);
-        if (!profile || !confirmAction(`Delete the local profile “${profile.name}” and its settings, history, snapshot, and API keys?`)) return;
+        if (!profile || !confirmAction(t('options.profileDeleteConfirm', { name: profile.name }))) return;
         const registry = await deleteProfile(profileId);
         const active = registry.profiles.find((candidate) => candidate.id === registry.activeId);
-        await refreshAfterProfileChange(`Active profile: ${active?.name || 'Default'}`);
+        await refreshAfterProfileChange(t('options.activeProfile', { name: active?.name || t('app.defaultProfile') }));
       }
     } catch (error) {
-      flash(`Profile update failed: ${error?.message || 'unknown error'}`, 'bad');
+      flash(t('options.profileUpdateFailed', { error: error?.message || t('app.unknownError') }), 'bad');
     }
   });
 
   document.getElementById('clearSyncedSettings')?.addEventListener('click', async () => {
-    if (!confirmAction('Clear the synced settings copy for this profile? Other browsers will keep their current local settings.')) return;
+    if (!confirmAction(t('options.clearSyncedConfirm'))) return;
     try {
       await clearSyncedSettings();
       await renderSyncSettings();
-      flash('Synced settings cleared');
+      flash(t('options.syncedCleared'));
     } catch (error) {
-      flash(`Synced settings could not be cleared: ${error?.message || 'unknown error'}`, 'bad');
+      flash(t('options.syncClearFailed', { error: error?.message || t('app.unknownError') }), 'bad');
     }
   });
 
   document.body.addEventListener('change', async (e) => {
-    const t = e.target;
+    const target = e.target;
     const state = await loadState();
     let s = normalizeSettings(state.settings || defaultSettings());
     let collaboration = normalizeCollaborationState(state.collaboration);
     let collaborationChanged = false;
-    if (t.dataset.provider) {
-      s.showProviders = { ...s.showProviders, [t.dataset.provider]: t.checked };
-      if (t.checked && API_PROVIDER_IDS.includes(t.dataset.provider)) {
+    if (target.dataset.provider) {
+      s.showProviders = { ...s.showProviders, [target.dataset.provider]: target.checked };
+      if (target.checked && API_PROVIDER_IDS.includes(target.dataset.provider)) {
         const credentialStatus = await getApiCredentialStatus();
-        if (credentialStatus[t.dataset.provider]?.configured) {
-          const permission = await requestApiProviderHostPermission(t.dataset.provider);
+        if (credentialStatus[target.dataset.provider]?.configured) {
+          const permission = await requestApiProviderHostPermission(target.dataset.provider);
           if (!permission.ok) {
-            s.showProviders[t.dataset.provider] = false;
-            flash(`${API_PROVIDER_META[t.dataset.provider]?.label || t.dataset.provider} host permission was not granted`, 'bad');
+            s.showProviders[target.dataset.provider] = false;
+            flash(t('options.permissionNotGranted', { provider: providerLabel(target.dataset.provider) }), 'bad');
           }
         }
       }
-    } else if (t.dataset.row) {
-      s.showRows = { ...s.showRows, [t.dataset.row]: t.checked };
-    } else if (t.dataset.notif) {
-      s.notifications = { ...s.notifications, [t.dataset.notif]: t.checked };
-    } else if (t.id === 'refreshMinutes') {
-      s.refreshMinutes = parseInt(t.value, 10) || 5;
-    } else if (t.id === 'silentTabRefresh') {
-      s.silentTabRefresh = t.checked;
-    } else if (t.id === 'nativeSchedulerEnabled') {
-      s.nativeSchedulerEnabled = t.checked;
-    } else if (t.id === 'highContrast') {
-      s.highContrast = t.checked;
-    } else if (t.id === 'dailyBriefingHour') {
+    } else if (target.dataset.row) {
+      s.showRows = { ...s.showRows, [target.dataset.row]: target.checked };
+    } else if (target.dataset.notif) {
+      s.notifications = { ...s.notifications, [target.dataset.notif]: target.checked };
+    } else if (target.id === 'refreshMinutes') {
+      s.refreshMinutes = parseInt(target.value, 10) || 5;
+    } else if (target.id === 'silentTabRefresh') {
+      s.silentTabRefresh = target.checked;
+    } else if (target.id === 'nativeSchedulerEnabled') {
+      s.nativeSchedulerEnabled = target.checked;
+    } else if (target.id === 'highContrast') {
+      s.highContrast = target.checked;
+    } else if (target.id === 'dailyBriefingHour') {
       s.notifications = s.notifications || {};
-      s.notifications.dailyBriefingHour = parseInt(t.value, 10) || 8;
-    } else if (t.id === 'historyRetentionDays') {
-      s.historyRetentionDays = parseInt(t.value, 10) || 30;
-    } else if (t.id === 'theme') {
-      s.theme = t.value;
+      s.notifications.dailyBriefingHour = parseInt(target.value, 10) || 8;
+    } else if (target.id === 'historyRetentionDays') {
+      s.historyRetentionDays = parseInt(target.value, 10) || 30;
+    } else if (target.id === 'theme') {
+      s.theme = target.value;
       applyTheme(s);
-    } else if (t.id === 'locale') {
-      s.locale = t.value;
-    } else if (t.id === 'syncSettings') {
-      if (t.checked) {
+    } else if (target.id === 'locale') {
+      s.locale = target.value;
+      setActiveLocale(s.locale);
+    } else if (target.id === 'syncSettings') {
+      if (target.checked) {
         const remote = await loadSyncedSettings(state.profileId);
         if (remote) s = mergeSyncedSettings(s, remote);
       }
-      s.syncSettings = t.checked;
-    } else if (t.id === 'warnAt' || t.id === 'dangerAt') {
-      s.thresholds = readThresholdControls(t.id);
-    } else if (t.id === 'anomalyThresholdPercent') {
-      s.anomalyThresholdPercent = parseInt(t.value, 10) || 20;
-    } else if (t.id === 'webhookEnabled') {
-      let enabled = t.checked;
+      s.syncSettings = target.checked;
+    } else if (target.id === 'warnAt' || target.id === 'dangerAt') {
+      s.thresholds = readThresholdControls(target.id);
+    } else if (target.id === 'anomalyThresholdPercent') {
+      s.anomalyThresholdPercent = parseInt(target.value, 10) || 20;
+    } else if (target.id === 'webhookEnabled') {
+      let enabled = target.checked;
       if (enabled) {
         const permission = await requestWebhookHostPermission(s.notifications.webhookURL);
         if (!permission.ok) {
           enabled = false;
-          flash('Webhook needs a valid endpoint origin and permission', 'bad');
+          flash(t('options.webhookPermissionNeeded'), 'bad');
         }
       }
       s.notifications = { ...s.notifications, webhookEnabled: enabled };
-    } else if (t.id === 'webhookURL') {
-      const webhookURL = normalizeWebhookURL(t.value);
+    } else if (target.id === 'webhookURL') {
+      const webhookURL = normalizeWebhookURL(target.value);
       let enabled = s.notifications.webhookEnabled === true;
       if (s.notifications.webhookEnabled === true && webhookURL) {
         const permission = await requestWebhookHostPermission(webhookURL);
         if (!permission.ok) {
           enabled = false;
-          flash('Webhook endpoint permission was not granted', 'bad');
+          flash(t('options.webhookPermissionNotGranted'), 'bad');
         }
       }
       s.notifications = { ...s.notifications, webhookURL, webhookEnabled: enabled };
-    } else if (t.id === 'webhookIncludeDetails') {
-      s.notifications = { ...s.notifications, webhookIncludeDetails: t.checked };
-    } else if (t.id === 'sessionBudgetCap') {
-      s.apiBudget = { ...s.apiBudget, sessionCapUSD: normalizeBudgetCap(t.value) };
-    } else if (t.id === 'dailyBudgetCap') {
-      s.apiBudget = { ...s.apiBudget, dailyCapUSD: normalizeBudgetCap(t.value) };
-    } else if (t.id === 'collaborationEnabled') {
-      collaboration.enabled = t.checked;
+    } else if (target.id === 'webhookIncludeDetails') {
+      s.notifications = { ...s.notifications, webhookIncludeDetails: target.checked };
+    } else if (target.id === 'sessionBudgetCap') {
+      s.apiBudget = { ...s.apiBudget, sessionCapUSD: normalizeBudgetCap(target.value) };
+    } else if (target.id === 'dailyBudgetCap') {
+      s.apiBudget = { ...s.apiBudget, dailyCapUSD: normalizeBudgetCap(target.value) };
+    } else if (target.id === 'collaborationEnabled') {
+      collaboration.enabled = target.checked;
       collaborationChanged = true;
-    } else if (t.id === 'collaborationTeamName') {
-      collaboration.teamName = t.value;
+    } else if (target.id === 'collaborationTeamName') {
+      collaboration.teamName = target.value;
       collaborationChanged = true;
-    } else if (t.id === 'collaborationMemberName') {
-      collaboration.memberName = t.value;
+    } else if (target.id === 'collaborationMemberName') {
+      collaboration.memberName = target.value;
       collaborationChanged = true;
-    } else if (t.id === 'collaborationAttributionEnabled') {
-      collaboration.attribution = { ...collaboration.attribution, enabled: t.checked };
+    } else if (target.id === 'collaborationAttributionEnabled') {
+      collaboration.attribution = { ...collaboration.attribution, enabled: target.checked };
       collaborationChanged = true;
-    } else if (t.id === 'collaborationClientName' || t.id === 'collaborationProjectName' || t.id === 'collaborationBranchName') {
-      const key = t.id === 'collaborationClientName' ? 'clientName'
-        : t.id === 'collaborationProjectName' ? 'projectName' : 'branchName';
-      collaboration.attribution = { ...collaboration.attribution, [key]: t.value };
+    } else if (target.id === 'collaborationClientName' || target.id === 'collaborationProjectName' || target.id === 'collaborationBranchName') {
+      const key = target.id === 'collaborationClientName' ? 'clientName'
+        : target.id === 'collaborationProjectName' ? 'projectName' : 'branchName';
+      collaboration.attribution = { ...collaboration.attribution, [key]: target.value };
       collaborationChanged = true;
     } else {
       return;
@@ -944,10 +980,10 @@ function bindHandlers() {
     renderWebhookStatus(s);
     renderBudgetStatus(s, state.budget);
     if (collaborationChanged) await renderCollaboration();
-    flash('Saved just now');
+    flash(t('options.savedNow'));
     // Tell the background to reschedule alarms if interval changed.
     const runtime = getRuntime();
-    if ((t.id === 'refreshMinutes' || t.id === 'nativeSchedulerEnabled') && runtime?.sendMessage) {
+    if ((target.id === 'refreshMinutes' || target.id === 'nativeSchedulerEnabled') && runtime?.sendMessage) {
       sendRuntimeMessage({ type: 'aut/reschedule' }).catch(() => {});
     }
     if (runtime?.sendMessage) {
@@ -967,14 +1003,14 @@ function bindHandlers() {
       if (action === 'save' || action === 'refresh') {
         const value = input?.value?.trim() || '';
         if (!value) {
-          flash('Enter an API key first', 'bad');
+          flash(t('options.apiKeyRequired'), 'bad');
           return;
         }
         if (provider === 'github-copilot') {
           const organization = document.querySelector('[data-api-config="githubCopilotOrganization"]')?.value?.trim() || '';
           const username = document.querySelector('[data-api-config="githubCopilotUsername"]')?.value?.trim() || '';
           if (!organization || !username) {
-            flash('Enter the GitHub organization and username first', 'bad');
+            flash(t('options.copilotFieldsRequired'), 'bad');
             return;
           }
           state.settings = normalizeSettings(state.settings);
@@ -984,7 +1020,7 @@ function bindHandlers() {
         if (provider === 'gemini') {
           const projectId = document.querySelector('[data-api-config="geminiProjectId"]')?.value?.trim() || '';
           if (!projectId) {
-            flash('Enter the Google Cloud project ID first', 'bad');
+            flash(t('options.geminiProjectRequired'), 'bad');
             return;
           }
           state.settings = normalizeSettings(state.settings);
@@ -992,7 +1028,7 @@ function bindHandlers() {
         }
         const permission = await requestApiProviderHostPermission(provider);
         if (!permission.ok) {
-          flash(`${API_PROVIDER_META[provider]?.label || provider} host permission was not granted`, 'bad');
+          flash(t('options.permissionNotGranted', { provider: providerLabel(provider) }), 'bad');
           return;
         }
         await saveApiCredential(provider, value);
@@ -1000,11 +1036,11 @@ function bindHandlers() {
         if (input) input.value = '';
         await renderApiCredentials();
         if (action === 'refresh') await refreshApiProviderData();
-        else flash(`${API_PROVIDER_META[provider]?.label || provider} key saved`);
+        else flash(t('options.keySaved', { provider: providerLabel(provider) }));
       } else if (action === 'revoke') {
         await removeApiCredential(provider);
         const permission = await removeApiProviderHostPermission(provider);
-        if (!permission.ok) flash(`${API_PROVIDER_META[provider]?.label || provider} host permission could not be removed`, 'bad');
+        if (!permission.ok) flash(t('options.keyRemoveFailed', { provider: providerLabel(provider) }), 'bad');
         state.snapshot.providers[provider] = null;
         if (provider === 'github-copilot') {
           state.settings = normalizeSettings(state.settings);
@@ -1020,10 +1056,10 @@ function bindHandlers() {
         await renderRows();
         await renderDiagnostics();
         await renderApiBreakdown();
-        flash(`${API_PROVIDER_META[provider]?.label || provider} key revoked`);
+        flash(t('options.keyRevoked', { provider: providerLabel(provider) }));
       }
     } catch (error) {
-      flash(`API credential update failed: ${error?.message || 'unknown error'}`, 'bad');
+      flash(t('options.apiCredentialFailed', { error: error?.message || t('app.unknownError') }), 'bad');
     } finally {
       button.disabled = false;
     }
@@ -1034,7 +1070,7 @@ function bindHandlers() {
     state.widget = { x: null, y: null, minimized: false };
     await saveState(state);
     await renderDiagnostics();
-    flash('Widget reset');
+    flash(t('options.widgetReset'));
   });
 
   document.getElementById('snoozeNotifications').addEventListener('click', async () => {
@@ -1047,7 +1083,7 @@ function bindHandlers() {
     renderSnoozeStatus(s);
     await renderDiagnostics();
     sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
-    flash('Notifications snoozed for 1 hour');
+    flash(t('options.notificationsSnoozed'));
   });
 
   document.getElementById('clearSnooze').addEventListener('click', async () => {
@@ -1060,7 +1096,7 @@ function bindHandlers() {
     renderSnoozeStatus(s);
     await renderDiagnostics();
     sendRuntimeMessage({ type: 'aut/settings-updated' }).catch(() => {});
-    flash('Notifications resumed');
+    flash(t('options.notificationsResumed'));
   });
 
   document.getElementById('testNotification').addEventListener('click', async (event) => {
@@ -1071,14 +1107,14 @@ function bindHandlers() {
       const ok = permission.state === 'granted'
         && await notify({
           id: 'aut-test-notification',
-          title: 'AI Usage Tracker test alert',
-          body: 'Notification delivery is ready for the current browser context.',
+          title: t('options.testNotificationTitle'),
+          body: t('options.testNotificationBody'),
           tone: 'info',
         });
-      flash(ok ? 'Test notification sent' : 'Notification permission was not granted', ok ? 'good' : 'bad');
+      flash(ok ? t('options.testNotificationSent') : t('options.notificationPermissionNotGranted'), ok ? 'good' : 'bad');
       await renderNotificationPermission();
     } catch {
-      flash('Test notification failed', 'bad');
+      flash(t('options.testNotificationFailed'), 'bad');
     } finally {
       button.disabled = false;
     }
@@ -1092,13 +1128,13 @@ function bindHandlers() {
       const settings = normalizeSettings(state.settings);
       const url = normalizeWebhookURL(document.getElementById('webhookURL')?.value);
       if (!url) {
-        flash('Enter a valid HTTP(S) webhook URL first', 'bad');
+        flash(t('options.webhookURLRequired'), 'bad');
         return;
       }
       const now = new Date();
       const permission = await requestWebhookHostPermission(url);
       if (!permission.ok) {
-        flash('Webhook endpoint permission was not granted', 'bad');
+        flash(t('options.webhookPermissionNotGranted'), 'bad');
         return;
       }
       const result = await deliverWebhook({
@@ -1106,8 +1142,8 @@ function bindHandlers() {
         payload: buildWebhookPayload({
           ruleId: 'test',
           tone: 'info',
-          title: 'AI Usage Tracker webhook test',
-          body: 'Webhook delivery is configured.',
+          title: t('options.webhookTestTitle'),
+          body: t('options.webhookTestBody'),
         }, {
           includeDetails: settings.notifications.webhookIncludeDetails === true,
           now,
@@ -1125,9 +1161,9 @@ function bindHandlers() {
       await saveState(state);
       renderWebhookStatus(state.settings);
       await renderDiagnostics();
-      flash(result.ok ? 'Redacted webhook test delivered' : `Webhook test failed: ${result.errorCode || 'delivery failed'}`, result.ok ? 'good' : 'bad');
+      flash(result.ok ? t('options.webhookTestDelivered') : t('options.webhookTestFailed', { error: result.errorCode || t('app.deliveryFailed') }), result.ok ? 'good' : 'bad');
     } catch {
-      flash('Webhook test failed: delivery unavailable', 'bad');
+      flash(t('options.webhookTestUnavailable'), 'bad');
     } finally {
       button.disabled = false;
     }
@@ -1139,45 +1175,45 @@ function bindHandlers() {
     await saveState(state);
     renderBudgetStatus(state.settings, state.budget);
     await renderDiagnostics();
-    flash('Session spend baseline reset');
+    flash(t('options.budgetReset'));
   });
 
   document.getElementById('exportHistory').addEventListener('click', async () => {
     const state = await loadState();
     downloadHistory(state.history || []);
-    flash('History CSV download started');
+    flash(t('options.historyDownload'));
   });
 
   document.getElementById('exportApiBreakdown')?.addEventListener('click', async () => {
     const state = await loadState();
     const breakdown = buildApiBreakdown(state.snapshot);
     if (!breakdown.rows.length) {
-      flash('No API breakdown is available yet', 'bad');
+      flash(t('options.noBreakdown'), 'bad');
       return;
     }
     downloadApiBreakdown(breakdown);
-    flash('Redacted API breakdown CSV download started');
+    flash(t('options.breakdownDownload'));
   });
 
   document.getElementById('compactHistory').addEventListener('click', async () => {
-    if (!confirmAction('Export a CSV before compacting? Compaction keeps representative samples and cannot be undone.')) return;
+    if (!confirmAction(t('options.compactConfirm'))) return;
     const state = await loadState();
     const retentionDays = normalizeSettings(state.settings).historyRetentionDays;
     state.history = compactHistory(state.history || [], { retentionDays });
     await saveState(state);
     await renderHistoryStatus();
     await renderDiagnostics();
-    flash('History compacted');
+    flash(t('options.historyCompacted'));
   });
 
   document.getElementById('clearHistory').addEventListener('click', async () => {
-    if (!confirmAction('Clear all local history? Export a CSV first if you may need these samples later.')) return;
+    if (!confirmAction(t('options.clearHistoryConfirm'))) return;
     const state = await loadState();
     state.history = [];
     await saveState(state);
     await renderHistoryStatus();
     await renderDiagnostics();
-    flash('History cleared');
+    flash(t('options.historyCleared'));
   });
 
   const settingsImportFile = document.getElementById('settingsImportFile');
@@ -1186,8 +1222,8 @@ function bindHandlers() {
     const includeHistory = document.getElementById('includeHistoryInSettings').checked;
     downloadSettings(exportSettings(state, { includeHistory }));
     document.getElementById('settingsTransferStatus').textContent = includeHistory
-      ? 'Settings and history JSON download started.'
-      : 'Settings JSON download started; history was omitted.';
+      ? t('options.settingsDownloadWithHistory')
+      : t('options.settingsDownload');
   });
   document.getElementById('importSettings').addEventListener('click', () => settingsImportFile.click());
   settingsImportFile.addEventListener('change', async () => {
@@ -1202,12 +1238,12 @@ function bindHandlers() {
       await renderHistoryStatus();
       await renderDiagnostics();
       document.getElementById('settingsTransferStatus').textContent = includeHistory
-        ? 'Settings import applied, including history when present.'
-        : 'Settings import applied; existing history was preserved.';
-      flash('Settings imported');
+        ? t('options.settingsImportWithHistory')
+        : t('options.settingsImport');
+      flash(t('options.settingsImported'));
     } catch (error) {
-      document.getElementById('settingsTransferStatus').textContent = `Import rejected: ${error?.message || 'invalid file'}`;
-      flash('Settings import rejected', 'bad');
+      document.getElementById('settingsTransferStatus').textContent = t('options.settingsImportRejected', { error: error?.message || t('app.invalidFile') });
+      flash(t('options.settingsRejected'), 'bad');
     } finally {
       settingsImportFile.value = '';
     }
@@ -1222,11 +1258,11 @@ function bindHandlers() {
         await renderRows();
         await renderDiagnostics();
         await loadCurrent();
-        flash('Claude org cache cleared and usage refreshed');
+        flash(t('options.orgCleared'));
         btn.disabled = false;
       }, 1000);
     } catch (err) {
-      flash(`Reset failed: ${String(err?.message || err)}`, 'bad');
+      flash(t('options.resetFailed', { error: String(err?.message || err) }), 'bad');
       btn.disabled = false;
     }
   });
@@ -1240,11 +1276,11 @@ function bindHandlers() {
         await renderRows();
         await renderDiagnostics();
         await loadCurrent();
-        flash('Snapshot refreshed');
+        flash(t('options.snapshotRefreshed'));
         btn.disabled = false;
       }, 800);
     } catch (err) {
-      flash(`Refresh failed: ${String(err?.message || err)}`, 'bad');
+      flash(t('options.refreshFailed', { error: String(err?.message || err) }), 'bad');
       btn.disabled = false;
     }
   });
@@ -1255,9 +1291,9 @@ function bindHandlers() {
     const text = JSON.stringify(buildDiagnosticsBundle(state, usage), null, 2);
     try {
       await navigator.clipboard.writeText(text);
-      flash('Redacted diagnostics copied');
+      flash(t('options.diagnosticsCopied'));
     } catch {
-      flash('Clipboard unavailable', 'bad');
+      flash(t('options.clipboardUnavailable'), 'bad');
     }
   });
 
@@ -1265,20 +1301,20 @@ function bindHandlers() {
     const state = await loadState();
     const usage = await getStorageUsage(state);
     downloadDiagnostics(buildDiagnosticsBundle(state, usage));
-    flash('Redacted diagnostics download started');
+    flash(t('options.diagnosticsDownload'));
   });
 
   document.getElementById('exportMcpState')?.addEventListener('click', async () => {
     const state = await loadState();
     downloadMcpState(exportMcpState(state));
-    flash('Redacted MCP state download started');
+    flash(t('options.mcpDownload'));
   });
 
   document.getElementById('exportCollaborationContribution')?.addEventListener('click', async () => {
     const state = await loadState();
     const collaboration = normalizeCollaborationState(state.collaboration);
     if (!collaboration.enabled) {
-      flash('Enable the local team dashboard first', 'bad');
+      flash(t('options.enableTeamFirst'), 'bad');
       return;
     }
     const payload = buildCollaborationContribution(state.snapshot, {
@@ -1293,37 +1329,37 @@ function bindHandlers() {
       now: new Date(),
     });
     if (!payload.contribution.providers.length) {
-      flash('No cost-bearing API usage is available for this contribution', 'bad');
+      flash(t('options.noContributionUsage'), 'bad');
       return;
     }
     downloadCollaboration(payload, 'contribution');
-    flash('Redacted team contribution download started');
+    flash(t('options.contributionDownload'));
   });
 
   document.getElementById('exportCollaborationLedger')?.addEventListener('click', async () => {
     const state = await loadState();
     const collaboration = normalizeCollaborationState(state.collaboration);
     if (!collaboration.ledger.contributions.length) {
-      flash('No local team contributions are available yet', 'bad');
+      flash(t('options.noTeamContributions'), 'bad');
       return;
     }
     downloadCollaboration(buildCollaborationLedger(collaboration), 'ledger');
-    flash('Local team ledger download started');
+    flash(t('options.ledgerDownload'));
   });
 
   document.getElementById('exportCollaborationInvoice')?.addEventListener('click', async () => {
     const state = await loadState();
     const collaboration = normalizeCollaborationState(state.collaboration);
     if (!buildCollaborationInvoiceRows(collaboration).length) {
-      flash('No opt-in attribution rows are available yet', 'bad');
+      flash(t('options.noAttributionRows'), 'bad');
       return;
     }
     downloadCollaborationCSV(collaboration);
-    flash('Invoicing CSV download started');
+    flash(t('options.invoiceDownload'));
   });
 
   document.getElementById('clearCollaboration')?.addEventListener('click', async () => {
-    if (!confirmAction('Clear all locally imported team contributions? This does not affect personal usage history or provider data.')) return;
+    if (!confirmAction(t('options.clearTeamConfirm'))) return;
     const state = await loadState();
     const collaboration = normalizeCollaborationState(state.collaboration);
     state.collaboration = normalizeCollaborationState({
@@ -1334,7 +1370,7 @@ function bindHandlers() {
     });
     await saveState(state);
     await renderCollaboration();
-    flash('Local team ledger cleared');
+    flash(t('options.teamCleared'));
   });
 
   const collaborationImportFile = document.getElementById('collaborationImportFile');
@@ -1347,9 +1383,9 @@ function bindHandlers() {
       state.collaboration = mergeCollaborationImport(state.collaboration, await file.text());
       await saveState(state);
       await renderCollaboration();
-      flash('Team contribution imported locally');
+      flash(t('options.teamImported'));
     } catch (error) {
-      flash(`Team import rejected: ${error?.message || 'invalid file'}`, 'bad');
+      flash(t('options.teamImportRejected', { error: error?.message || t('app.invalidFile') }), 'bad');
     } finally {
       collaborationImportFile.value = '';
     }
@@ -1364,15 +1400,19 @@ export async function renderDiagnostics() {
   const usage = await getStorageUsage(state);
   const diag = buildDiagnostics(state, usage);
   clearChildren(wrap);
-  addDiagnostic(wrap, 'Snapshot', diag.snapshot);
+  addDiagnostic(wrap, t('options.diagnosticsSnapshot'), diag.snapshot);
   for (const [provider, providerDiag] of Object.entries(diag.providers)) {
     addDiagnostic(wrap, providerLabel(provider), providerDiag.summary, providerDiag.ok ? 'good' : 'bad');
   }
-  addDiagnostic(wrap, 'Rows', diag.rows);
-  addDiagnostic(wrap, 'Appearance', `${diag.settings.theme}; warn ${diag.settings.thresholds.warnAt}% / danger ${diag.settings.thresholds.dangerAt}%`);
-  addDiagnostic(wrap, 'History', diag.history);
-  addDiagnostic(wrap, 'Storage', diag.storage);
-  addDiagnostic(wrap, 'Alerts', diag.notifications.summary, diag.notifications.snoozed ? 'warn' : 'good');
+  addDiagnostic(wrap, t('options.diagnosticsRows'), diag.rows);
+  addDiagnostic(wrap, t('options.diagnosticsAppearance'), t('options.diagnosticsAppearanceValue', {
+    theme: diag.settings.theme,
+    warn: diag.settings.thresholds.warnAt,
+    danger: diag.settings.thresholds.dangerAt,
+  }));
+  addDiagnostic(wrap, t('options.diagnosticsHistory'), diag.history);
+  addDiagnostic(wrap, t('options.diagnosticsStorage'), diag.storage);
+  addDiagnostic(wrap, t('options.diagnosticsAlerts'), diag.notifications.summary, diag.notifications.snoozed ? 'warn' : 'good');
 }
 
 function addDiagnostic(wrap, key, value, tone = '') {
@@ -1396,16 +1436,20 @@ async function renderHistoryStatus() {
   const stats = historyStats(state.history || []);
   const usage = await getStorageUsage(state);
   const warning = usage.degraded || usage.warningCode;
-  const warningText = warning
-    ? ' Storage protection is active; older or redundant history is compacted automatically.'
-    : '';
-  wrap.textContent = `${stats.sampleCount} samples across ${stats.bucketCount} buckets. Retaining ${settings.historyRetentionDays} days. ${formatStorageUsage(usage)}.${warningText}`;
+  const warningText = warning ? t('options.storageProtection') : '';
+  wrap.textContent = t('options.historyStatus', {
+    samples: activeI18n.tp('plural.sample', stats.sampleCount),
+    buckets: activeI18n.tp('plural.bucket', stats.bucketCount),
+    days: activeI18n.tp('plural.day', settings.historyRetentionDays),
+    storage: formatStorageUsage(usage),
+    warning: warningText,
+  });
   wrap.className = `opt-callout ${warning ? 'opt-callout--warn' : 'opt-callout--good'}`;
 }
 
 function downloadHistory(history) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([historyToCSV(history)], { type: 'text/csv;charset=utf-8' });
@@ -1422,7 +1466,7 @@ function downloadHistory(history) {
 
 function downloadApiBreakdown(breakdown) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([apiBreakdownToCSV(breakdown)], { type: 'text/csv;charset=utf-8' });
@@ -1439,7 +1483,7 @@ function downloadApiBreakdown(breakdown) {
 
 function downloadSettings(payload) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -1456,7 +1500,7 @@ function downloadSettings(payload) {
 
 function downloadDiagnostics(bundle) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -1473,7 +1517,7 @@ function downloadDiagnostics(bundle) {
 
 function downloadMcpState(payload) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -1490,7 +1534,7 @@ function downloadMcpState(payload) {
 
 function downloadCollaboration(payload, kind) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -1507,7 +1551,7 @@ function downloadCollaboration(payload, kind) {
 
 function downloadCollaborationCSV(collaboration) {
   if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    flash('Download unavailable', 'bad');
+    flash(t('app.downloadUnavailable'), 'bad');
     return;
   }
   const blob = new Blob([collaborationToCSV(collaboration)], { type: 'text/csv;charset=utf-8' });
@@ -1531,16 +1575,16 @@ function confirmAction(message) {
 function formatStorageUsage(usage = {}) {
   const bytes = formatBytes(usage.bytes);
   const base = usage.quotaBytes
-    ? `${bytes} of ${formatBytes(usage.quotaBytes)} (${usage.source})`
-    : `${bytes} (${usage.source})`;
-  return usage.warningCode ? `${base}; ${usage.warningCode}` : base;
+    ? t('options.storageOf', { used: bytes, quota: formatBytes(usage.quotaBytes), source: storageSourceLabel(usage.source) })
+    : t('options.storageSimple', { used: bytes, source: storageSourceLabel(usage.source) });
+  return usage.warningCode ? `${base}${t('options.storageWarning', { warning: usage.warningCode })}` : base;
 }
 
 function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return 'unknown size';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (!Number.isFinite(bytes)) return t('app.unknownSize');
+  if (bytes < 1024) return `${activeI18n.formatNumber(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${activeI18n.formatNumber(bytes / 1024, { maximumFractionDigits: 1 })} KB`;
+  return `${activeI18n.formatNumber(bytes / (1024 * 1024), { maximumFractionDigits: 1 })} MB`;
 }
 
 export function buildDiagnostics(state, usage = {}) {
@@ -1554,12 +1598,12 @@ export function buildDiagnostics(state, usage = {}) {
   const historyWarning = usage.warningCode ? `; ${usage.warningCode}` : '';
   return {
     version: VERSION,
-    snapshot: state.snapshot?.fetchedAtISO ? `Updated ${formatAgo(state.snapshot.fetchedAtISO)}` : 'No successful snapshot yet',
+    snapshot: state.snapshot?.fetchedAtISO ? t('updated.prefix', { relative: formatAgo(state.snapshot.fetchedAtISO) }) : t('sidepanel.noSnapshot'),
     providers: Object.fromEntries(Object.entries(providers).map(([provider, snapshot]) => [
       provider,
       providerDiagnostic(provider, snapshot),
     ])),
-    rows: `${rows} discovered rows; ${visibleRowCount(state)} visible by current settings`,
+    rows: t('options.discoveredRows', { discovered: rows, visible: visibleRowCount(state) }),
     settings: {
       refreshMinutes: settings.refreshMinutes,
       silentTabRefresh: settings.silentTabRefresh === true,
@@ -1568,7 +1612,7 @@ export function buildDiagnostics(state, usage = {}) {
       thresholds,
       providers: settings.showProviders,
     },
-    history: `${history.sampleCount} samples across ${history.bucketCount} buckets; ${settings.historyRetentionDays} day retention${historyWarning}`,
+    history: `${activeI18n.tp('plural.sample', history.sampleCount)} · ${activeI18n.tp('plural.bucket', history.bucketCount)} · ${t('options.retention', { days: activeI18n.tp('plural.day', settings.historyRetentionDays) })}${historyWarning}`,
     storage: formatStorageUsage(usage),
     notifications: notificationDiagnostic(settings),
   };
@@ -1592,15 +1636,15 @@ function notificationDiagnostic(settings = {}) {
   const ts = until ? new Date(until).getTime() : 0;
   const snoozed = Number.isFinite(ts) && ts > Date.now();
   let summary = snoozed
-    ? `Snoozed until ${new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-    : 'Active';
+    ? t('options.notificationSnoozed', { time: activeI18n.formatTime(new Date(ts).toISOString()) })
+    : t('options.notificationActive');
   if (notifications.webhookEnabled === true) {
     if (notifications.webhookLastErrorCode) {
-      summary += `; webhook failed (${notifications.webhookLastErrorCode})`;
+      summary += t('options.webhookFailedDiagnostic', { code: notifications.webhookLastErrorCode });
     } else if (notifications.webhookLastSuccessISO) {
-      summary += `; webhook delivered ${formatAgo(notifications.webhookLastSuccessISO)}`;
+      summary += t('options.webhookDeliveredDiagnostic', { relative: formatAgo(notifications.webhookLastSuccessISO) });
     } else {
-      summary += '; webhook enabled with redacted payloads';
+      summary += t('options.webhookEnabledDiagnostic');
     }
   }
   return {
@@ -1610,29 +1654,29 @@ function notificationDiagnostic(settings = {}) {
 }
 
 function formatUSD(value) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value) || 0);
+  return activeI18n.formatCurrency(value, 'USD', 2);
 }
 
 function formatCount(value) {
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value) || 0);
+  return activeI18n.formatNumber(value, { maximumFractionDigits: 0 });
 }
 
 function providerDiagnostic(provider, ps) {
-  if (!ps) return { ok: false, summary: 'No local snapshot yet' };
+  if (!ps) return { ok: false, summary: t('options.noSnapshot') };
   if (!ps.ok && !ps.stale) return {
     ok: false,
-    summary: formatProviderError(ps.lastErrorDetail || ps.error || 'Last refresh failed', ps.lastErrorCode),
+    summary: formatProviderError(ps.lastErrorDetail || ps.error || t('options.lastRefreshFailed'), ps.lastErrorCode),
   };
   const parts = [
-    `${ps.buckets?.length || 0} rows`,
+    t('options.providerRows', { count: ps.buckets?.length || 0 }),
     sourceLabel(ps.lastSuccessSource || ps.source),
   ];
-  if (provider === 'claude' && ps.orgId) parts.push(`org ${shortId(ps.orgId)}`);
+  if (provider === 'claude' && ps.orgId) parts.push(t('options.org', { id: shortId(ps.orgId) }));
   if (ps.plan) parts.push(ps.plan);
-  if (ps.lastSuccessISO) parts.push(`fresh ${formatAgo(ps.lastSuccessISO)}`);
+  if (ps.lastSuccessISO) parts.push(t('options.fresh', { relative: formatAgo(ps.lastSuccessISO) }));
   if (ps.stale) {
     const reason = ps.staleReason ? `; ${ps.staleReason}` : '';
-    parts.push(`(stale - ${formatProviderError(`last fetch failed${reason}`, ps.lastErrorCode)})`);
+    parts.push(t('options.staleDiagnostic', { detail: formatProviderError(`${t('options.lastRefreshFailed')}${reason}`, ps.lastErrorCode) }));
   }
   return { ok: !ps.stale && ps.ok !== false, summary: parts.filter(Boolean).join(' - ') };
 }
@@ -1654,22 +1698,29 @@ function visibleRowCount(state) {
 }
 
 function sourceLabel(source) {
-  if (!source) return 'unknown source';
-  if (source === 'api') return 'API source';
-  if (source === 'dom') return 'rendered page source';
-  if (source === 'html') return 'HTML fallback';
-  if (source === 'live') return 'live content source';
-  if (source === 'fetch') return 'fetch source';
-  if (source === 'stream') return 'streamed message-limit source';
-  if (source === 'headers') return 'rate-limit headers source';
-  if (source === 'api-key') return 'official API key source';
-  return `${source} source`;
+  if (!source) return t('options.unknownSource');
+  const keys = {
+    api: 'options.apiSource', dom: 'options.pageSource', html: 'options.htmlSource', live: 'options.liveSource',
+    fetch: 'options.fetchSource', stream: 'options.streamSource', headers: 'options.headersSource', 'api-key': 'options.apiKeySource',
+  };
+  return keys[source] ? t(keys[source]) : t('options.sourceSuffix', { source });
 }
 
 function providerLabel(provider) {
-  if (provider === 'claude') return 'Claude';
-  if (provider === 'codex') return 'Codex';
-  return API_PROVIDER_META[provider]?.label || provider;
+  return t(`provider.${provider}`) === `provider.${provider}` ? API_PROVIDER_META[provider]?.label || provider : t(`provider.${provider}`);
+}
+
+function providerMetaText(provider, field) {
+  const key = `providerMeta.${provider}.${field}`;
+  const localized = t(key);
+  return localized === key ? API_PROVIDER_META[provider]?.[field] || '' : localized;
+}
+
+function storageSourceLabel(source) {
+  if (source === 'webext') return t('options.storageSource.webext');
+  if (source === 'unavailable') return t('options.storageSource.unavailable');
+  if (String(source || '').endsWith('-estimate')) return t('options.storageSource.estimate');
+  return t('options.storageSource.unknown', { source: source || t('app.unknown') });
 }
 
 async function refreshApiProviderData() {
@@ -1678,9 +1729,9 @@ async function refreshApiProviderData() {
     await renderRows();
     await renderDiagnostics();
     await loadCurrent();
-    flash('Official API data refreshed');
+    flash(t('options.apiRefreshed'));
   } catch (error) {
-    flash(`API refresh failed: ${error?.message || 'unknown error'}`, 'bad');
+    flash(t('options.apiRefreshFailed', { error: error?.message || t('app.unknownError') }), 'bad');
   }
 }
 
@@ -1692,14 +1743,7 @@ function shortId(id) {
 
 function formatAgo(iso) {
   const ms = Date.now() - new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return 'at unknown time';
-  const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  return Number.isFinite(ms) ? activeI18n.formatRelative(iso) : t('app.timeUnavailable');
 }
 
 function sendRuntimeMessage(message) {
@@ -1732,7 +1776,7 @@ function flash(text, tone = 'good') {
   saveStatus.textContent = text;
   saveStatus.style.color = tone === 'bad' ? 'var(--aut-red)' : 'var(--aut-green)';
   setTimeout(() => {
-    saveStatus.textContent = 'Ready';
+    saveStatus.textContent = t('app.ready');
     saveStatus.style.color = '';
   }, 1400);
 }
