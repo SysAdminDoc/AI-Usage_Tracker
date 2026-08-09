@@ -103,6 +103,7 @@ export interface TrackerSettings {
   historyRetentionDays: 7 | 14 | 30 | 60 | 90;
   apiBudget: ApiBudgetSettings;
   syncSettings?: boolean;
+  apiCredentialStorageMode?: 'session' | 'persistent';
   githubCopilotOrganization?: string;
   githubCopilotUsername?: string;
   geminiProjectId?: string;

@@ -64,6 +64,14 @@
       <h2 data-i18n="options.apiTitle"></h2>
       <p class="opt-hint" data-i18n="options.apiHint"></p>
       <div id="apiCredentialsStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingCredentials"></div>
+      <div class="opt-row opt-row--wrap">
+        <label for="apiCredentialStorageMode" data-i18n="options.credentialStorageMode"></label>
+        <select id="apiCredentialStorageMode" class="opt-select aut-field">
+          <option value="session" data-i18n="options.credentialStorageSessionOption"></option>
+          <option value="persistent" data-i18n="options.credentialStoragePersistentOption"></option>
+        </select>
+      </div>
+      <div id="apiCredentialStorageStatus" class="opt-callout" role="status" aria-live="polite" data-i18n="options.loadingCredentialStorage"></div>
       <div id="api-credentials" class="api-credential-grid"></div>
       <div class="opt-divider"></div>
       <h3 data-i18n="options.redactedBreakdown"></h3>

@@ -31,6 +31,7 @@ export function normalizeSettings(input = {}) {
   next.nativeSchedulerEnabled = next.nativeSchedulerEnabled === true;
   next.highContrast = next.highContrast === true;
   next.syncSettings = next.syncSettings === true;
+  next.apiCredentialStorageMode = next.apiCredentialStorageMode === 'persistent' ? 'persistent' : 'session';
   next.githubCopilotOrganization = sanitizeIdentifier(next.githubCopilotOrganization);
   next.githubCopilotUsername = sanitizeIdentifier(next.githubCopilotUsername);
   next.geminiProjectId = sanitizeProjectIdentifier(next.geminiProjectId);

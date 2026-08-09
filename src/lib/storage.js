@@ -30,10 +30,17 @@ export const SYNC_SETTINGS_VERSION = 1;
 const DEFAULT_PROFILE_ID = 'default';
 const PROFILE_NAME_MAX = 48;
 export const API_CREDENTIAL_PROVIDERS = API_PROVIDER_IDS;
+export const API_CREDENTIAL_STORAGE_MODE_SESSION = 'session';
+export const API_CREDENTIAL_STORAGE_MODE_PERSISTENT = 'persistent';
+export const API_CREDENTIAL_STORAGE_MODES = Object.freeze([
+  API_CREDENTIAL_STORAGE_MODE_SESSION,
+  API_CREDENTIAL_STORAGE_MODE_PERSISTENT,
+]);
 export const SETTINGS_EXPORT_SCHEMA = 'ai-usage-tracker.settings';
 export const SETTINGS_EXPORT_VERSION = 1;
 
 const adapter = pickAdapter();
+const credentialMemoryStore = new Map();
 
 function pickAdapter() {
   // 1) WebExtensions (Chrome + Firefox MV3 expose browser/chrome.storage).
@@ -343,6 +350,10 @@ function getWebExtensionStorage() {
     || null;
 }
 
+function getWebExtensionSessionStorage() {
+  return getWebExtensionStorage()?.session || null;
+}
+
 function getWebExtensionSyncStorage() {
   return getWebExtensionStorage()?.sync || null;
 }
@@ -553,6 +564,9 @@ async function ensureProfileRegistry() {
       if (Object.keys(legacyCredentials).length) {
         await adapter.set(profileCredentialsStorageKey(DEFAULT_PROFILE_ID), legacyCredentials);
       }
+      if (typeof adapter.remove === 'function') {
+        try { await adapter.remove(API_CREDENTIALS_KEY); } catch { /* legacy cleanup is best effort */ }
+      }
     }
   } catch (error) {
     console.warn('[AUT] Profile registry migration failed:', error);
@@ -641,10 +655,8 @@ export async function deleteProfile(profileId) {
     profiles,
   };
   await adapter.set(getProfileRegistryStorageKey(), next);
-  if (typeof adapter.remove === 'function') {
-    await adapter.remove(profileStateStorageKey(id));
-    await adapter.remove(profileCredentialsStorageKey(id));
-  }
+  if (typeof adapter.remove === 'function') await adapter.remove(profileStateStorageKey(id));
+  await clearApiCredentialCopies(id);
   return cloneJSON(next);
 }
 
@@ -756,14 +768,194 @@ export async function patchState(patch) {
 }
 
 /**
- * API credentials live in a separate local-only record. They are deliberately
- * not part of TrackerState, so settings/history exports and support bundles
- * cannot include them by accident.
+ * API credentials live outside TrackerState. The privacy-first default keeps
+ * them in WebExtension session storage, or an in-memory map when that API is
+ * unavailable. Persistent local storage is retained only as an explicit
+ * compatibility mode and is never part of sync/export/diagnostics payloads.
  */
+export function normalizeApiCredentialStorageMode(value) {
+  return value === API_CREDENTIAL_STORAGE_MODE_PERSISTENT
+    ? API_CREDENTIAL_STORAGE_MODE_PERSISTENT
+    : API_CREDENTIAL_STORAGE_MODE_SESSION;
+}
+
+function isPersistentCredentialAdapterAvailable() {
+  return adapter.type !== 'memory';
+}
+
+function isSessionCredentialStorageAvailable() {
+  const session = getWebExtensionSessionStorage();
+  return !!(session?.get && session?.set && session?.remove);
+}
+
+function describeCredentialStorageMode(requestedMode) {
+  const requested = normalizeApiCredentialStorageMode(requestedMode);
+  const sessionAvailable = isSessionCredentialStorageAvailable();
+  const persistentAvailable = isPersistentCredentialAdapterAvailable();
+  let mode = 'memory';
+  let recovery = 'Credentials stay in memory only and must be entered again when this context ends.';
+  if (requested === API_CREDENTIAL_STORAGE_MODE_PERSISTENT && persistentAvailable) {
+    mode = API_CREDENTIAL_STORAGE_MODE_PERSISTENT;
+    recovery = 'Credentials survive browser restarts on this profile, but remain local and are never synced or exported.';
+  } else if (requested === API_CREDENTIAL_STORAGE_MODE_SESSION && sessionAvailable) {
+    mode = API_CREDENTIAL_STORAGE_MODE_SESSION;
+    recovery = 'Credentials stay in browser memory and are cleared when the browser or extension session ends; enter them again afterward.';
+  }
+  return {
+    requestedMode: requested,
+    mode,
+    sessionAvailable,
+    persistentAvailable,
+    storage: mode,
+    export: 'omitted',
+    sync: 'omitted',
+    recovery,
+  };
+}
+
+export async function getApiCredentialStorageStatus(profileId = null) {
+  const id = profileId || await getActiveProfileId();
+  return { profileId: id, ...describeCredentialStorageMode(await readProfileCredentialStorageMode(id)) };
+}
+
+async function readProfileCredentialStorageMode(profileId) {
+  try {
+    const state = await adapter.get(profileStateStorageKey(profileId));
+    return normalizeApiCredentialStorageMode(state?.settings?.apiCredentialStorageMode);
+  } catch {
+    return API_CREDENTIAL_STORAGE_MODE_SESSION;
+  }
+}
+
+function credentialStorageKey(profileId) {
+  return profileCredentialsStorageKey(profileId);
+}
+
+async function readCredentialRecord(area, key) {
+  if (!area?.get) return { map: {}, present: false };
+  try {
+    const result = await invokeWebExtension(area, 'get', [key]);
+    const raw = result?.[key];
+    return { map: normalizeCredentialMap(raw), present: raw != null };
+  } catch (error) {
+    console.warn('[AUT] API credential area read failed:', error);
+    return { map: {}, present: false };
+  }
+}
+
+async function readPersistentCredentialRecord(key) {
+  try {
+    const raw = await adapter.get(key);
+    return { map: normalizeCredentialMap(raw), present: raw != null };
+  } catch (error) {
+    console.warn('[AUT] API credential map read failed:', error);
+    return { map: {}, present: false };
+  }
+}
+
+async function readCredentialSources(profileId) {
+  const key = credentialStorageKey(profileId);
+  const session = await readCredentialRecord(getWebExtensionSessionStorage(), key);
+  const memoryValue = credentialMemoryStore.get(key);
+  const sources = {
+    persistent: await readPersistentCredentialRecord(key),
+    session,
+    memory: { map: normalizeCredentialMap(memoryValue), present: memoryValue != null },
+    legacy: { map: {}, present: false },
+  };
+  if (getStorageScope() === STORAGE_SCOPE_REGULAR && profileId === DEFAULT_PROFILE_ID) {
+    sources.legacy = await readPersistentCredentialRecord(API_CREDENTIALS_KEY);
+  }
+  return sources;
+}
+
+function credentialSourceOrder(storageStatus) {
+  if (storageStatus.mode === API_CREDENTIAL_STORAGE_MODE_PERSISTENT) {
+    return ['persistent', 'session', 'memory', 'legacy'];
+  }
+  if (storageStatus.mode === API_CREDENTIAL_STORAGE_MODE_SESSION) {
+    return ['session', 'memory', 'persistent', 'legacy'];
+  }
+  return ['memory', 'session', 'persistent', 'legacy'];
+}
+
+function mergeCredentialSources(sources, order) {
+  return Object.fromEntries(API_CREDENTIAL_PROVIDERS.flatMap((provider) => {
+    for (const source of order) {
+      const value = sources[source]?.map?.[provider];
+      if (typeof value === 'string' && value.trim()) return [[provider, value.trim()]];
+    }
+    return [];
+  }));
+}
+
+function credentialMapsEqual(left, right) {
+  return JSON.stringify(left || {}) === JSON.stringify(right || {});
+}
+
+async function removeCredentialSource(profileId, source) {
+  const key = credentialStorageKey(profileId);
+  if (source === 'persistent') {
+    if (typeof adapter.remove === 'function') await adapter.remove(key);
+  } else if (source === 'session') {
+    const session = getWebExtensionSessionStorage();
+    if (session?.remove) await invokeWebExtension(session, 'remove', [key]);
+  } else if (source === 'memory') {
+    credentialMemoryStore.delete(key);
+  } else if (source === 'legacy' && getStorageScope() === STORAGE_SCOPE_REGULAR && profileId === DEFAULT_PROFILE_ID) {
+    if (typeof adapter.remove === 'function') await adapter.remove(API_CREDENTIALS_KEY);
+  }
+}
+
+async function writeCredentialTarget(profileId, credentials, storageStatus) {
+  const key = credentialStorageKey(profileId);
+  const normalized = normalizeCredentialMap(credentials);
+  if (storageStatus.mode === API_CREDENTIAL_STORAGE_MODE_PERSISTENT) {
+    if (Object.keys(normalized).length) await adapter.set(key, normalized);
+    else await removeCredentialSource(profileId, 'persistent');
+  } else if (storageStatus.mode === API_CREDENTIAL_STORAGE_MODE_SESSION) {
+    const session = getWebExtensionSessionStorage();
+    if (Object.keys(normalized).length) await invokeWebExtension(session, 'set', [{ [key]: normalized }]);
+    else await removeCredentialSource(profileId, 'session');
+  } else {
+    if (Object.keys(normalized).length) credentialMemoryStore.set(key, normalized);
+    else credentialMemoryStore.delete(key);
+  }
+}
+
+async function replaceCredentialCopies(profileId, credentials, storageStatus) {
+  const target = storageStatus.mode;
+  await writeCredentialTarget(profileId, credentials, storageStatus);
+  for (const source of ['persistent', 'session', 'memory', 'legacy']) {
+    if (source !== target) await removeCredentialSource(profileId, source);
+  }
+}
+
+async function clearApiCredentialCopies(profileId) {
+  for (const source of ['persistent', 'session', 'memory', 'legacy']) {
+    await removeCredentialSource(profileId, source);
+  }
+}
+
+/** Move credentials between the selected storage mode and the available fallback. */
+export async function setApiCredentialStorageMode(mode) {
+  const requestedMode = normalizeApiCredentialStorageMode(mode);
+  const profileId = await getActiveProfileId();
+  const targetStatus = describeCredentialStorageMode(requestedMode);
+  const sources = await readCredentialSources(profileId);
+  const credentials = mergeCredentialSources(sources, credentialSourceOrder(targetStatus));
+  await replaceCredentialCopies(profileId, credentials, targetStatus);
+
+  const state = await loadState();
+  state.settings = { ...state.settings, apiCredentialStorageMode: requestedMode };
+  await saveState(state);
+  return getApiCredentialStorageStatus(profileId);
+}
+
 export async function loadApiCredential(provider) {
   if (!API_CREDENTIAL_PROVIDERS.includes(provider)) return null;
   try {
-    const credentials = await adapter.get(profileCredentialsStorageKey(await getActiveProfileId()));
+    const credentials = await readApiCredentials(await getActiveProfileId());
     const value = credentials?.[provider];
     return typeof value === 'string' && value.trim() ? value.trim() : null;
   } catch (error) {
@@ -779,34 +971,50 @@ export async function saveApiCredential(provider, credential) {
   if (value.length > 4096) throw new Error('API credential is too long');
 
   const profileId = await getActiveProfileId();
+  const storageStatus = await getApiCredentialStorageStatus(profileId);
   const credentials = await readApiCredentials(profileId);
   credentials[provider] = value;
-  await adapter.set(profileCredentialsStorageKey(profileId), credentials);
-  return { configured: true };
+  await replaceCredentialCopies(profileId, credentials, storageStatus);
+  return { configured: true, storage: storageStatus.mode };
 }
 
 export async function removeApiCredential(provider) {
   assertApiCredentialProvider(provider);
   const profileId = await getActiveProfileId();
+  const storageStatus = await getApiCredentialStorageStatus(profileId);
   const credentials = await readApiCredentials(profileId);
   delete credentials[provider];
-  await adapter.set(profileCredentialsStorageKey(profileId), credentials);
-  return { configured: false };
+  await replaceCredentialCopies(profileId, credentials, storageStatus);
+  return { configured: false, storage: storageStatus.mode };
 }
 
 export async function getApiCredentialStatus() {
-  const credentials = await readApiCredentials(await getActiveProfileId());
+  const profileId = await getActiveProfileId();
+  const storageStatus = await getApiCredentialStorageStatus(profileId);
+  const credentials = await readApiCredentials(profileId);
   return Object.fromEntries(API_CREDENTIAL_PROVIDERS.map((provider) => [provider, {
     configured: typeof credentials[provider] === 'string' && credentials[provider].trim().length > 0,
-    storage: 'local-only',
+    storage: storageStatus.mode,
+    storageMode: storageStatus.requestedMode,
+    recovery: storageStatus.recovery,
     export: 'omitted',
+    sync: 'omitted',
   }]));
 }
 
 async function readApiCredentials(profileId = null) {
   try {
     const id = profileId || await getActiveProfileId();
-    return normalizeCredentialMap(await adapter.get(profileCredentialsStorageKey(id)));
+    const storageStatus = await getApiCredentialStorageStatus(id);
+    const sources = await readCredentialSources(id);
+    const credentials = mergeCredentialSources(sources, credentialSourceOrder(storageStatus));
+    const target = sources[storageStatus.mode] || { map: {}, present: false };
+    const hasStaleCopy = Object.entries(sources)
+      .some(([source, record]) => source !== storageStatus.mode && record.present);
+    if (!credentialMapsEqual(target.map, credentials) || hasStaleCopy) {
+      await replaceCredentialCopies(id, credentials, storageStatus);
+    }
+    return credentials;
   } catch (error) {
     console.warn('[AUT] API credential map read failed:', error);
     return {};
@@ -895,6 +1103,11 @@ export async function importSettings(input, options = {}) {
 
 function sanitizeImportedSettings(input) {
   const settings = mergeDefaults(input, defaultSettings());
+  for (const key of Object.keys(settings)) {
+    if (key !== 'apiCredentialStorageMode' && /credential|secret|password|token|api.?key/i.test(key)) {
+      delete settings[key];
+    }
+  }
   const refreshValues = [1, 5, 15, 30];
   const retentionValues = [7, 14, 30, 60, 90];
   settings.refreshMinutes = refreshValues.includes(Number(settings.refreshMinutes)) ? Number(settings.refreshMinutes) : 5;
@@ -904,6 +1117,7 @@ function sanitizeImportedSettings(input) {
   settings.nativeSchedulerEnabled = settings.nativeSchedulerEnabled === true;
   settings.highContrast = settings.highContrast === true;
   settings.syncSettings = settings.syncSettings === true;
+  settings.apiCredentialStorageMode = normalizeApiCredentialStorageMode(settings.apiCredentialStorageMode);
   settings.githubCopilotOrganization = sanitizeOptionalIdentifier(settings.githubCopilotOrganization);
   settings.githubCopilotUsername = sanitizeOptionalIdentifier(settings.githubCopilotUsername);
   settings.geminiProjectId = sanitizeProjectIdentifier(settings.geminiProjectId);
@@ -1040,6 +1254,7 @@ export function defaultSettings() {
     nativeSchedulerEnabled: false,
     highContrast: false,
     syncSettings: false,
+    apiCredentialStorageMode: API_CREDENTIAL_STORAGE_MODE_SESSION,
     githubCopilotOrganization: '',
     githubCopilotUsername: '',
     locale: 'en',

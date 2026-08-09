@@ -26,6 +26,8 @@ assert.match(popup, /'aria-live':\s*'polite'/, 'popup countdowns need a polite l
 assert.match(widget, /aut-bucket--\$\{severityFor/, 'widget must expose non-color severity classes');
 assert.match(popup, /popup-bucket--\$\{statusTone/, 'popup must expose non-color severity classes');
 assert.match(options, /id="highContrast"/, 'extension settings must expose high contrast');
+assert.match(options, /id="apiCredentialStorageMode"/, 'extension settings must expose credential storage mode');
+assert.match(options, /id="apiCredentialStorageStatus"/, 'credential storage capability must be visible');
 assert.match(options, /aria-live="polite"/, 'extension status regions need live announcements');
 assert.match(inline, /setAttribute\('aria-modal', 'true'\)/, 'userscript settings must remain a modal dialog');
 assert.match(inline, /highContrast/, 'userscript settings must expose high contrast');
@@ -44,6 +46,8 @@ assert.match(sidepanelCss, /text-align:\s*end/, 'side panel diagnostics need dir
 
 assert.equal(normalizeSettings({ highContrast: true }).highContrast, true);
 assert.equal(normalizeSettings({ highContrast: 1 }).highContrast, false);
+assert.equal(normalizeSettings({ apiCredentialStorageMode: 'persistent' }).apiCredentialStorageMode, 'persistent');
+assert.equal(normalizeSettings({ apiCredentialStorageMode: 'unknown' }).apiCredentialStorageMode, 'session');
 
 function contrastRatio(foreground, background) {
   const fg = relativeLuminance(hexRgb(foreground));

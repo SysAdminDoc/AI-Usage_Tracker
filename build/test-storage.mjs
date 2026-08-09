@@ -8,6 +8,7 @@ import {
   createProfile,
   deleteProfile,
   getApiCredentialStatus,
+  getApiCredentialStorageStatus,
   getStorageUsage,
   getActiveProfile,
   loadProfileRegistry,
@@ -15,6 +16,7 @@ import {
   renameProfile,
   saveApiCredential,
   saveState,
+  setApiCredentialStorageMode,
   switchProfile,
 } from '../src/lib/storage.js';
 
@@ -101,15 +103,23 @@ assert.equal(fixedFired.settings.refreshMinutes, 10, 'user setting preserved');
 // --- Test: versioned settings backup omits history unless selected ---
 const backupState = defaultState();
 backupState.settings.theme = 'latte';
+backupState.settings.apiKey = 'export-secret';
+backupState.settings.credentials = { 'anthropic-api': 'nested-export-secret' };
 backupState.widget = { x: 42, y: 84, minimized: true };
 backupState.history = [{ ts: 1234, bucketId: 'codex-5h-all', percentUsed: 67 }];
 const settingsOnly = exportSettings(backupState);
 assert.equal(settingsOnly.schema, 'ai-usage-tracker.settings');
 assert.equal(Object.prototype.hasOwnProperty.call(settingsOnly, 'history'), false, 'history should be opt-in');
+assert.doesNotMatch(JSON.stringify(settingsOnly), /export-secret|nested-export-secret|apiKey|credentials/, 'settings export must strip credential-shaped fields');
 const withHistory = exportSettings(backupState, { includeHistory: true });
 assert.equal(withHistory.history.length, 1, 'explicit history export should include samples');
 assert.equal(parseSettingsImport(JSON.stringify(settingsOnly)).settings.theme, 'latte');
 assert.equal(parseSettingsImport(withHistory, { includeHistory: true }).history[0].percentUsed, 67);
+const { buildSupportBundle } = await import('../src/lib/diagnostics.js?credential-boundary-test');
+const redactedBundle = buildSupportBundle({
+  state: { ...backupState, settings: { ...backupState.settings, providerToken: 'diagnostics-secret' } },
+});
+assert.doesNotMatch(JSON.stringify(redactedBundle), /export-secret|nested-export-secret|diagnostics-secret|providerToken/, 'diagnostics must not carry credentials');
 assert.throws(
   () => parseSettingsImport({ schema: 'wrong', schemaVersion: 1, settings: {} }),
   /Unsupported settings export schema/,
@@ -217,6 +227,8 @@ const syncCandidate = {
   ...defaultSettings(),
   theme: 'latte',
   syncSettings: true,
+  apiCredentialStorageMode: 'persistent',
+  providerToken: 'sync-secret',
   history: [{ bucketId: 'must-not-sync' }],
   apiKey: 'must-not-sync',
 };
@@ -227,6 +239,8 @@ assert.equal(rawSyncRecord.settings.anomalyThresholdPercent, 20);
 assert.equal(rawSyncRecord.settings.notifications.U3, false);
 assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'history'), false);
 assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'apiKey'), false);
+assert.equal(Object.prototype.hasOwnProperty.call(rawSyncRecord.settings, 'apiCredentialStorageMode'), false);
+assert.doesNotMatch(JSON.stringify(rawSyncRecord), /sync-secret|must-not-sync/, 'sync must exclude credential-shaped values');
 assert.equal((await syncStorage.loadSyncedSettings('default')).theme, 'latte');
 assert.equal(await syncStorage.loadSyncedSettings('work'), null, 'sync records must not cross profile ids');
 await syncStorage.clearSyncedSettings();
@@ -261,5 +275,88 @@ assert.equal(usage.degraded, true, 'oversized history should be marked degraded'
 assert.equal(usage.warningCode, 'history-budget');
 if (syncChrome === undefined) delete globalThis.chrome;
 else globalThis.chrome = syncChrome;
+
+// --- Test: credentials default to session storage, never sync/export, and clear across copies ---
+const credentialChrome = globalThis.chrome;
+const credentialLocalStore = new Map();
+const credentialSessionStore = new Map();
+const makeCredentialArea = (store) => ({
+  get(key, callback) { callback({ [key]: store.get(key) }); },
+  set(values, callback) {
+    Object.entries(values).forEach(([key, value]) => store.set(key, value));
+    callback();
+  },
+  remove(key, callback) { store.delete(key); callback(); },
+});
+globalThis.chrome = {
+  extension: { inIncognitoContext: false },
+  runtime: { lastError: null },
+  storage: {
+    local: makeCredentialArea(credentialLocalStore),
+    session: makeCredentialArea(credentialSessionStore),
+  },
+};
+const credentialStorage = await import('../src/lib/storage.js?credential-session-contract');
+const credentialKey = `${credentialStorage.getProfileCredentialsStoragePrefix()}default`;
+assert.equal((await credentialStorage.getApiCredentialStorageStatus()).mode, 'session');
+assert.equal((await credentialStorage.getApiCredentialStorageStatus()).requestedMode, 'session');
+await credentialStorage.saveApiCredential('anthropic-api', 'session-secret');
+assert.equal(credentialSessionStore.get(credentialKey)['anthropic-api'], 'session-secret');
+assert.equal(credentialLocalStore.has(credentialKey), false, 'session mode must not write local credentials');
+assert.equal(await credentialStorage.loadApiCredential('anthropic-api'), 'session-secret');
+const credentialExport = credentialStorage.exportSettings({
+  ...credentialStorage.defaultState(),
+  settings: { ...credentialStorage.defaultSettings(), apiKey: 'export-boundary-secret' },
+});
+assert.doesNotMatch(JSON.stringify(credentialExport), /session-secret|export-boundary-secret|apiKey/, 'credential exports must remain secret-free');
+await credentialStorage.saveSyncedSettings({
+  ...credentialStorage.defaultSettings(),
+  apiCredentialStorageMode: 'persistent',
+  credential: 'sync-boundary-secret',
+}, 'default');
+assert.doesNotMatch(JSON.stringify(credentialSessionStore), /session-secret|sync-boundary-secret/);
+await credentialStorage.setApiCredentialStorageMode('persistent');
+assert.equal((await credentialStorage.getApiCredentialStorageStatus()).mode, 'persistent');
+assert.equal(credentialLocalStore.get(credentialKey)['anthropic-api'], 'session-secret');
+assert.equal(credentialSessionStore.has(credentialKey), false, 'persistent mode must clear session copies');
+await credentialStorage.setApiCredentialStorageMode('session');
+assert.equal(credentialSessionStore.get(credentialKey)['anthropic-api'], 'session-secret');
+assert.equal(credentialLocalStore.has(credentialKey), false, 'switching back must clear persistent copies');
+await credentialStorage.removeApiCredential('anthropic-api');
+assert.equal(credentialSessionStore.has(credentialKey), false, 'revoking a key must clear the active session copy');
+assert.equal(credentialLocalStore.has(credentialKey), false, 'revoking a key must clear the persistent copy');
+
+const sessionProfile = await credentialStorage.createProfile('Session profile');
+await credentialStorage.switchProfile(sessionProfile.id);
+const sessionProfileKey = `${credentialStorage.getProfileCredentialsStoragePrefix()}${sessionProfile.id}`;
+await credentialStorage.saveApiCredential('openai-api', 'delete-boundary-secret');
+assert.equal(credentialSessionStore.get(sessionProfileKey)['openai-api'], 'delete-boundary-secret');
+await credentialStorage.deleteProfile(sessionProfile.id);
+assert.equal(credentialSessionStore.has(sessionProfileKey), false, 'profile deletion must clear session credentials');
+assert.equal(credentialLocalStore.has(sessionProfileKey), false, 'profile deletion must clear persistent credentials');
+
+// --- Test: session capability fallback is visible and remains memory-only ---
+const memoryLocalStore = new Map();
+globalThis.chrome = {
+  extension: { inIncognitoContext: false },
+  runtime: { lastError: null },
+  storage: { local: makeCredentialArea(memoryLocalStore) },
+};
+const memoryStorage = await import('../src/lib/storage.js?credential-memory-contract');
+const memoryStatus = await memoryStorage.getApiCredentialStorageStatus();
+assert.equal(memoryStatus.requestedMode, 'session');
+assert.equal(memoryStatus.mode, 'memory');
+assert.equal(memoryStatus.sessionAvailable, false, 'missing session API must be reported');
+await memoryStorage.saveApiCredential('openai-api', 'memory-only-secret');
+const memoryKey = `${memoryStorage.getProfileCredentialsStoragePrefix()}default`;
+assert.equal(memoryLocalStore.has(memoryKey), false, 'memory fallback must not write local credentials');
+assert.equal(await memoryStorage.loadApiCredential('openai-api'), 'memory-only-secret');
+await memoryStorage.setApiCredentialStorageMode('persistent');
+assert.equal((await memoryStorage.getApiCredentialStorageStatus()).mode, 'persistent');
+assert.equal(memoryLocalStore.get(memoryKey)['openai-api'], 'memory-only-secret');
+await memoryStorage.removeApiCredential('openai-api');
+assert.equal(memoryLocalStore.has(memoryKey), false);
+if (credentialChrome === undefined) delete globalThis.chrome;
+else globalThis.chrome = credentialChrome;
 
 console.log('storage migration smoke: OK');

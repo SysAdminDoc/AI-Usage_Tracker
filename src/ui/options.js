@@ -15,8 +15,10 @@ import {
   loadProfileRegistry,
   switchProfile,
   getApiCredentialStatus,
+  getApiCredentialStorageStatus,
   removeApiCredential,
   saveApiCredential,
+  setApiCredentialStorageMode,
   clearSyncedSettings,
   loadSyncedSettings,
   mergeSyncedSettings,
@@ -204,6 +206,7 @@ async function renderApiCredentials() {
   const state = await loadState();
   const settings = normalizeSettings(state.settings);
   const statuses = await getApiCredentialStatus();
+  const storageStatus = await getApiCredentialStorageStatus(state.profileId);
   const hostPermissions = Object.fromEntries(await Promise.all(API_PROVIDER_IDS.map(async (id) => [
     id,
     await getApiProviderHostPermission(id),
@@ -216,6 +219,17 @@ async function renderApiCredentials() {
       ? t('options.credentialsConfigured', { count: configured, missing: missingPermission ? t('options.missingPermissions', { count: missingPermission }) : '' })
       : t('options.noCredentials');
     statusWrap.className = `opt-callout ${missingPermission ? 'opt-callout--warn' : configured ? 'opt-callout--good' : ''}`;
+  }
+  const storageSelect = document.getElementById('apiCredentialStorageMode');
+  if (storageSelect) storageSelect.value = storageStatus.requestedMode;
+  const storageStatusWrap = document.getElementById('apiCredentialStorageStatus');
+  if (storageStatusWrap) {
+    storageStatusWrap.textContent = storageStatus.mode === 'session'
+      ? t('options.credentialStorageSession')
+      : storageStatus.mode === 'persistent'
+        ? t('options.credentialStoragePersistent')
+        : t('options.credentialStorageMemory');
+    storageStatusWrap.className = `opt-callout ${storageStatus.mode === 'session' ? 'opt-callout--good' : 'opt-callout--warn'}`;
   }
 
   for (const id of API_PROVIDER_IDS) {
@@ -888,6 +902,16 @@ function bindHandlers() {
             flash(t('options.permissionNotGranted', { provider: providerLabel(target.dataset.provider) }), 'bad');
           }
         }
+      } else if (!target.checked && API_PROVIDER_IDS.includes(target.dataset.provider)) {
+        await removeApiCredential(target.dataset.provider);
+        const permission = await removeApiProviderHostPermission(target.dataset.provider);
+        state.snapshot.providers[target.dataset.provider] = null;
+        if (target.dataset.provider === 'github-copilot') {
+          s.githubCopilotOrganization = '';
+          s.githubCopilotUsername = '';
+        }
+        if (target.dataset.provider === 'gemini') s.geminiProjectId = '';
+        if (!permission.ok) flash(t('options.keyRemoveFailed', { provider: providerLabel(target.dataset.provider) }), 'bad');
       }
     } else if (target.dataset.row) {
       s.showRows = { ...s.showRows, [target.dataset.row]: target.checked };
@@ -918,6 +942,9 @@ function bindHandlers() {
         if (remote) s = mergeSyncedSettings(s, remote);
       }
       s.syncSettings = target.checked;
+    } else if (target.id === 'apiCredentialStorageMode') {
+      await setApiCredentialStorageMode(target.value);
+      s.apiCredentialStorageMode = target.value;
     } else if (target.id === 'warnAt' || target.id === 'dangerAt') {
       s.thresholds = readThresholdControls(target.id);
     } else if (target.id === 'anomalyThresholdPercent') {
