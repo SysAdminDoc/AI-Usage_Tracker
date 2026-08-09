@@ -41,7 +41,7 @@ const bundle = buildSupportBundle({
     },
     history: { sampleCount: 4001, byteCount: 600000, maxSamples: 4000, maxBytes: 524288, degraded: true },
   },
-  version: '0.2.3',
+  version: '0.2.4',
   channel: 'extension',
   manifest: { permissions: ['storage', 'notifications'], host_permissions: ['https://claude.ai/*'] },
 });

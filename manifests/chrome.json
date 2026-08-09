@@ -3,7 +3,7 @@
   "minimum_chrome_version": "114",
   "name": "AI Usage Tracker",
   "short_name": "AI Usage",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget, popup dashboard, and OS alerts.",
   "author": "SysAdminDoc",
   "homepage_url": "https://github.com/SysAdminDoc/AI-Usage_Tracker",

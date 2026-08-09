@@ -21,7 +21,7 @@
 - Provider plugins now require explicit capability and accuracy metadata, while a local redacted fixture envelope and dependency-free validator make new adapters testable without changing background orchestration or loading remote code.
 - History now has an explicit, versioned long-horizon archive format with deterministic compaction, freshness metadata, strict redaction/size validation, and separate profile/incognito storage that cannot alter operational state or credentials.
 
-## v0.2.3 - 2026-08-03 - Roadmap drain
+## v0.2.4 - 2026-08-09 - Roadmap drain
 
 ### Added
 - Claude cache analytics now retain bounded local stream observations and show inferred 24-hour/7-day cache reuse ratios in the popup and widget, with explicit non-billing and missed-refresh limitations.
