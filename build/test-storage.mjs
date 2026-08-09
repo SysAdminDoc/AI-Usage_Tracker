@@ -25,6 +25,7 @@ const fresh = defaultState();
 assert.equal(fresh.stateVersion, 2, 'defaultState() should have stateVersion 2');
 assert.ok(fresh.snapshot, 'defaultState() should have snapshot');
 assert.ok(fresh.settings, 'defaultState() should have settings');
+assert.deepEqual(fresh.notificationRetries, {}, 'notification retries should start empty');
 assert.equal(fresh.collaboration.enabled, false, 'collaboration dashboard should be opt-in by default');
 assert.deepEqual(fresh.collaboration.ledger.contributions, [], 'collaboration ledger should start empty');
 assert.equal(fresh.collaboration.attribution.enabled, false, 'attribution should be opt-in by default');
@@ -99,6 +100,7 @@ const nullFired = {
 const { state: fixedFired } = migrateState(nullFired);
 assert.deepEqual(fixedFired.firedRules, {}, 'null firedRules replaced with empty object');
 assert.equal(fixedFired.settings.refreshMinutes, 10, 'user setting preserved');
+assert.deepEqual(fixedFired.notificationRetries, {}, 'null notification retries replaced with empty object');
 
 // --- Test: versioned settings backup omits history unless selected ---
 const backupState = defaultState();

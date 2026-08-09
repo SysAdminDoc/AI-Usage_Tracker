@@ -5,9 +5,15 @@ import {
   deriveNextNotificationAlarm,
   evaluateRules,
   evaluateBudgetRules,
+  getNotificationStatus,
+  isNotificationDue,
+  nextNotificationRetry,
+  NOTIFICATION_TONES,
+  normalizeNotificationTone,
   normalizeWebhookURL,
   NOTIFICATION_GRACE_MS,
 } from '../src/lib/notify.js';
+import { notificationPriorityForTone } from '../src/lib/browser.js';
 
 const now = new Date('2026-06-16T12:00:00.000Z');
 const snapshot = {
@@ -30,6 +36,153 @@ const baseSettings = {
   showRows: { 'claude-session': true },
   notifications: { 'R1-15': true, 'U1-95': true },
 };
+
+// --- Notification tones and status are canonical at every delivery seam ---
+{
+  const reset = evaluateRules({ snapshot, history: [], settings: baseSettings, firedRules: {}, now })
+    .find((rule) => rule.ruleId === 'R1-15');
+  assert.equal(reset?.tone, 'reset');
+
+  const warning = evaluateRules({
+    snapshot: {
+      providers: {
+        claude: {
+          ok: true,
+          buckets: [{ ...snapshot.providers.claude.buckets[0], percentUsed: 90 }],
+        },
+      },
+    },
+    history: [],
+    settings: { ...baseSettings, notifications: { 'U1-90': true } },
+    firedRules: {},
+    now,
+  }).find((rule) => rule.ruleId === 'U1-90');
+  assert.equal(warning?.tone, 'warning');
+
+  const bad = evaluateRules({
+    snapshot: {
+      providers: {
+        claude: {
+          ok: true,
+          buckets: [{ ...snapshot.providers.claude.buckets[0], percentUsed: 95 }],
+        },
+      },
+    },
+    history: [],
+    settings: { ...baseSettings, notifications: { 'U1-95': true } },
+    firedRules: {},
+    now,
+  }).find((rule) => rule.ruleId === 'U1-95');
+  assert.equal(bad?.tone, 'bad');
+
+  const success = evaluateRules({
+    snapshot: {
+      providers: {
+        claude: {
+          ok: true,
+          buckets: [{ ...snapshot.providers.claude.buckets[0], percentUsed: 0, resetISO: '2026-06-16T11:58:00.000Z' }],
+        },
+      },
+    },
+    history: [],
+    settings: { showProviders: { claude: true }, showRows: {}, notifications: { R2: true } },
+    firedRules: {},
+    now,
+  }).find((rule) => rule.ruleId === 'R2');
+  assert.equal(success?.tone, 'success');
+
+  const expectedPriorities = {
+    info: 0,
+    reset: 1,
+    warning: 1,
+    bad: 2,
+    success: 0,
+    snooze: 0,
+    'delivery-failure': 2,
+  };
+  assert.deepEqual(NOTIFICATION_TONES.reduce((out, tone) => {
+    out[tone] = notificationPriorityForTone(tone);
+    return out;
+  }, {}), expectedPriorities);
+  assert.equal(normalizeNotificationTone('good'), 'success');
+  assert.equal(normalizeNotificationTone('warn'), 'warning');
+  for (const tone of NOTIFICATION_TONES) {
+    assert.equal(buildWebhookPayload({ ruleId: 'tone-test', tone }, { now }).tone, tone);
+  }
+  assert.deepEqual(getNotificationStatus({
+    settings: { notifications: { snoozedUntilISO: '2026-06-16T13:00:00.000Z' } },
+    now,
+  }), { status: 'snoozed', tone: 'snooze' });
+  assert.deepEqual(getNotificationStatus({ delivery: { ok: false }, now }), {
+    status: 'delivery-failure',
+    tone: 'delivery-failure',
+  });
+}
+
+// --- Event-level delivery retries are delayed and exhaust at a hard bound ---
+{
+  const notification = { fireKey: 'claude-session-U1-95', ruleId: 'U1-95', tone: 'bad', provider: 'claude' };
+  const first = nextNotificationRetry({ notification, errorCode: 'browser.notification-unavailable', now });
+  assert.deepEqual({
+    attempts: first.attempts,
+    status: first.status,
+    nextRetryISO: first.nextRetryISO,
+    tone: first.tone,
+  }, {
+    attempts: 1,
+    status: 'retrying',
+    nextRetryISO: '2026-06-16T12:00:30.000Z',
+    tone: 'delivery-failure',
+  });
+  assert.equal(isNotificationDue(notification.fireKey, {
+    firedRules: {},
+    notificationRetries: { [notification.fireKey]: first },
+    now: new Date('2026-06-16T12:00:29.999Z'),
+  }), false);
+  assert.equal(isNotificationDue(notification.fireKey, {
+    firedRules: {},
+    notificationRetries: { [notification.fireKey]: first },
+    now: new Date('2026-06-16T12:00:30.000Z'),
+  }), true);
+  const resetCandidate = evaluateRules({ snapshot, history: [], settings: baseSettings, firedRules: {}, now })
+    .find((rule) => rule.ruleId === 'R1-15');
+  const resetRetry = nextNotificationRetry({ notification: resetCandidate, now });
+  assert.equal(evaluateRules({
+    snapshot,
+    history: [],
+    settings: baseSettings,
+    firedRules: {},
+    notificationRetries: { [resetCandidate.fireKey]: resetRetry },
+    now: new Date('2026-06-16T12:00:29.999Z'),
+  }).some((rule) => rule.fireKey === resetCandidate.fireKey), false);
+  assert.equal(evaluateRules({
+    snapshot,
+    history: [],
+    settings: baseSettings,
+    firedRules: {},
+    notificationRetries: { [resetCandidate.fireKey]: resetRetry },
+    now: new Date('2026-06-16T12:00:30.000Z'),
+  }).some((rule) => rule.fireKey === resetCandidate.fireKey), true);
+  const second = nextNotificationRetry({ notification, previous: first, now: new Date('2026-06-16T12:00:30.000Z') });
+  const exhausted = nextNotificationRetry({ notification, previous: second, now: new Date('2026-06-16T12:01:30.000Z') });
+  assert.equal(second.attempts, 2);
+  assert.equal(exhausted.attempts, 3);
+  assert.equal(exhausted.status, 'exhausted');
+  assert.equal(exhausted.nextRetryISO, null);
+  assert.equal(isNotificationDue(notification.fireKey, {
+    firedRules: {},
+    notificationRetries: { [notification.fireKey]: exhausted },
+    now,
+  }), false);
+  const retryAlarm = deriveNextNotificationAlarm({
+    snapshot: { providers: {} },
+    settings: { notifications: {} },
+    notificationRetries: { [notification.fireKey]: first },
+    now,
+  });
+  assert.equal(retryAlarm?.fireKey, notification.fireKey);
+  assert.equal(retryAlarm?.atISO, first.nextRetryISO);
+}
 
 // --- API budget caps fire at 80% and 100% once a cap is configured ---
 {

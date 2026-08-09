@@ -174,6 +174,29 @@ export interface WidgetState {
   minimized: boolean;
 }
 
+export type NotificationTone =
+  | 'info'
+  | 'reset'
+  | 'warning'
+  | 'bad'
+  | 'success'
+  | 'snooze'
+  | 'delivery-failure';
+
+export type NotificationDeliveryStatus = 'retrying' | 'exhausted';
+
+export interface NotificationDeliveryRetry {
+  attempts: number;
+  status: NotificationDeliveryStatus;
+  nextRetryISO?: string | null;
+  lastAttemptISO?: string | null;
+  lastErrorCode?: string | null;
+  tone: 'delivery-failure';
+  ruleId?: string;
+  provider?: ProviderId | string | null;
+  bucketId?: string | null;
+}
+
 export interface CacheReuseEvent {
   sampledAtISO: string;
   reused: boolean;
@@ -194,6 +217,7 @@ export interface TrackerState {
   snapshot: TrackerSnapshot;
   history: HistorySample[];
   firedRules: Record<string, number>;
+  notificationRetries?: Record<string, NotificationDeliveryRetry>;
   settings: TrackerSettings;
   widget: WidgetState;
   budget: BudgetLedger;
@@ -205,9 +229,13 @@ export interface TrackerState {
 export interface NotificationCandidate {
   fireKey: string;
   ruleId: string;
-  provider: ProviderId;
+  provider?: ProviderId | string | null;
   title: string;
   body: string;
-  tone: 'info' | 'warn' | 'bad';
+  tone: NotificationTone;
   catchUp?: boolean;
+  bucketId?: string;
+  bucketLabel?: string;
+  percentUsed?: number;
+  resetISO?: string | null;
 }

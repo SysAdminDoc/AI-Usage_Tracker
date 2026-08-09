@@ -404,6 +404,7 @@ const MIGRATIONS = [
     if (!Object.prototype.hasOwnProperty.call(next.snapshot.providers, 'openrouter')) next.snapshot.providers.openrouter = null;
     if (!Array.isArray(next.history)) next.history = [];
     if (!next.firedRules || typeof next.firedRules !== 'object') next.firedRules = {};
+    if (!next.notificationRetries || typeof next.notificationRetries !== 'object') next.notificationRetries = {};
     if (!next.widget || typeof next.widget !== 'object') next.widget = { x: null, y: null, minimized: false };
     if (!next.budget || typeof next.budget !== 'object' || Array.isArray(next.budget)) {
       next.budget = defaultBudgetLedger();
@@ -705,6 +706,7 @@ export async function loadState() {
     try { await adapter.set(stateKey, state); } catch { /* best effort */ }
   }
   state.collaboration = normalizeCollaborationState(state.collaboration || defaultCollaborationState());
+  state.notificationRetries = normalizeNotificationRetries(state.notificationRetries);
   state.profileId = profileId;
   const syncedState = await applySyncedSettings(state, profileId);
   const normalizedHistory = compactHistoryToBudget(syncedState.history, {
@@ -727,6 +729,7 @@ export async function saveState(state) {
   state.stateVersion = CURRENT_STATE_VERSION;
   state.profileId = profileId;
   state.collaboration = normalizeCollaborationState(state.collaboration || defaultCollaborationState());
+  state.notificationRetries = normalizeNotificationRetries(state.notificationRetries);
   const stateKey = profileStateStorageKey(profileId);
   const normalizedHistory = compactHistoryToBudget(state.history, {
     retentionDays: null,
@@ -1210,6 +1213,28 @@ function sanitizeErrorCode(value) {
   return typeof value === 'string' ? value.trim().slice(0, 96) : null;
 }
 
+function normalizeNotificationRetries(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out = {};
+  for (const [key, raw] of Object.entries(value).slice(0, 256)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const attempts = clampNumber(raw.attempts, 0, 3, 0);
+    const status = raw.status === 'exhausted' || attempts >= 3 ? 'exhausted' : 'retrying';
+    out[String(key).slice(0, 256)] = {
+      attempts,
+      status,
+      nextRetryISO: normalizeISO(raw.nextRetryISO),
+      lastAttemptISO: normalizeISO(raw.lastAttemptISO),
+      lastErrorCode: sanitizeErrorCode(raw.lastErrorCode),
+      tone: 'delivery-failure',
+      ruleId: typeof raw.ruleId === 'string' ? raw.ruleId.trim().slice(0, 64) : null,
+      provider: typeof raw.provider === 'string' ? raw.provider.trim().slice(0, 64) : null,
+      bucketId: typeof raw.bucketId === 'string' ? raw.bucketId.trim().slice(0, 160) : null,
+    };
+  }
+  return out;
+}
+
 function cloneJSON(value) {
   if (typeof structuredClone === 'function') return structuredClone(value);
   return JSON.parse(JSON.stringify(value));
@@ -1239,6 +1264,7 @@ export function defaultState() {
     },
     history: [],          // [{ ts, bucketId, percentUsed }]
     firedRules: {},       // { '<provider>-<bucket>-<rule>-<resetISO>': true }
+    notificationRetries: {}, // { '<fireKey>': bounded delivery retry state }
     budget: defaultBudgetLedger(),
     collaboration: defaultCollaborationState(),
     cache: {},

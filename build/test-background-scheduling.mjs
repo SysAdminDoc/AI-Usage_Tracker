@@ -11,6 +11,10 @@ assert.match(settingsUpdate, /const state = await loadState\(\);/);
 assert.match(settingsUpdate, /await scheduleNotificationAlarm\(state, new Date\(\)\);/);
 assert.match(settingsUpdate, /await refreshToolbarBadge\(\);/);
 assert.doesNotMatch(settingsUpdate, /syncNativeScheduler/);
+assert.match(background, /notificationRetries: state\.notificationRetries \|\| \{\}/);
+assert.match(background, /maxAttempts: 1/);
+assert.match(background, /nextNotificationRetry\(/);
+assert.match(background, /pruneNotificationRetries/);
 
 const bindAlarm = background.match(/async function bindAlarm\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
 assert.match(bindAlarm, /await scheduleNotificationAlarm\(state, new Date\(\)\);/);

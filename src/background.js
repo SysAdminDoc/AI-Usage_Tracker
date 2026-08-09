@@ -20,6 +20,7 @@ import {
   deliverWebhook,
   deriveNextNotificationAlarm,
   evaluateRules,
+  nextNotificationRetry,
 } from './lib/notify.js';
 import { cancelSchedule, invokeWebExtension, notify, schedule, scheduleAt, onMessage } from './lib/browser.js';
 import { pushSnapshot } from './lib/bridge.js';
@@ -364,15 +365,26 @@ async function fireNotifications(state, now) {
     settings: state.settings,
     budget: state.budget,
     firedRules: state.firedRules || {},
+    notificationRetries: state.notificationRetries || {},
     now,
   });
   state.firedRules = state.firedRules || {};
+  state.notificationRetries = state.notificationRetries || {};
   for (const n of toFire) {
-    const ok = await notify({ id: n.fireKey, title: n.title, body: n.body, tone: n.tone });
+    let ok = false;
+    let browserErrorCode = null;
+    try {
+      ok = await notify({ id: n.fireKey, title: n.title, body: n.body, tone: n.tone });
+    } catch {
+      browserErrorCode = 'browser.notification-failed';
+    }
     let webhook = { ok: false, skipped: true };
     if (state.settings?.notifications?.webhookEnabled === true) {
       webhook = await deliverWebhook({
         url: state.settings.notifications.webhookURL,
+        // Event-level retry state supplies the backoff between refreshes.
+        // Keep each pass to one request so the total budget stays bounded.
+        maxAttempts: 1,
         payload: buildWebhookPayload(n, {
           includeDetails: state.settings.notifications.webhookIncludeDetails === true,
           now,
@@ -380,9 +392,20 @@ async function fireNotifications(state, now) {
       });
       recordWebhookStatus(state, webhook, now);
     }
-    if (ok || webhook.ok) state.firedRules[n.fireKey] = Date.now();
+    if (ok || webhook.ok) {
+      state.firedRules[n.fireKey] = now.getTime();
+      delete state.notificationRetries[n.fireKey];
+    } else {
+      state.notificationRetries[n.fireKey] = nextNotificationRetry({
+        notification: n,
+        previous: state.notificationRetries[n.fireKey],
+        errorCode: webhook.errorCode || browserErrorCode || 'browser.notification-unavailable',
+        now,
+      });
+    }
   }
   state.firedRules = pruneFired(state.firedRules, now);
+  state.notificationRetries = pruneNotificationRetries(state.notificationRetries, now);
   await saveState(state);
   await scheduleNotificationAlarm(state, now);
 }
@@ -405,6 +428,7 @@ async function scheduleNotificationAlarm(state, now) {
     snapshot: state?.snapshot,
     settings: state?.settings || {},
     firedRules: state?.firedRules || {},
+    notificationRetries: state?.notificationRetries || {},
     now,
   });
   if (!next) {
@@ -450,6 +474,17 @@ function pruneFired(firedRules, now) {
   for (const [k, ts] of Object.entries(firedRules || {})) {
     if (typeof ts === 'number' && ts < cutoff) continue;
     out[k] = ts;
+  }
+  return out;
+}
+
+function pruneNotificationRetries(retries, now) {
+  const cutoff = now.getTime() - 14 * 24 * 60 * 60 * 1000;
+  const out = {};
+  for (const [key, retry] of Object.entries(retries || {})) {
+    const lastAttempt = new Date(retry?.lastAttemptISO || 0).getTime();
+    if (Number.isFinite(lastAttempt) && lastAttempt < cutoff) continue;
+    out[key] = retry;
   }
   return out;
 }

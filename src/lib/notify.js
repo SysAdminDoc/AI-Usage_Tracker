@@ -8,6 +8,91 @@ import { localBudgetDayKey } from './budget.js';
 export const WEBHOOK_SCHEMA = 'ai-usage-tracker.webhook';
 export const WEBHOOK_SCHEMA_VERSION = 1;
 export const WEBHOOK_MAX_ATTEMPTS = 3;
+export const NOTIFICATION_TONES = Object.freeze([
+  'info',
+  'reset',
+  'warning',
+  'bad',
+  'success',
+  'snooze',
+  'delivery-failure',
+]);
+export const NOTIFICATION_RETRY_MAX_ATTEMPTS = 3;
+export const NOTIFICATION_RETRY_BASE_DELAY_MS = 30_000;
+export const NOTIFICATION_RETRY_MAX_DELAY_MS = 5 * 60_000;
+
+/**
+ * Normalize legacy UI aliases at the delivery boundary. Rule candidates use
+ * the canonical names below; accepting the old aliases keeps saved/test
+ * callers compatible while preventing ambiguous adapter behavior.
+ */
+export function normalizeNotificationTone(tone) {
+  switch (tone) {
+    case 'reset': return 'reset';
+    case 'warning':
+    case 'warn': return 'warning';
+    case 'bad': return 'bad';
+    case 'success':
+    case 'good': return 'success';
+    case 'snooze': return 'snooze';
+    case 'delivery-failure': return 'delivery-failure';
+    case 'info': return 'info';
+    default: return 'info';
+  }
+}
+
+/** Return whether a candidate is eligible for its first attempt or retry. */
+export function isNotificationDue(
+  fireKey,
+  { firedRules = {}, notificationRetries = {}, now = new Date() } = {},
+) {
+  if (Object.prototype.hasOwnProperty.call(firedRules || {}, fireKey)) return false;
+  const retry = notificationRetries?.[fireKey];
+  if (!retry) return true;
+  const attempts = Math.max(0, Math.floor(Number(retry.attempts) || 0));
+  if (retry.status === 'exhausted' || attempts >= NOTIFICATION_RETRY_MAX_ATTEMPTS) return false;
+  const nextRetryTs = new Date(retry.nextRetryISO || 0).getTime();
+  return !Number.isFinite(nextRetryTs) || nextRetryTs <= now.getTime();
+}
+
+/**
+ * Build the next persisted event-level retry record. The HTTP adapter has its
+ * own small request retry budget; this second boundary prevents a failed
+ * notification candidate from being retried forever on refresh.
+ */
+export function nextNotificationRetry({
+  notification,
+  previous = null,
+  errorCode = 'notification.delivery-failed',
+  now = new Date(),
+} = {}) {
+  const previousAttempts = Math.max(0, Math.floor(Number(previous?.attempts) || 0));
+  const attempts = Math.min(NOTIFICATION_RETRY_MAX_ATTEMPTS, previousAttempts + 1);
+  const exhausted = attempts >= NOTIFICATION_RETRY_MAX_ATTEMPTS;
+  const delayMs = Math.min(
+    NOTIFICATION_RETRY_MAX_DELAY_MS,
+    NOTIFICATION_RETRY_BASE_DELAY_MS * (2 ** Math.max(0, attempts - 1)),
+  );
+  return {
+    attempts,
+    status: exhausted ? 'exhausted' : 'retrying',
+    nextRetryISO: exhausted ? null : new Date(now.getTime() + delayMs).toISOString(),
+    lastAttemptISO: now.toISOString(),
+    lastErrorCode: boundedWebhookText(errorCode, 96) || 'notification.delivery-failed',
+    tone: 'delivery-failure',
+    ruleId: boundedWebhookText(notification?.ruleId, 64) || null,
+    provider: boundedWebhookText(notification?.provider, 64) || null,
+    bucketId: boundedWebhookText(notification?.bucketId, 160) || null,
+  };
+}
+
+/** Return a stable status/tone pair for quiet and failed delivery states. */
+export function getNotificationStatus({ settings, delivery, now = new Date() } = {}) {
+  if (delivery?.ok === false) return { status: 'delivery-failure', tone: 'delivery-failure' };
+  if (isSnoozed(settings, now)) return { status: 'snoozed', tone: 'snooze' };
+  if (delivery?.ok === true) return { status: 'delivered', tone: 'success' };
+  return { status: 'active', tone: 'info' };
+}
 
 const LEAD_MS = {
   'R1-60': 60 * 60 * 1000,
@@ -24,10 +109,23 @@ export const NOTIFICATION_GRACE_MS = Object.freeze({
   briefing: 2 * 60 * 60 * 1000,
 });
 
-export function evaluateRules({ snapshot, history, settings, budget, firedRules, now = new Date() }) {
+export function evaluateRules({
+  snapshot,
+  history,
+  settings,
+  budget,
+  firedRules,
+  notificationRetries = {},
+  now = new Date(),
+}) {
   const out = [];
   if (!snapshot || !snapshot.providers) return out;
   if (isSnoozed(settings, now)) return out;
+  const canFire = (fireKey) => isNotificationDue(fireKey, {
+    firedRules,
+    notificationRetries,
+    now,
+  });
 
   for (const provider of Object.keys(snapshot.providers)) {
     const ps = snapshot.providers[provider];
@@ -55,13 +153,13 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
           && nowTs < resetTs + NOTIFICATION_GRACE_MS.renewal;
         if (inNormalWindow || inCatchUpWindow) {
           const key = `${provider}-${bucket.id}-${ruleId}-${bucket.resetISO}`;
-          if (!firedRules[key]) {
+          if (canFire(key)) {
             out.push({
               fireKey: key,
               ruleId,
               title: ruleTitle(ruleId, provider, bucket, { catchUp: inCatchUpWindow }),
               body:  ruleBody(ruleId, provider, bucket, { catchUp: inCatchUpWindow }),
-              tone:  ruleId === 'R1-0' ? 'good' : 'info',
+              tone:  'reset',
               catchUp: inCatchUpWindow,
               provider,
               bucketId: bucket.id,
@@ -80,13 +178,13 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
             && resetTs <= now.getTime()
             && now.getTime() - resetTs < NOTIFICATION_GRACE_MS.reset) {
           const key = `${provider}-${bucket.id}-R2-${bucket.resetISO}`;
-          if (!firedRules[key]) {
+          if (canFire(key)) {
           out.push({
             fireKey: key,
             ruleId: 'R2',
               title: `${humanProvider(provider)} ${humanBucket(bucket)} renewed`,
             body:  `Fresh quota is available — go use it.`,
-            tone:  'good',
+            tone:  'success',
             provider,
             bucketId: bucket.id,
             bucketLabel: bucket.label,
@@ -104,13 +202,13 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
         if (bucket.percentUsed >= threshold) {
           const windowKey = bucket.resetISO || 'unknown';
           const key = `${provider}-${bucket.id}-${ruleId}-${windowKey}`;
-          if (!firedRules[key]) {
+          if (canFire(key)) {
             out.push({
               fireKey: key,
               ruleId,
               title: `${humanProvider(provider)} ${humanBucket(bucket)} at ${bucket.percentUsed.toFixed(0)}%`,
               body:  `Threshold ${threshold}% reached. Resets ${humanReset(bucket)}.`,
-              tone:  threshold >= 95 ? 'bad' : 'warn',
+              tone:  threshold >= 95 ? 'bad' : 'warning',
               provider,
               bucketId: bucket.id,
               bucketLabel: bucket.label,
@@ -127,14 +225,14 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
         if (eta && eta.getTime() < new Date(bucket.resetISO).getTime()) {
           const slot = `${eta.toISOString().slice(0, 10)}`; // dedupe per day
           const key = `${provider}-${bucket.id}-U2-${bucket.resetISO}-${slot}`;
-          if (!firedRules[key]) {
+          if (canFire(key)) {
             const hoursEarly = Math.round((new Date(bucket.resetISO).getTime() - eta.getTime()) / 3600_000);
             out.push({
               fireKey: key,
               ruleId: 'U2',
               title: `${humanProvider(provider)} weekly forecast — pace too fast`,
               body:  `At current burn rate you'll hit the cap ${hoursEarly}h before reset (${humanReset(bucket)}).`,
-              tone:  'warn',
+              tone:  'warning',
               provider,
               bucketId: bucket.id,
               bucketLabel: bucket.label,
@@ -155,13 +253,13 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
         });
         if (anomaly) {
           const key = `${provider}-${bucket.id}-U3-${anomaly.sampleTs}`;
-          if (!firedRules[key]) {
+          if (canFire(key)) {
             out.push({
               fireKey: key,
               ruleId: 'U3',
               title: `${humanProvider(provider)} ${humanBucket(bucket)} usage spike detected`,
               body: `Usage jumped ${anomaly.jumpPercent.toFixed(0)} points above the recent ${anomaly.baselineSampleCount}-sample average (${anomaly.baselineAverage.toFixed(0)}%); now ${anomaly.currentPercent.toFixed(0)}%.`,
-              tone: 'warn',
+              tone: 'warning',
               provider,
               bucketId: bucket.id,
               bucketLabel: bucket.label,
@@ -182,7 +280,7 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
         && now.getTime() - scheduled.getTime() < NOTIFICATION_GRACE_MS.briefing) {
       const day = localDayKey(now);
       const key = `D1-${day}`;
-      if (!firedRules[key]) {
+      if (canFire(key)) {
         out.push({
           fireKey: key,
           ruleId: 'D1',
@@ -194,12 +292,18 @@ export function evaluateRules({ snapshot, history, settings, budget, firedRules,
     }
   }
 
-  out.push(...evaluateBudgetRules({ budget, settings, firedRules, now }));
+  out.push(...evaluateBudgetRules({ budget, settings, firedRules, notificationRetries, now }));
 
   return out;
 }
 
-export function evaluateBudgetRules({ budget, settings, firedRules = {}, now = new Date() } = {}) {
+export function evaluateBudgetRules({
+  budget,
+  settings,
+  firedRules = {},
+  notificationRetries = {},
+  now = new Date(),
+} = {}) {
   const caps = settings?.apiBudget || {};
   const candidates = [
     {
@@ -223,13 +327,13 @@ export function evaluateBudgetRules({ budget, settings, firedRules = {}, now = n
     for (const threshold of [80, 100]) {
       if (candidate.spentUSD < candidate.capUSD * threshold / 100) continue;
       const key = `budget-${candidate.scope}-${threshold}-${candidate.windowKey}`;
-      if (firedRules[key]) continue;
+      if (!isNotificationDue(key, { firedRules, notificationRetries, now })) continue;
       out.push({
         fireKey: key,
         ruleId: `BUDGET-${candidate.scope}-${threshold}`,
         title: `API spend ${candidate.scope} cap at ${threshold}%`,
         body: `${formatUSD(candidate.spentUSD)} observed of ${formatUSD(candidate.capUSD)} ${candidate.label} API spend cap.`,
-        tone: threshold >= 100 ? 'bad' : 'warn',
+        tone: threshold >= 100 ? 'bad' : 'warning',
         provider: 'api-budget',
         bucketId: `api-budget-${candidate.scope}`,
         bucketLabel: `${candidate.label} API spend`,
@@ -248,11 +352,33 @@ export function evaluateBudgetRules({ budget, settings, firedRules = {}, now = n
  * to its recurring refresh alarm. The result is intentionally descriptive so
  * it can be asserted without a browser runtime.
  */
-export function deriveNextNotificationAlarm({ snapshot, settings, firedRules = {}, now = new Date() }) {
+export function deriveNextNotificationAlarm({
+  snapshot,
+  settings,
+  firedRules = {},
+  notificationRetries = {},
+  now = new Date(),
+}) {
   if (!snapshot?.providers || isSnoozed(settings, now)) return null;
 
   const candidates = [];
   const nowTs = now.getTime();
+  for (const [fireKey, retry] of Object.entries(notificationRetries || {})) {
+    const attempts = Math.max(0, Math.floor(Number(retry?.attempts) || 0));
+    if (Object.prototype.hasOwnProperty.call(firedRules || {}, fireKey)
+        || retry?.status === 'exhausted'
+        || attempts >= NOTIFICATION_RETRY_MAX_ATTEMPTS) continue;
+    const at = new Date(retry?.nextRetryISO || 0).getTime();
+    if (at > nowTs) {
+      candidates.push({
+        at,
+        ruleId: retry?.ruleId || 'retry',
+        fireKey,
+        provider: retry?.provider || null,
+        bucketId: retry?.bucketId || null,
+      });
+    }
+  }
   for (const provider of Object.keys(snapshot.providers)) {
     const ps = snapshot.providers[provider];
     if (!ps?.ok || settings.showProviders?.[provider] === false) continue;
@@ -264,13 +390,13 @@ export function deriveNextNotificationAlarm({ snapshot, settings, firedRules = {
         if (!settings.notifications?.[ruleId]) continue;
         const at = resetTs - LEAD_MS[ruleId];
         const fireKey = `${provider}-${bucket.id}-${ruleId}-${bucket.resetISO}`;
-        if (at > nowTs && !firedRules[fireKey]) {
+        if (at > nowTs && isNotificationDue(fireKey, { firedRules, notificationRetries, now })) {
           candidates.push({ at, ruleId, fireKey, provider, bucketId: bucket.id });
         }
       }
       if (settings.notifications?.R2 && resetTs > nowTs) {
         const fireKey = `${provider}-${bucket.id}-R2-${bucket.resetISO}`;
-        if (!firedRules[fireKey]) {
+        if (isNotificationDue(fireKey, { firedRules, notificationRetries, now })) {
           candidates.push({ at: resetTs, ruleId: 'R2', fireKey, provider, bucketId: bucket.id });
         }
       }
@@ -282,7 +408,7 @@ export function deriveNextNotificationAlarm({ snapshot, settings, firedRules = {
     const today = localBriefingTime(now, hour);
     const briefing = today.getTime() > nowTs ? today : addLocalDays(today, 1);
     const fireKey = `D1-${localDayKey(briefing)}`;
-    if (!firedRules[fireKey]) candidates.push({
+    if (isNotificationDue(fireKey, { firedRules, notificationRetries, now })) candidates.push({
       at: briefing.getTime(),
       ruleId: 'D1',
       fireKey,
@@ -320,7 +446,7 @@ export function buildWebhookPayload(notification, { includeDetails = false, now 
     event: 'notification-rule-fired',
     emittedAtISO: now.toISOString(),
     ruleId: boundedWebhookText(notification?.ruleId, 32) || 'unknown',
-    tone: boundedWebhookText(notification?.tone, 16) || 'info',
+    tone: normalizeNotificationTone(notification?.tone),
     catchUp: notification?.catchUp === true,
   };
   if (includeDetails) {

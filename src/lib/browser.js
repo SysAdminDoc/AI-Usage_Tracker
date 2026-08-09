@@ -3,6 +3,7 @@
 // fallbacks to userscript primitives where needed.
 
 import { API_PROVIDER_HOSTS } from '../providers/api-contract.js';
+import { normalizeNotificationTone } from './notify.js';
 
 export const isExtension = typeof chrome !== 'undefined' && !!(chrome.runtime && chrome.runtime.id);
 export const isUserscript = !isExtension && (typeof GM !== 'undefined' || typeof GM_setValue !== 'undefined');
@@ -227,8 +228,23 @@ async function notifyViaUserscriptManager({ title, body, id }) {
   return false;
 }
 
+/** Map every notification tone to the WebExtensions priority contract. */
+export function notificationPriorityForTone(tone) {
+  switch (normalizeNotificationTone(tone)) {
+    case 'reset': return 1;
+    case 'warning': return 1;
+    case 'bad': return 2;
+    case 'success': return 0;
+    case 'snooze': return 0;
+    case 'delivery-failure': return 2;
+    case 'info': return 0;
+    default: return 0;
+  }
+}
+
 // chrome.notifications uses callbacks on Chrome, promises on Firefox.
 export async function notify({ title, body, tone = 'info', id }) {
+  const normalizedTone = normalizeNotificationTone(tone);
   // Extension path.
   if (ns && ns.notifications && ns.notifications.create) {
     const iconUrl = ns.runtime?.getURL ? ns.runtime.getURL('icons/icon-128.png') : 'icons/icon-128.png';
@@ -238,7 +254,7 @@ export async function notify({ title, body, tone = 'info', id }) {
         iconUrl,
         title,
         message: body,
-        priority: tone === 'bad' ? 2 : tone === 'warn' ? 1 : 0,
+        priority: notificationPriorityForTone(normalizedTone),
       }]);
       return true;
     } catch { /* fall through to web API */ }
