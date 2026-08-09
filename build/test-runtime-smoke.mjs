@@ -16,6 +16,9 @@ const DIST = path.join(ROOT, 'dist');
 const CHROME_DIR = path.join(DIST, 'chrome');
 const CHROME_MANIFEST = JSON.parse(await fs.readFile(path.join(CHROME_DIR, 'manifest.json'), 'utf8'));
 const FIREFOX_XPI = path.join(DIST, `ai-usage-tracker-firefox-v${VERSION}.xpi`);
+const USERSCRIPT_FILE = path.join(DIST, 'userscript', 'ai-usage-tracker.user.js');
+const AXE_SOURCE = await fs.readFile(path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
+const USERSCRIPT_SOURCE = await fs.readFile(USERSCRIPT_FILE, 'utf8').catch(() => null);
 const CHROME_CANDIDATES = [
   process.env.AUT_CHROME_PATH,
   ...await playwrightChromiumCandidates(),
@@ -178,6 +181,28 @@ async function smokeChrome(browserPath, extensionDir) {
       15_000,
     );
 
+    for (const [label, page] of [['popup', popup], ['options', options], ['sidepanel', sidepanel]]) {
+      await assertLoadedSurface(page.sessionId, label, { locale: 'en', viewport: 'wide' });
+      await runAxeAudit(page.sessionId, label);
+      await setViewport(cdp, page, 360, 820);
+      await assertLoadedSurface(page.sessionId, label, { locale: 'en', viewport: 'narrow' });
+      await setReducedMotion(cdp, page, true);
+      await assertLoadedSurface(page.sessionId, `${label} reduced-motion`, { locale: 'en', viewport: 'narrow', reducedMotion: true });
+      await setReducedMotion(cdp, page, false);
+    }
+
+    await setExtensionSurfaceState(popup, { locale: 'ar', highContrast: true });
+    for (const [label, page] of [['popup', popup], ['options', options], ['sidepanel', sidepanel]]) {
+      await reloadAndWait(cdp, page);
+      await setViewport(cdp, page, 1024, 900);
+      await assertLoadedSurface(page.sessionId, `${label} Arabic`, { locale: 'ar', viewport: 'wide', highContrast: true });
+      await runAxeAudit(page.sessionId, `${label} Arabic`);
+    }
+
+    await setExtensionSurfaceState(options, { locale: 'en', highContrast: false });
+    await reloadAndWait(cdp, options);
+    await runInlineDialogBrowserChecks(cdp, options);
+
     const contentPage = await openRawPage(cdp, 'https://claude.ai/');
     pages.push(contentPage);
     await waitFor(
@@ -227,7 +252,7 @@ async function smokeChrome(browserPath, extensionDir) {
     );
     await cdp.send('Page.reload', {}, popup.sessionId);
     const regularBody = await waitFor(
-      () => evaluate(popup.sessionId, "document.body?.innerText?.toLowerCase().includes('stale')"),
+      () => evaluate(popup.sessionId, "!!document.querySelector('.popup-provider .aut-status-label--warn')"),
       10_000,
     );
     assert.equal(regularBody, true, 'popup must render a stale provider state');
@@ -476,6 +501,233 @@ async function openExtensionPage(cdp, extensionId, relativePath, browserContextI
   };
 }
 
+async function assertLoadedSurface(sessionId, label, {
+  locale,
+  viewport,
+  reducedMotion = false,
+  highContrast = false,
+} = {}) {
+  const result = await evaluate(sessionId, `(() => {
+    const visible = (element) => {
+      if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const labelFor = (element) => {
+      const labelledBy = element.getAttribute('aria-labelledby');
+      if (labelledBy) return labelledBy.split(/\\s+/).map((id) => document.getElementById(id)?.textContent || '').join(' ');
+      if (element.getAttribute('aria-label')) return element.getAttribute('aria-label');
+      if (element.labels?.length) return [...element.labels].map((node) => node.textContent || '').join(' ');
+      return element.getAttribute('title') || element.getAttribute('placeholder') || element.textContent || '';
+    };
+    const controls = [...document.querySelectorAll('button, a, input, select, textarea, [role="button"]')]
+      .filter(visible)
+      .filter((element) => element.type !== 'hidden');
+    const unnamed = controls
+      .filter((element) => !String(labelFor(element)).replace(/\\s+/g, ' ').trim())
+      .map((element) => element.outerHTML.slice(0, 180));
+    const liveRegions = [...document.querySelectorAll('[aria-live][role="status"], [aria-live][role="alert"]')]
+      .filter(visible).length;
+    const labelledDialogs = [...document.querySelectorAll('[role="dialog"]')]
+      .filter(visible)
+      .map((dialog) => ({ modal: dialog.getAttribute('aria-modal'), label: labelFor(dialog) }));
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const overflow = [...document.querySelectorAll('body, body *')]
+      .filter(visible)
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.right > viewportWidth + 1 || rect.left < -1)
+      .slice(0, 10)
+      .map(({ element, rect }) => ({ tag: element.tagName, className: element.className, left: rect.left, right: rect.right }));
+    const targets = [...document.querySelectorAll('button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), textarea, [role="button"]')]
+      .filter(visible)
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0 && (rect.width < 24 || rect.height < 24))
+      .map(({ element, rect }) => ({ tag: element.tagName, className: element.className, width: rect.width, height: rect.height }));
+    const rangeTargets = [...document.querySelectorAll('input[type="range"]')]
+      .filter(visible)
+      .map((element) => ({ element: element.closest('label') || element, rect: (element.closest('label') || element).getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0 && (rect.width < 24 || rect.height < 24))
+      .map(({ element, rect }) => ({ tag: element.tagName, className: element.className, width: rect.width, height: rect.height }));
+    const sample = document.querySelector('button, select, input, a');
+    const style = sample ? getComputedStyle(sample) : null;
+    return {
+      lang: document.documentElement.lang,
+      dir: document.documentElement.dir,
+      liveRegions,
+      unnamed,
+      dialogs: labelledDialogs,
+      overflow,
+      targets,
+      rangeTargets,
+      contrast: document.body.dataset.autContrast || document.querySelector('.aut-root')?.dataset.autContrast || 'normal',
+      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      transitionDuration: style?.transitionDuration || '',
+      animationDuration: style?.animationDuration || '',
+    };
+  })()`);
+  assert.equal(result.lang, locale, `${label} must expose the active document language`);
+  assert.equal(result.dir, locale === 'ar' ? 'rtl' : 'ltr', `${label} must expose the active direction`);
+  assert.deepEqual(result.unnamed, [], `${label} has unnamed visible controls: ${JSON.stringify(result.unnamed)}`);
+  assert.ok(result.liveRegions > 0, `${label} must expose a live status region`);
+  assert.deepEqual(result.overflow, [], `${label} overflows its ${viewport} viewport: ${JSON.stringify(result.overflow)}`);
+  assert.deepEqual(result.targets, [], `${label} has undersized interactive targets: ${JSON.stringify(result.targets)}`);
+  assert.deepEqual(result.rangeTargets, [], `${label} has undersized range hit areas: ${JSON.stringify(result.rangeTargets)}`);
+  if (labelledDialogsRequired(label)) {
+    assert.ok(result.dialogs.every((dialog) => dialog.modal === 'true' && dialog.label), `${label} dialog must be modal and labelled`);
+  }
+  if (reducedMotion) {
+    assert.equal(result.reducedMotion, true, `${label} must receive reduced-motion emulation`);
+    assert.ok(result.transitionDuration.split(',').every((value) => Number.parseFloat(value) <= 0.01), `${label} transition must be reduced`);
+  }
+  if (highContrast) assert.equal(result.contrast, 'high', `${label} must expose the high-contrast state`);
+  return result;
+}
+
+function labelledDialogsRequired(label) {
+  return /inline/i.test(label);
+}
+
+async function runAxeAudit(sessionId, label) {
+  await evaluate(sessionId, `${AXE_SOURCE}\ntrue`);
+  const violations = await evaluate(sessionId, `axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } }).then((result) => result.violations.map((violation) => ({
+    id: violation.id,
+    impact: violation.impact,
+    help: violation.help,
+    nodes: violation.nodes.slice(0, 3).map((node) => ({ target: node.target, html: node.html })),
+  })))`, true);
+  const blocking = (violations || []).filter((violation) => ['critical', 'serious'].includes(violation.impact));
+  assert.deepEqual(blocking, [], `${label} axe blocking violations: ${JSON.stringify(blocking)}`);
+  if (violations?.length) console.log(`${label} axe findings (non-blocking): ${JSON.stringify(violations)}`);
+}
+
+async function setViewport(cdp, page, width, height) {
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width,
+    height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  }, page.sessionId);
+}
+
+async function setReducedMotion(cdp, page, enabled) {
+  await cdp.send('Emulation.setEmulatedMedia', {
+    features: enabled ? [{ name: 'prefers-reduced-motion', value: 'reduce' }] : [],
+  }, page.sessionId);
+}
+
+async function reloadAndWait(cdp, page) {
+  await cdp.send('Page.reload', {}, page.sessionId);
+  await waitFor(() => evaluate(page.sessionId, "document.readyState === 'complete'"), 15_000);
+}
+
+async function setExtensionSurfaceState(page, updates) {
+  const key = 'aut.state.v1.profile.default';
+  const keyLiteral = JSON.stringify(key);
+  const updatesLiteral = JSON.stringify(updates);
+  await evaluate(page.sessionId, `new Promise((resolve) => chrome.storage.local.get(${keyLiteral}, (result) => {
+    const state = result[${keyLiteral}] || {};
+    state.settings = Object.assign({}, state.settings || {}, ${updatesLiteral});
+    chrome.storage.local.set({ ${keyLiteral}: state }, () => resolve(true));
+  }))`, true);
+}
+
+async function runInlineDialogBrowserChecks(cdp, page) {
+  assert.ok(USERSCRIPT_SOURCE, 'userscript bundle is required for loaded inline-settings checks');
+  await evaluate(page.sessionId, `(() => {
+    const marker = document.createElement('button');
+    marker.id = 'aut-focus-return-marker';
+    marker.textContent = 'focus return marker';
+    marker.style.cssText = 'position: absolute; inset-inline-start: 0; inset-block-start: 0;';
+    document.body.appendChild(marker);
+    marker.focus();
+    globalThis.__AUT_BROWSER_TEST__ = true;
+    return true;
+  })()`);
+  await evaluate(page.sessionId, `${USERSCRIPT_SOURCE}\ntrue`);
+  await waitFor(() => evaluate(page.sessionId, '!!globalThis.__AUT_TEST_OPEN_INLINE_SETTINGS__'), 15_000);
+  await evaluate(page.sessionId, 'globalThis.__AUT_TEST_OPEN_INLINE_SETTINGS__().then(() => true)', true);
+  await waitFor(() => evaluate(page.sessionId, '!!document.querySelector(\'#aut-inline-settings-host\')?.shadowRoot?.querySelector(\'[role="dialog"]\')'), 15_000);
+  await evaluate(page.sessionId, 'new Promise((resolve) => setTimeout(resolve, 100))', true);
+
+  await setViewport(cdp, page, 360, 820);
+  const initial = await evaluate(page.sessionId, `(() => {
+    const hook = globalThis.__AUT_TEST_INLINE_DIALOG__;
+    const dialog = hook?.dialog;
+    const entry = dialog?.querySelector('.aut-inline-settings__foot .aut-inline-settings__button');
+    const focusables = hook?.getFocusables() || [];
+    const marker = document.getElementById('aut-focus-return-marker');
+    return {
+      lang: dialog?.getAttribute('lang'),
+      dir: dialog?.getAttribute('dir'),
+      modal: dialog?.getAttribute('aria-modal'),
+      labelledBy: dialog?.getAttribute('aria-labelledby'),
+      label: dialog?.getAttribute('aria-labelledby') ? dialog.querySelector('#aut-inline-settings-title')?.textContent : '',
+      focusCount: focusables.length,
+      enteredFocus: (globalThis.__AUT_TEST_FOCUS_LOG__ || []).includes(entry?.className),
+      focusLog: globalThis.__AUT_TEST_FOCUS_LOG__ || [],
+      marker: marker === document.activeElement,
+      overflow: dialog ? dialog.scrollWidth > dialog.clientWidth + 1 : true,
+    };
+  })()`);
+  assert.equal(initial.lang, 'en', 'inline dialog must expose English language metadata');
+  assert.equal(initial.dir, 'ltr', 'inline dialog must start in LTR');
+  assert.equal(initial.modal, 'true', 'inline settings must be modal');
+  assert.ok(initial.labelledBy && initial.label, 'inline dialog must reference a visible accessible name');
+  assert.ok(initial.focusCount > 2, 'inline dialog must have a usable focus sequence');
+  assert.equal(initial.enteredFocus, true, `inline dialog must enter focus on its close control: ${JSON.stringify(initial)}`);
+  assert.equal(initial.marker, false, 'inline dialog must retain focus while open');
+  assert.equal(initial.overflow, false, 'inline dialog must reflow at the narrow viewport');
+
+  const focusLoop = await evaluate(page.sessionId, `(() => {
+    const hook = globalThis.__AUT_TEST_INLINE_DIALOG__;
+    const items = hook.getFocusables();
+    const first = items[0];
+    const last = items[items.length - 1];
+    const forward = { key: 'Tab', shiftKey: false, activeElement: last, prevented: false, preventDefault() { this.prevented = true; } };
+    const beforeForward = (globalThis.__AUT_TEST_FOCUS_LOG__ || []).length;
+    last.focus();
+    hook.handleKeydown(forward);
+    const forwardResult = { prevented: forward.prevented, wrapped: (globalThis.__AUT_TEST_FOCUS_LOG__ || []).length > beforeForward };
+    const backward = { key: 'Tab', shiftKey: true, activeElement: first, prevented: false, preventDefault() { this.prevented = true; } };
+    const beforeBackward = (globalThis.__AUT_TEST_FOCUS_LOG__ || []).length;
+    first.focus();
+    hook.handleKeydown(backward);
+    const backwardResult = { prevented: backward.prevented, wrapped: (globalThis.__AUT_TEST_FOCUS_LOG__ || []).length > beforeBackward };
+    const escape = { key: 'Escape', prevented: false, preventDefault() { this.prevented = true; } };
+    hook.handleKeydown(escape);
+    return { forward: forwardResult, backward: backwardResult, escapePrevented: escape.prevented };
+  })()`);
+  assert.deepEqual(focusLoop, {
+    forward: { prevented: true, wrapped: true },
+    backward: { prevented: true, wrapped: true },
+    escapePrevented: true,
+  }, 'inline dialog must loop focus and close on Escape');
+  await waitFor(() => evaluate(page.sessionId, '!document.querySelector(\'#aut-inline-settings-host\')'), 5_000);
+  assert.equal(await evaluate(page.sessionId, "document.getElementById('aut-focus-return-marker') === document.activeElement"), true,
+    'inline dialog must return focus to the invoking control');
+
+  await evaluate(page.sessionId, `new Promise((resolve) => chrome.storage.local.get('aut.state.v1.profile.default', (result) => {
+    const state = result['aut.state.v1.profile.default'];
+    state.settings = Object.assign({}, state.settings || {}, { locale: 'ar', highContrast: true });
+    chrome.storage.local.set({ 'aut.state.v1.profile.default': state }, () => resolve(true));
+  }))`, true);
+  await evaluate(page.sessionId, 'globalThis.__AUT_TEST_OPEN_INLINE_SETTINGS__().then(() => true)', true);
+  await waitFor(() => evaluate(page.sessionId, '!!document.querySelector(\'#aut-inline-settings-host\')?.shadowRoot?.querySelector(\'[role="dialog"]\')'), 15_000);
+  const rtl = await evaluate(page.sessionId, `(() => {
+    const dialog = globalThis.__AUT_TEST_INLINE_DIALOG__?.dialog;
+    return {
+      lang: dialog?.getAttribute('lang'),
+      dir: dialog?.getAttribute('dir'),
+      contrast: dialog?.closest('.aut-root')?.dataset.autContrast,
+      overflow: dialog ? dialog.scrollWidth > dialog.clientWidth + 1 : true,
+    };
+  })()`);
+  assert.deepEqual(rtl, { lang: 'ar', dir: 'rtl', contrast: 'high', overflow: false },
+    'inline dialog must localize and reflow in RTL high-contrast mode');
+  await runAxeAudit(page.sessionId, 'inline Arabic');
+  await evaluate(page.sessionId, 'globalThis.__AUT_TEST_INLINE_DIALOG__?.close()');
+}
+
 async function openRawPage(cdp, url) {
   const target = await cdp.send('Target.createTarget', { url });
   const attached = await cdp.send('Target.attachToTarget', { targetId: target.targetId, flatten: true });
@@ -497,7 +749,12 @@ async function evaluate(sessionId, expression, awaitPromise = false, userGesture
     returnByValue: true,
     userGesture,
   }, sessionId);
-  if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || 'Runtime evaluation failed');
+  if (result.exceptionDetails) {
+    throw new Error(result.exceptionDetails.exception?.description
+      || result.exceptionDetails.description
+      || result.exceptionDetails.text
+      || 'Runtime evaluation failed');
+  }
   return result.result?.value;
 }
 
@@ -773,6 +1030,7 @@ async function removeTemp(target) {
 
 await assertArtifact(CHROME_DIR, 'Chrome unpacked artifact');
 await assertArtifact(FIREFOX_XPI, 'Firefox packaged artifact');
+await assertArtifact(USERSCRIPT_FILE, 'userscript artifact');
 assert.ok(CHROME_PATH, 'Chrome/Edge executable is required for runtime smoke');
 assert.ok(FIREFOX_PATH, 'Firefox executable is required for runtime smoke');
 assert.ok(GECKODRIVER_PATH, 'geckodriver is required for Firefox runtime smoke');

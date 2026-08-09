@@ -231,3 +231,7 @@ async function scheduleNext() {
 async function openInlineSettings() {
   await showInlineSettings({ onSaved: () => refreshWidget() });
 }
+
+if (globalThis.__AUT_BROWSER_TEST__ === true) {
+  globalThis.__AUT_TEST_OPEN_INLINE_SETTINGS__ = openInlineSettings;
+}

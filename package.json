@@ -15,6 +15,7 @@
     "test:runtime": "npm run build && node build/test-runtime-smoke.mjs"
   },
   "devDependencies": {
+    "axe-core": "^4.12.1",
     "esbuild": "^0.28.1",
     "linkedom": "^0.18.13",
     "typescript": "^7.0.2"

@@ -236,6 +236,7 @@ export async function openInlineSettings({ onSaved } = {}) {
 
   let state = await loadState();
   let draft = normalizeSettings(state.settings);
+  const returnFocus = document.activeElement;
   activeI18n = createI18n(draft.locale);
   const host = document.createElement('div');
   host.id = 'aut-inline-settings-host';
@@ -287,6 +288,8 @@ export async function openInlineSettings({ onSaved } = {}) {
   const close = () => {
     host.remove();
     modalHost = null;
+    if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') focusElement(returnFocus);
+    if (globalThis.__AUT_TEST_INLINE_DIALOG__?.dialog === dialog) delete globalThis.__AUT_TEST_INLINE_DIALOG__;
   };
   const save = async () => {
     draft = readDraft(controls, draft);
@@ -328,21 +331,51 @@ export async function openInlineSettings({ onSaved } = {}) {
     }
   });
   backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
-  shadow.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') { event.preventDefault(); close(); return; }
-    if (event.key !== 'Tab') return;
-    const items = focusables();
-    if (!items.length) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    const active = shadow.activeElement;
-    if (event.shiftKey && active === first) {
-      event.preventDefault(); last.focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault(); first.focus();
-    }
-  });
-  setTimeout(() => foot.close.focus(), 0);
+  shadow.addEventListener('keydown', (event) => handleDialogKeydown(event, { focusables, close, root: shadow }));
+  if (globalThis.__AUT_BROWSER_TEST__ === true) {
+    globalThis.__AUT_TEST_FOCUS_LOG__ = [];
+    globalThis.__AUT_TEST_INLINE_DIALOG__ = {
+      dialog,
+      getFocusables: focusables,
+      close,
+      handleKeydown: (event) => handleDialogKeydown(event, { focusables, close, root: shadow }),
+    };
+  }
+  setTimeout(() => focusElement(foot.close), 0);
+}
+
+function focusElement(element) {
+  if (!element || typeof element.focus !== 'function') return;
+  element.focus({ preventScroll: true });
+  if (globalThis.__AUT_BROWSER_TEST__ === true) {
+    const name = element.id || element.className || element.tagName || 'unknown';
+    globalThis.__AUT_TEST_FOCUS_LOG__ = [...(globalThis.__AUT_TEST_FOCUS_LOG__ || []), String(name)].slice(-24);
+  }
+}
+
+export function handleDialogKeydown(event, { focusables, close, root = null }) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    close();
+    return true;
+  }
+  if (event.key !== 'Tab') return false;
+  const items = focusables();
+  if (!items.length) return false;
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = event.activeElement || root?.activeElement || document.activeElement;
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    focusElement(last);
+    return true;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    focusElement(first);
+    return true;
+  }
+  return false;
 }
 
 function buildHeader() {

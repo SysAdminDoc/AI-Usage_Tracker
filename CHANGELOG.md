@@ -11,6 +11,7 @@
 - Provider scrapers and API adapters now emit source-specific schema markers, fail closed on unknown shapes or truncated pagination, reject web/API disagreement, and preserve last-good data with timestamped stale reasons and diagnostics.
 - Packaged Chrome and Firefox runtime smoke now runs against fresh isolated browser profiles, covering extension startup, UI pages, worker restart, content messaging, permissions, stale state, split-incognito state, and notification seams.
 - Popup, options, side-panel, widget, and userscript settings surfaces now use the shared locale catalog with Intl number/date/plural formatting, language metadata, Arabic RTL direction, and logical layout properties.
+- Packaged browser acceptance now checks axe common violations, dialog focus contracts, accessible names and live regions, narrow reflow, RTL/high contrast, reduced motion, overflow, and target geometry in loaded Chrome and Firefox surfaces.
 
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 
