@@ -173,7 +173,23 @@ for (const plugin of listProviderPlugins()) {
 let fixtureParseSawSecret = false;
 const fixturePlugin = defineProviderPlugin({
   id: 'fixture-provider',
-  meta: { label: 'Fixture provider' },
+  meta: {
+    label: 'Fixture provider',
+    capabilities: {
+      tokenUsage: false,
+      requestUsage: true,
+      cost: false,
+      quotaWindows: false,
+      dimensions: ['fixture'],
+    },
+    accuracy: {
+      usage: 'official',
+      cost: 'unavailable',
+      reset: 'unavailable',
+      freshness: 'realtime',
+      caveat: 'Local fixture data is deterministic and contains no provider credentials.',
+    },
+  },
   auth: ({ credential }) => ({ ok: true, provider: 'fixture-provider', apiKey: credential, scope: 'fixture' }),
   fetch: ({ auth }) => ({ ok: true, provider: 'fixture-provider', data: { value: 3 }, meta: { source: 'fixture' } }),
   parse: (data, context) => {

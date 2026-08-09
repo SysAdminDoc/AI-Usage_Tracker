@@ -1,0 +1,71 @@
+{
+  "schema": "ai-usage-tracker.provider-fixture",
+  "schemaVersion": 1,
+  "provider": {
+    "id": "sample-provider",
+    "apiVersion": 1,
+    "meta": {
+      "label": "Sample provider",
+      "docsUrl": "https://example.invalid/sample-provider",
+      "capabilities": {
+        "tokenUsage": true,
+        "requestUsage": true,
+        "cost": false,
+        "quotaWindows": false,
+        "dimensions": [
+          "model"
+        ]
+      },
+      "accuracy": {
+        "usage": "official",
+        "cost": "unavailable",
+        "reset": "unavailable",
+        "freshness": "daily",
+        "caveat": "The fixture represents a provider's official daily usage report without billing or reset data."
+      }
+    }
+  },
+  "payload": {
+    "usage": {
+      "requests": 12,
+      "tokens": 2048
+    },
+    "model": "sample-model",
+    "observedAt": "2026-08-08T12:00:00.000Z"
+  },
+  "snapshot": {
+    "ok": true,
+    "provider": "sample-provider",
+    "source": "api-key",
+    "schemaVersion": 1,
+    "schemaFingerprint": "sample-provider.api.v1.daily",
+    "plan": "Sample",
+    "range": {
+      "startISO": "2026-08-08T00:00:00.000Z",
+      "endISO": "2026-08-09T00:00:00.000Z"
+    },
+    "totals": {
+      "requests": 12,
+      "tokens": 2048
+    },
+    "buckets": [
+      {
+        "id": "sample-provider-daily",
+        "label": "Sample daily usage",
+        "kind": "api",
+        "model": "sample-model",
+        "percentUsed": 37.5,
+        "resetISO": null,
+        "rawResetText": "Daily report; no reset window published",
+        "metric": {
+          "kind": "tokens",
+          "requests": 12,
+          "totalTokens": 2048
+        },
+        "dimensions": {
+          "model": "sample-model"
+        }
+      }
+    ]
+  }
+}

@@ -188,6 +188,17 @@ The model boundary is also checked with TypeScript 7 in strict mode: provider sn
 
 API-key providers are registered in `src/providers/registry.js` through the versioned contract in `src/providers/plugin-api.js`. A plugin's `auth({ credential, settings, now })` phase validates local configuration and creates a request-only auth context; `fetch({ auth, settings, now, fetchImpl })` returns `{ ok, data, meta }`; `parse(data, context)` turns provider payloads into a snapshot candidate; and `normalize(snapshot, context)` enforces the shared bucket shape before storage. The credential is withheld from parse and normalize contexts, and fixture tests exercise all built-in registrations plus a secret-boundary plugin.
 
+#### Provider authoring kit
+
+The local authoring contract is intentionally static: add a reviewed adapter to the registry and test it with local fixtures; never load provider code, fixture data, or executable JavaScript from a URL. Each plugin declares `apiVersion: 1`, a lowercase hyphenated `id`, and metadata with:
+
+- `capabilities.tokenUsage`, `requestUsage`, `cost`, and `quotaWindows` as explicit booleans, plus a bounded `dimensions` list. Use `false` or an empty list when the provider does not publish a capability.
+- `accuracy.usage`, `cost`, and `reset` as `official`, `estimated`, `mixed`, or `unavailable`; `accuracy.freshness` as `realtime`, `daily`, `month-to-date`, `current-cycle`, `activity`, or `unknown`; and a short `accuracy.caveat`.
+
+Normalized snapshots must return `{ ok: true, provider, source, schemaVersion, schemaFingerprint, buckets }`. Every bucket has a stable `id` and `label`, `kind`, bounded `percentUsed` (0–100), nullable `resetISO`, and a structured `metric`; optional model, dimension, range, and total fields must remain bounded and redacted. A failed parse uses a provider-specific `errorCode` and schema fingerprint. The state merger preserves the last successful buckets, marks the provider stale, and records `lastErrorCode`, `staleReason`, and source age rather than converting missing data to zero.
+
+Fixture files use the versioned `ai-usage-tracker.provider-fixture` JSON envelope with `provider` metadata, a redacted `payload`, and one expected normalized `snapshot`. `build/provider-fixture.mjs` validates the schema, metadata, bucket bounds, ISO dates, node/depth/512 KiB limits, and secret-like keys before any adapter code runs. The sample fixture and plugin live in `build/fixtures/provider-sample.json` and `build/fixtures/sample-provider.mjs`; run `npm run validate:provider` or `node build/test-provider-kit.mjs`. Credentials are permitted only in the `auth` phase and are removed from the public parse/normalize context, fixture payloads, snapshots, exports, diagnostics, and errors.
+
 The host matrix is checked at test and build time: wildcard content scripts cover `claude.ai` and `chatgpt.com` subdomains, default host permissions and web-accessible resources remain apex-only, and API origins are scoped optional permissions. The userscript metadata and runtime predicates use the same two-provider contract, while its fetch path is tested for current-provider-only requests and unsupported-host no-ops. The DOM safety audit rejects direct HTML sinks in UI modules and only permits reviewed static icon markup through the guarded helper.
 
 ### Local MCP server

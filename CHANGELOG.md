@@ -18,6 +18,7 @@
 - API credentials now default to browser session or memory-only storage with visible recovery implications; persistent local storage is an explicit compatibility mode, and provider disable/profile deletion clear every credential copy while sync, exports, and diagnostics remain secret-free.
 - Analytics-page scraping now has an explicit lifecycle controller that aborts stale fetches, resumes after hidden-tab pauses, reinitializes across SPA navigation, tears down cleanly, and recovers from mutation backpressure without duplicate observers.
 - Release provenance now reads the package version as its source of truth, stamps UI/userscript templates during packaging, and checks manifests, downloads, README references, runtime UI version resolution, and MCP server metadata together.
+- Provider plugins now require explicit capability and accuracy metadata, while a local redacted fixture envelope and dependency-free validator make new adapters testable without changing background orchestration or loading remote code.
 
 ## v0.2.3 - 2026-08-03 - Roadmap drain
 

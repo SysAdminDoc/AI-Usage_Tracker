@@ -30,6 +30,14 @@ export const API_PROVIDER_META = Object.freeze({
     hint: 'Requires an Anthropic organization admin key with usage-report access.',
     costHint: 'Per-model USD costs use Anthropic Cost Report data; the bundled table is only a fallback.',
     docsUrl: 'https://platform.claude.com/docs/en/api/admin/usage_report/retrieve_messages',
+    capabilities: Object.freeze({
+      tokenUsage: true, requestUsage: true, cost: true, quotaWindows: false,
+      dimensions: Object.freeze(['model', 'workspace']),
+    }),
+    accuracy: Object.freeze({
+      usage: 'official', cost: 'mixed', reset: 'unavailable', freshness: 'daily',
+      caveat: 'Usage and cost reports are official; pricing-table estimates may appear when a model cost is not reported.',
+    }),
   }),
   'openai-api': Object.freeze({
     label: 'OpenAI API',
@@ -38,6 +46,14 @@ export const API_PROVIDER_META = Object.freeze({
     hint: 'Requires an OpenAI organization admin key for Usage and Costs.',
     costHint: 'Per-model USD costs use the bundled pricing table; official Costs remains the reconciliation total.',
     docsUrl: 'https://platform.openai.com/docs/api-reference/usage',
+    capabilities: Object.freeze({
+      tokenUsage: true, requestUsage: true, cost: true, quotaWindows: false,
+      dimensions: Object.freeze(['model', 'project', 'api-key']),
+    }),
+    accuracy: Object.freeze({
+      usage: 'official', cost: 'mixed', reset: 'unavailable', freshness: 'daily',
+      caveat: 'Usage is official; per-model prices are estimates while organization Costs remains the official reconciliation total.',
+    }),
   }),
   'github-copilot': Object.freeze({
     label: 'GitHub Copilot',
@@ -46,6 +62,14 @@ export const API_PROVIDER_META = Object.freeze({
     hint: 'Requires a local GitHub token with read access to Copilot seat details, plus your organization and username below.',
     costHint: 'Seat activity only; no API cost is inferred.',
     docsUrl: 'https://docs.github.com/en/rest/copilot/copilot-user-management',
+    capabilities: Object.freeze({
+      tokenUsage: false, requestUsage: false, cost: false, quotaWindows: false,
+      dimensions: Object.freeze(['organization', 'user']),
+    }),
+    accuracy: Object.freeze({
+      usage: 'official', cost: 'unavailable', reset: 'unavailable', freshness: 'activity',
+      caveat: 'The endpoint reports official seat plan and activity timestamps, not token, request, or billing totals.',
+    }),
   }),
   cursor: Object.freeze({
     label: 'Cursor',
@@ -54,6 +78,14 @@ export const API_PROVIDER_META = Object.freeze({
     hint: 'Requires a Cursor team administrator API key for read-only team usage and spend data.',
     costHint: 'Official spend is team-level; Cursor does not return per-model costs here.',
     docsUrl: 'https://docs.cursor.com/en/account/teams/admin-api',
+    capabilities: Object.freeze({
+      tokenUsage: false, requestUsage: true, cost: true, quotaWindows: false,
+      dimensions: Object.freeze(['team', 'member']),
+    }),
+    accuracy: Object.freeze({
+      usage: 'official', cost: 'official', reset: 'official', freshness: 'daily',
+      caveat: 'Daily requests and current-cycle team spend are official; per-model attribution is not provided.',
+    }),
   }),
   gemini: Object.freeze({
     label: 'Gemini',
@@ -62,6 +94,14 @@ export const API_PROVIDER_META = Object.freeze({
     hint: 'Requires a local Google Cloud OAuth token with monitoring.read access and the Gemini project ID below.',
     costHint: 'Monitoring exposes token and request usage; no billing cost is inferred.',
     docsUrl: 'https://docs.cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list',
+    capabilities: Object.freeze({
+      tokenUsage: true, requestUsage: true, cost: false, quotaWindows: false,
+      dimensions: Object.freeze(['project', 'model']),
+    }),
+    accuracy: Object.freeze({
+      usage: 'official', cost: 'unavailable', reset: 'unavailable', freshness: 'daily',
+      caveat: 'Cloud Monitoring values are official usage time series; billing cost and reset windows are not inferred.',
+    }),
   }),
   openrouter: Object.freeze({
     label: 'OpenRouter',
@@ -70,6 +110,14 @@ export const API_PROVIDER_META = Object.freeze({
     hint: 'Requires an OpenRouter key; the tracker reads the official key usage and credits endpoints only.',
     costHint: 'Official key usage and credits are shown; per-model cost history is not published by this endpoint.',
     docsUrl: 'https://openrouter.ai/docs/api/api-reference/credits/get-credits',
+    capabilities: Object.freeze({
+      tokenUsage: false, requestUsage: false, cost: true, quotaWindows: true,
+      dimensions: Object.freeze([]),
+    }),
+    accuracy: Object.freeze({
+      usage: 'official', cost: 'official', reset: 'official', freshness: 'current-cycle',
+      caveat: 'Key usage, limits, and credits are official account metrics without per-model history.',
+    }),
   }),
 });
 
