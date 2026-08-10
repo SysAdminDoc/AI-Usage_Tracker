@@ -198,3 +198,30 @@ Initial release.
 - 30-day rolling history per bucket; weekly burn-rate forecast.
 - Direct authenticated `fetch()` against Codex Analytics and Claude usage endpoints; silent-tab fallback if the response is a hydration shell.
 - Single source tree with three build targets (chrome.zip + crx, firefox.xpi, ai-usage-tracker.user.js).
+
+## Roadmap archive — 2026-08-10 — ROADMAP.md
+
+<details>
+<summary>Original roadmap snapshot</summary>
+
+```markdown
+# Roadmap
+
+Open work only. Completed release history belongs in `CHANGELOG.md`; rejected or deferred research decisions belong in `RESEARCH.md`.
+
+## Existing Open Items
+
+### P1
+### P2
+### P3
+
+## Research-Driven Additions
+
+### P1
+
+### P2
+
+### P3
+```
+
+</details>
