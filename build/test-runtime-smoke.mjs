@@ -31,7 +31,7 @@ const CHROME_PATH = await firstExisting(CHROME_CANDIDATES);
 const FIREFOX_PATH = await findFirefox();
 const GECKODRIVER_PATH = await firstExisting([
   process.env.AUT_GECKODRIVER_PATH,
-  'C:\\Users\\--\\AppData\\Local\\Microsoft\\WinGet\\Links\\geckodriver.exe',
+  path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Microsoft', 'WinGet', 'Links', 'geckodriver.exe'),
 ]);
 let activeCDP = null;
 

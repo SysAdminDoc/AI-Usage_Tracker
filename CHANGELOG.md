@@ -8,6 +8,7 @@
 - Replaced the ambiguous "Local only" badge with "Local history" in all five locales.
 - Gave the compact widget header a separate profile row so its title and action buttons don't compete for space.
 - Made Chromium acceptance headless and updated Firefox extension-page testing for current geckodriver.
+- Browser driver discovery now uses the local application-data directory instead of a machine-specific user path.
 - Fixed Windows scheduler registration and made removal dry-runs non-mutating, with regression tests for both paths.
 - Added license text to distributables and a signing-key-checked Chromium release pack. Unsigned Firefox files remain local development artifacts.
 
