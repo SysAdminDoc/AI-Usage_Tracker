@@ -50,14 +50,17 @@ export async function validateReleaseProvenance({ checkBuiltArtifacts = false } 
   expectIncludes(failures, 'userscript downloadURL', header, `releases/latest/download/${USERSCRIPT_ASSET}`);
 
   const readme = await readText('README.md');
+  const guide = await readText('GUIDE.md');
+  const docs = readme + '\n' + guide;
+  expectIncludes(failures, 'GUIDE current title', guide, `# AI Usage Tracker v${VERSION} user guide`);
   expectIncludes(failures, 'README version badge', readme, `version-${VERSION}-blue.svg`);
-  expectIncludes(failures, 'README Chrome asset', readme, CHROME_ASSET);
-  expectIncludes(failures, 'README Firefox asset', readme, FIREFOX_ASSET);
-  expectIncludes(failures, 'README Chrome bridge asset', readme, CHROME_BRIDGE_ASSET);
-  expectIncludes(failures, 'README Firefox bridge asset', readme, FIREFOX_BRIDGE_ASSET);
-  expectIncludes(failures, 'README native scheduler asset', readme, NATIVE_SCHEDULER_ASSET);
-  expectIncludes(failures, 'README userscript asset', readme, USERSCRIPT_ASSET);
-  expectIncludes(failures, 'README checksum asset', readme, 'SHA256SUMS.txt');
+  expectIncludes(failures, 'README Chrome asset', docs, CHROME_ASSET);
+  expectIncludes(failures, 'README Firefox asset', docs, FIREFOX_ASSET);
+  expectIncludes(failures, 'README Chrome bridge asset', docs, CHROME_BRIDGE_ASSET);
+  expectIncludes(failures, 'README Firefox bridge asset', docs, FIREFOX_BRIDGE_ASSET);
+  expectIncludes(failures, 'README native scheduler asset', docs, NATIVE_SCHEDULER_ASSET);
+  expectIncludes(failures, 'README userscript asset', docs, USERSCRIPT_ASSET);
+  expectIncludes(failures, 'README checksum asset', docs, 'SHA256SUMS.txt');
   expectCurrentVersionLiterals(failures, 'README release references', readme);
 
   for (const rel of ['src/ui/popup.html', 'src/ui/options.html', 'src/ui/sidepanel.html']) {
@@ -87,8 +90,8 @@ export async function validateReleaseProvenance({ checkBuiltArtifacts = false } 
 
   const claude = await readOptionalText('CLAUDE.md');
   if (claude != null) {
-    expectIncludes(failures, 'CLAUDE Chrome asset', claude, `dist/chrome/${CHROME_ASSET}`);
-    expectIncludes(failures, 'CLAUDE Firefox asset', claude, `dist/firefox/${FIREFOX_ASSET}`);
+    expectIncludes(failures, 'CLAUDE Chrome asset', claude, `dist/${CHROME_ASSET}`);
+    expectIncludes(failures, 'CLAUDE Firefox asset', claude, `dist/${FIREFOX_ASSET}`);
     expectMatch(failures, 'CLAUDE current status', claude, new RegExp(`^- v${escapeRegex(VERSION)}\\b`, 'm'));
   }
 

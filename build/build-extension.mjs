@@ -56,6 +56,7 @@ export async function buildExtension({ target, bridge = false }) {
   await copyFile(path.join(SRC, 'ui', 'theme.css'),   path.join(outDir, 'ui', 'theme.css'));
   await copyFile(path.join(SRC, 'ui', 'widget.css'),  path.join(outDir, 'ui', 'widget.css'));
   await copyDir(ICONS, path.join(outDir, 'icons'));
+  await copyFile(path.join(ROOT, 'LICENSE'), path.join(outDir, 'LICENSE'));
 
   // 3) Manifest — pull from manifests/<target>.json and stamp the version.
   const sourceManifest = await readJSON(path.join(MANIFESTS, `${target}.json`));

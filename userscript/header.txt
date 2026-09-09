@@ -2,7 +2,7 @@
 // @name         AI Usage Tracker
 // @namespace    https://github.com/SysAdminDoc/AI-Usage_Tracker
 // @version      __AUT_VERSION__
-// @description  Premium countdown timer + notifications for Claude and Codex usage limits. Always-visible widget while you work.
+// @description  Track Claude and Codex quota remaining, reset countdowns, and usage alerts in your browser.
 // @author       SysAdminDoc
 // @homepageURL  https://github.com/SysAdminDoc/AI-Usage_Tracker
 // @supportURL   https://github.com/SysAdminDoc/AI-Usage_Tracker/issues

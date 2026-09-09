@@ -90,6 +90,9 @@ if (!python) {
     'ai-usage-tracker@sysadmindoc.dev',
   ]);
 
+  const regression = spawnSync(python.command, [...python.args, path.join(ROOT, 'build', 'test-native-registration.py')], { encoding: 'utf8', windowsHide: true });
+  assert.equal(regression.status, 0, regression.stderr || regression.stdout);
+  console.log('native scheduler registration regressions: OK');
   await protocolSmoke(python);
   console.log('native scheduler protocol smoke: OK');
 }

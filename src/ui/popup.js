@@ -381,7 +381,7 @@ function renderBucket(b, history, thresholds, i18n = createI18n('en')) {
   const sub = createElement('div', { className: subClass });
   if (b.resetISO) {
     appendChildren(sub, [
-      createElement('span', { text: `${i18n.t('bucket.resetAt', { time: formatResetAbsolute(b.resetISO, i18n.locale) })} - ` }),
+      createElement('span', { text: `${i18n.t('bucket.resetAt', { time: formatResetAbsolute(b.resetISO, i18n.locale) })} · ` }),
       createElement('span', {
         className: 'popup-bucket__countdown',
         text: formatCountdown(b.resetISO),
@@ -449,7 +449,7 @@ function buildOverview(snapshot, settings, thresholds, i18n = createI18n('en')) 
     : i18n.t('bucket.resetTimeNotPublished');
   return {
     title: `${i18n.t(`provider.${best.provider}`)} ${humanBucketLabel(best.bucket, i18n)}`,
-    detail: `${i18n.t('overview.remaining', { percent: i18n.formatPercent(100 - best.percent) })} - ${reset}`,
+    detail: `${i18n.t('overview.remaining', { percent: i18n.formatPercent(100 - best.percent) })} · ${reset}`,
     percent: Math.round(best.percent),
     tone: statusTone(best.percent, thresholds),
   };

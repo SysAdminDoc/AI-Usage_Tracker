@@ -22,6 +22,10 @@ node_modules/
 .pnpm-store/
 npm-debug.log*
 
+# Python native helper
+__pycache__/
+*.py[cod]
+
 # OS
 .DS_Store
 Thumbs.db
@@ -35,6 +39,10 @@ desktop.ini
 # Markdown files local-only (except README)
 *.md
 !README.md
+!GUIDE.md
+!CHANGELOG.md
+!ROADMAP.md
+!assets/concepts/**/*.md
 
 # AI config
 AGENTS.md

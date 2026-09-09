@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## v0.2.5
+
+- Put installation and current packaged screenshots at the top of the README. Added a user guide with clear privacy, estimate, and channel limits.
+- Preserved the previous README, screenshots, and icon exports in the concept archive.
+- Re-rendered the existing ring icon with smoother edges, consistent small sizes, and a transparent high-resolution master.
+- Replaced the ambiguous "Local only" badge with "Local history" in all five locales.
+- Gave the compact widget header a separate profile row so its title and action buttons don't compete for space.
+- Made Chromium acceptance headless and updated Firefox extension-page testing for current geckodriver.
+- Fixed Windows scheduler registration and made removal dry-runs non-mutating, with regression tests for both paths.
+- Added license text to distributables and a signing-key-checked Chromium release pack. Unsigned Firefox files remain local development artifacts.
+
+### Earlier unreleased changes included in this delivery
 
 - Type checking now ratchets the background, message, request, storage, notification, and provider seams against a checked-in diagnostic baseline, reports the covered source files, and fails when a change introduces new diagnostics.
 - Refreshes now stage provider merges, history, budget, notification retries, and diagnostics before one coherent state commit; sync writes serialize/coalesce identical concurrent payloads and expose safe attempt/byte counters for quota tests.
@@ -12,16 +23,16 @@
 - API provider origins are now optional, exact-scoped permissions requested only for configured providers and removed when credentials are revoked; default installs no longer request the six API hosts.
 - Userscript refreshes now fetch only the provider represented by the current first-party page, use same-origin fetch without privileged GM cross-origin requests, and keep only exact first-party `@connect` entries.
 - Provider scrapers and API adapters now emit source-specific schema markers, fail closed on unknown shapes or truncated pagination, reject web/API disagreement, and preserve last-good data with timestamped stale reasons and diagnostics.
-- Packaged Chrome and Firefox runtime smoke now runs against fresh isolated browser profiles, covering extension startup, UI pages, worker restart, content messaging, permissions, stale state, split-incognito state, and notification seams.
+- Packaged browser checks use fresh isolated profiles. Chromium covers startup, UI pages, worker restart, content messaging, permissions, stale state, split-incognito state, and notification behavior. Firefox checks temporary installation plus popup and settings loading.
 - Popup, options, side-panel, widget, and userscript settings surfaces now use the shared locale catalog with Intl number/date/plural formatting, language metadata, Arabic RTL direction, and logical layout properties.
-- Packaged browser acceptance now checks axe common violations, dialog focus contracts, accessible names and live regions, narrow reflow, RTL/high contrast, reduced motion, overflow, and target geometry in loaded Chrome and Firefox surfaces.
+- The packaged Chromium checks cover axe common violations, dialog focus, accessible names and live regions, narrow reflow, RTL/high contrast, reduced motion, overflow, and target geometry. Firefox does not yet receive this same accessibility coverage.
 - API credentials now default to browser session or memory-only storage with visible recovery implications; persistent local storage is an explicit compatibility mode, and provider disable/profile deletion clear every credential copy while sync, exports, and diagnostics remain secret-free.
 - Analytics-page scraping now has an explicit lifecycle controller that aborts stale fetches, resumes after hidden-tab pauses, reinitializes across SPA navigation, tears down cleanly, and recovers from mutation backpressure without duplicate observers.
 - Release provenance now reads the package version as its source of truth, stamps UI/userscript templates during packaging, and checks manifests, downloads, README references, runtime UI version resolution, and MCP server metadata together.
 - Provider plugins now require explicit capability and accuracy metadata, while a local redacted fixture envelope and dependency-free validator make new adapters testable without changing background orchestration or loading remote code.
 - History now has an explicit, versioned long-horizon archive format with deterministic compaction, freshness metadata, strict redaction/size validation, and separate profile/incognito storage that cannot alter operational state or credentials.
 
-## v0.2.4 - 2026-08-09 - Roadmap drain
+## v0.2.4. 2026-08-09. Roadmap drain
 
 ### Added
 - Claude cache analytics now retain bounded local stream observations and show inferred 24-hour/7-day cache reuse ratios in the popup and widget, with explicit non-billing and missed-refresh limitations.
@@ -48,7 +59,7 @@
 - Provider API, auth, DOM, HTML, stream, and header contracts now carry stable provider-specific error codes with fixture coverage for renamed fields and fallback surfaces.
 - An isolated linkedom regression harness now renders popup, widget, and options state permutations and checks labels, busy/focus hooks, reduced motion, and overflow guards without opening a browser window.
 - A canonical two-provider host matrix now validates extension matches, apex permissions, web-accessible resources, userscript metadata, README hosts, and runtime predicates during tests and builds.
-- UI rendering now uses shared text/attribute/DOM builders; the CI safety audit rejects direct HTML sinks and guards the single reviewed static icon template.
+- UI rendering now uses shared text/attribute/DOM builders; the local DOM safety check rejects direct HTML sinks and guards the single reviewed static icon template.
 - A shared WebExtension adapter now normalizes Chrome callback APIs and Firefox promise APIs for notifications, tabs, alarms, storage, and messaging, with runtime contract fixtures for both styles.
 - README now includes a manifest-matched permission/data matrix, local-data revoke path, comparison table, and FAQ covering privacy and degraded states.
 - Settings now preflight notification capability and offer a permission request plus test alert in both the extension page and userscript modal.
@@ -70,7 +81,7 @@
 ### Fixed
 - Userscript widget callbacks now survive periodic rerenders, keeping refresh and settings actions available throughout the tab session.
 
-## v0.2.2 - 2026-06-27 - Release hardening
+## v0.2.2. 2026-06-27. Release hardening
 
 ### Added
 - Local release provenance validation covering package, lockfile, manifests, userscript metadata, README asset names, changelog, and disallowed workflow files.
@@ -80,7 +91,7 @@
 - Full builds now clean stale artifacts before packaging and run the provenance gate before producing release assets.
 - `package-lock.json` is tracked for deterministic local builds.
 
-## v0.2.1 — 2026-06-16 — Premium UI polish
+## v0.2.1. 2026-06-16. Premium UI polish
 
 ### Added
 - Widget right-click menu with notification snooze/resume, hide-for-session, refresh, analytics, and settings actions.
@@ -95,15 +106,15 @@
 - Polished menu, focus, hover, disabled, status, and feedback states across shared UI primitives.
 - Userscript widget usage-page actions now fall back to direct `window.open()` when extension messaging is unavailable.
 
-## v0.2.0 — 2026-05-25 — QuotaGlass desktop bridge
+## v0.2.0. 2026-05-25. QuotaGlass desktop bridge
 
-Optional integration with [QuotaGlass](https://github.com/SysAdminDoc/QuotaGlass), a Windows desktop widget that displays Claude + Codex quota state on your desktop. The extension forwards every successful state ingest to the QuotaGlass native messaging host. If QuotaGlass is not installed, the bridge is a silent no-op — no behavioral change for existing users beyond the new permission prompt.
+Optional integration with [QuotaGlass](https://github.com/SysAdminDoc/QuotaGlass), a Windows desktop widget that displays Claude + Codex quota state on your desktop. The extension forwards every successful state ingest to the QuotaGlass native messaging host. If QuotaGlass is not installed, the bridge is a silent no-op. no behavioral change for existing users beyond the new permission prompt.
 
 ### Added
-- `src/lib/bridge.js` — persistent native-messaging port (`com.sysadmindoc.quotaglass`) with reconnect-on-disconnect + 25s keepalive ping. Schema documented at [QuotaGlass/docs/extension-integration.md](https://github.com/SysAdminDoc/QuotaGlass/blob/main/docs/extension-integration.md).
-- `manifests/chrome.json` — added stable `"key"` field (deterministic extension ID `olkdpcileldmdemjbiklkhompnhkhjeh`).
-- Both manifests — added `"nativeMessaging"` permission.
-- `background.js` — `pushSnapshot` invoked after `mergeSnapshot`.
+- `src/lib/bridge.js`. persistent native-messaging port (`com.sysadmindoc.quotaglass`) with reconnect-on-disconnect + 25s keepalive ping. Schema documented at [QuotaGlass/docs/extension-integration.md](https://github.com/SysAdminDoc/QuotaGlass/blob/main/docs/extension-integration.md).
+- `manifests/chrome.json`. added stable `"key"` field (deterministic extension ID `olkdpcileldmdemjbiklkhompnhkhjeh`).
+- Both manifests. added `"nativeMessaging"` permission.
+- `background.js`. `pushSnapshot` invoked after `mergeSnapshot`.
 - Toolbar badge showing the most-constrained visible bucket's percent used, with green/amber/red badge and action-icon state.
 - Claude widget context counter estimating the visible conversation and draft prompt against the 200k context window.
 - Claude cache timer showing the five-minute cheaper-follow-up window after streamed `message_limit` events.
@@ -116,7 +127,7 @@ Optional integration with [QuotaGlass](https://github.com/SysAdminDoc/QuotaGlass
 - Existing developer-mode installs will get a new extension ID after pulling v0.2.0; reload via `chrome://extensions/`.
 - The bridge sends nothing if QuotaGlass is not registered as a native messaging host. No data leaves your machine beyond the local stdin/stdout pipe.
 
-## v0.1.6 — 2026-05-19
+## v0.1.6. 2026-05-19
 
 Adds Anthropic unified rate-limit response header capture as another Claude usage source when the browser page can read those headers.
 
@@ -126,7 +137,7 @@ Adds Anthropic unified rate-limit response header capture as another Claude usag
 - Widget, popup, and options diagnostics now label header-derived Claude readings distinctly.
 - Parser smoke coverage now verifies unified rate-limit header normalization.
 
-## v0.1.5 — 2026-05-19
+## v0.1.5. 2026-05-19
 
 Adds Claude streamed `message_limit` capture so usage bars can update from live completion responses instead of waiting for the rounded usage endpoint.
 
@@ -139,7 +150,7 @@ Adds Claude streamed `message_limit` capture so usage bars can update from live 
 ### Fixed
 - Widget, popup, and options visible version labels now stay synchronized with the packaged project version.
 
-## v0.1.4 — 2026-05-19
+## v0.1.4. 2026-05-19
 
 Fixes Codex usage collection by switching Codex to the ChatGPT WHAM usage API first, with the analytics-page scraper retained as fallback.
 
@@ -149,7 +160,7 @@ Fixes Codex usage collection by switching Codex to the ChatGPT WHAM usage API fi
 - The Codex analytics DOM scraper remains as the fallback path for schema drift, logged-out sessions, or transient API failures.
 - Parser smoke coverage now verifies Codex WHAM payloads, alternate field names, and auth/header construction.
 
-## v0.1.3 — 2026-05-19
+## v0.1.3. 2026-05-19
 
 Premium polish pass across the widget, popup, and settings surfaces.
 
@@ -160,7 +171,7 @@ Premium polish pass across the widget, popup, and settings surfaces.
 - Improved responsiveness, focus-visible treatment, disabled states, reduced-motion handling, and small-screen layout behavior.
 - Removed expensive content-script backdrop blur while preserving the dark elevated surface language.
 
-## v0.1.2 — 2026-05-19
+## v0.1.2. 2026-05-19
 
 Fixes Claude usage by switching the Claude collector to the same JSON API path used by Claude Ultimate Enhancer.
 
@@ -170,36 +181,36 @@ Fixes Claude usage by switching the Claude collector to the same JSON API path u
 - The settings-page DOM scraper remains as a fallback instead of the primary Claude data source.
 - Userscript refreshes now preserve the last successful provider snapshot when one side temporarily fails.
 
-## v0.1.1 — 2026-05-14
+## v0.1.1. 2026-05-14
 
 Fixes the "Unable to read analytics" failure on both providers.
 
 ### Fixed
-- claude.ai and chatgpt.com both serve a hydration shell on first fetch, so the background's direct `fetch()` couldn't see usage numbers — they only render after React hydrates. New `analytics-scraper.js` content script runs on the actual analytics pages, watches the rendered DOM with `MutationObserver`, and pushes the live snapshot to the background. Direct-fetch stays as a best-effort fast path.
+- claude.ai and chatgpt.com both serve a hydration shell on first fetch, so the background's direct `fetch()` couldn't see usage numbers. they only render after React hydrates. New `analytics-scraper.js` content script runs on the actual analytics pages, watches the rendered DOM with `MutationObserver`, and pushes the live snapshot to the background. Direct-fetch stays as a best-effort fast path.
 - Background alarm now also opens a silent inactive tab (auto-closed after 20 s) for any provider whose cached data is stale. The content script on that tab does the live scrape.
 - Widget empty / error states now show a one-click "Open analytics" button that opens the page so the scraper can run.
 
 ### Added
-- `parseClaudeDoc(document)` and `parseCodexDoc(document)` — DOM-based scrapers that complement the regex-based raw-HTML scrapers.
+- `parseClaudeDoc(document)` and `parseCodexDoc(document)`. DOM-based scrapers that complement the regex-based raw-HTML scrapers.
 - `tabs` permission in both manifests so the background can open the analytics pages.
 
-## v0.1.0 — 2026-05-14
+## v0.1.0. 2026-05-14
 
 Initial release.
 
 ### Added
 - Chrome MV3 extension (Chromium: Chrome / Edge / Brave).
-- Firefox MV3 extension (Developer Edition / Nightly — unsigned XPI).
+- Firefox MV3 extension (Developer Edition / Nightly. unsigned XPI).
 - Tampermonkey / Violentmonkey userscript (in-page widget + best-effort parity).
-- Floating glass widget on claude.ai and chatgpt.com — radial-ring countdowns with HH:MM:SS centers, green/amber/red color ramp.
-- Toolbar popup dashboard — both providers side-by-side, recent-usage sparklines.
-- Settings page — refresh interval, per-row visibility toggles, notification rule toggles, widget position + minimized state.
-- Notification rules — renewal-imminent (60 / 15 / 0 min), on-reset positive, usage thresholds (75 / 90 / 95%), burn-rate forecast, daily 08:00 briefing.
+- Floating glass widget on claude.ai and chatgpt.com. radial-ring countdowns with HH:MM:SS centers, green/amber/red color ramp.
+- Toolbar popup dashboard. both providers side-by-side, recent-usage sparklines.
+- Settings page. refresh interval, per-row visibility toggles, notification rule toggles, widget position + minimized state.
+- Notification rules. renewal-imminent (60 / 15 / 0 min), on-reset positive, usage thresholds (75 / 90 / 95%), burn-rate forecast, daily 08:00 briefing.
 - 30-day rolling history per bucket; weekly burn-rate forecast.
 - Direct authenticated `fetch()` against Codex Analytics and Claude usage endpoints; silent-tab fallback if the response is a hydration shell.
 - Single source tree with three build targets (chrome.zip + crx, firefox.xpi, ai-usage-tracker.user.js).
 
-## Roadmap archive — 2026-08-10 — ROADMAP.md
+## Roadmap archive. 2026-08-10. ROADMAP.md
 
 <details>
 <summary>Original roadmap snapshot</summary>

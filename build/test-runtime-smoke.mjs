@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -84,7 +84,7 @@ async function smokeChrome(browserPath, extensionDir) {
     }
     const currentBrowser = browser;
     browser = null;
-    await stopProcessByPid(currentBrowser?.processId);
+    await stopProcess(currentBrowser);
   };
 
   try {
@@ -415,8 +415,10 @@ async function enableIncognitoAccess(cdp, page, extensionId) {
 
 async function smokeFirefox(browserPath, driverPath, xpiPath) {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'aut-runtime-firefox-'));
+  const extensionUUID = randomUUID();
   const port = await freePort();
-  const driver = spawn(driverPath, ['--port', String(port), '--log', 'fatal'], {
+  // Extension-page automation is limited to this fresh, owned headless profile.
+  const driver = spawn(driverPath, ['--port', String(port), '--log', 'fatal', '--allow-system-access'], {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -436,6 +438,7 @@ async function smokeFirefox(browserPath, driverPath, xpiPath) {
             binary: browserPath,
             args: ['-headless', '-no-remote', '-profile', profile],
             prefs: {
+              'extensions.webextensions.uuids': JSON.stringify({ 'ai-usage-tracker@sysadmindoc.dev': extensionUUID }),
               'dom.webnotifications.enabled': false,
               'app.update.auto': false,
               'datareporting.policy.dataSubmissionEnabled': false,
@@ -451,18 +454,7 @@ async function smokeFirefox(browserPath, driverPath, xpiPath) {
       temporary: true,
     });
     assert.equal(installed.value, 'ai-usage-tracker@sysadmindoc.dev', 'Firefox must install the packaged add-on ID');
-    await webdriverRequest(port, `/session/${sessionId}/url`, 'POST', { url: 'about:debugging#/runtime/this-firefox' });
-    const addonPage = await waitFor(async () => {
-      const page = await webdriverRequest(port, `/session/${sessionId}/execute/sync`, 'POST', {
-        script: "return (function walk(node) { if (!node) return ''; let text = node.nodeType === 3 ? (node.textContent || '') : ''; for (const child of node.childNodes || []) text += ' ' + walk(child); if (node.shadowRoot) text += ' ' + walk(node.shadowRoot); return text; })(document.documentElement);",
-        args: [],
-      }).catch(() => null);
-      return /AI Usage Tracker|ai-usage-tracker/i.test(String(page?.value || '')) ? page : null;
-    }, 15_000);
-    assert.match(String(addonPage.value), /AI Usage Tracker|ai-usage-tracker/i);
-    const manifestURL = String(addonPage.value).match(/moz-extension:\/\/[a-f0-9-]+\/manifest\.json/i)?.[0];
-    assert.ok(manifestURL, 'Firefox debugging page must expose the packaged manifest URL');
-    const baseURL = manifestURL.replace(/manifest\.json$/i, '');
+    const baseURL = `moz-extension://${extensionUUID}/`;
     await webdriverRequest(port, `/session/${sessionId}/url`, 'POST', { url: baseURL + 'ui/popup.html' });
     const popupSource = await waitFor(async () => {
       const page = await webdriverRequest(port, `/session/${sessionId}/source`, 'GET').catch(() => null);
@@ -877,9 +869,10 @@ async function playwrightChromiumCandidates() {
 async function findFirefox() {
   const candidates = [
     process.env.AUT_FIREFOX_PATH,
+    path.join(process.env.ProgramFiles || 'C:/Program Files', 'Mozilla Firefox', 'firefox.exe'),
     path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps', 'firefox.exe'),
   ].filter(Boolean);
-  const direct = await firstExisting([process.env.AUT_FIREFOX_PATH]);
+  const direct = await firstExisting(candidates);
   if (direct) return direct;
 
   const appx = await runPowerShell("Get-AppxPackage -Name 'Mozilla.MozillaFirefox' | Select-Object -First 1 -ExpandProperty InstallLocation")
@@ -948,42 +941,20 @@ async function stopProcess(child) {
   });
 }
 
-async function stopProcessByPid(processId) {
-  if (!processId) return;
-  if (globalThis.process.platform === 'win32') {
-    await runPowerShell(`& taskkill.exe /PID ${Number(processId)} /T /F`)
-      .catch(() => {});
-    await runPowerShell(`for ($i = 0; $i -lt 100; $i++) { if (-not (Get-Process -Id ${Number(processId)} -ErrorAction SilentlyContinue)) { break }; Start-Sleep -Milliseconds 100 }`, 15_000)
-      .catch(() => {});
-    return;
-  }
-  try { globalThis.process.kill(processId); } catch { /* already stopped */ }
-}
-
 async function launchIsolatedChrome(browserPath, args) {
-  const isolationScript = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\--',
-    '.claude', 'scripts', 'visual-isolation.ps1',
-  );
-  const ensured = await runPowerShell(`& ${quotePowerShell(isolationScript)} ensure`);
-  const bounds = parseLastJson(ensured.output, 'visual isolation ensure bounds');
-  assert.equal(bounds.primary, false, 'isolated display must not be primary');
-  const argList = args.map(quotePowerShell).join(', ');
-  const launch = await runPowerShell(
-    `& ${quotePowerShell(isolationScript)} launch -FilePath ${quotePowerShell(browserPath)} -ArgumentList @(${argList})`,
-    45_000,
-  );
-  const placement = parseLastJson(launch.output, 'isolated browser launch placement');
-  assert.ok(Number.isInteger(placement.processId));
-  assert.equal(typeof placement.desktop, 'string');
-  assert.equal(placement.display, bounds.deviceName,
-    'runtime smoke must use the exact display established by visual isolation');
-  const verify = await runPowerShell(
-    `& ${quotePowerShell(isolationScript)} verify -ProcessId ${placement.processId} -DesktopName ${quotePowerShell(placement.desktop)}`,
-    15_000,
-  );
-  assert.match(verify.output, /placement proof passed/i);
-  return { ...placement, output: `${launch.output}\n${verify.output}` };
+  const child = spawn(browserPath, ['--headless=new', ...args], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  const output = collectOutput(child);
+  await new Promise((resolve, reject) => {
+    child.once('spawn', resolve);
+    child.once('error', reject);
+  });
+  child.once('exit', (code) => {
+    if (code && activeCDP) console.error('Headless browser exited:', code, output());
+  });
+  return child;
 }
 
 async function runPowerShell(command, timeoutMs = 20_000) {
@@ -1010,22 +981,12 @@ async function runPowerShell(command, timeoutMs = 20_000) {
   });
 }
 
-function quotePowerShell(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
-}
-
-function parseLastJson(output, label) {
-  const start = String(output || '').lastIndexOf('{');
-  assert.ok(start >= 0, `${label} returned no JSON proof: ${output}`);
-  try {
-    return JSON.parse(String(output).slice(start));
-  } catch (error) {
-    throw new Error(`${label} returned invalid JSON: ${error.message}; ${output}`);
-  }
-}
-
 async function removeTemp(target) {
-  await fs.rm(target, { recursive: true, force: true, maxRetries: 24, retryDelay: 500 });
+  const resolved = path.resolve(target);
+  const parent = path.resolve(os.tmpdir());
+  assert.equal(path.dirname(resolved), parent, 'cleanup must stay in the temporary directory');
+  assert.match(path.basename(resolved), /^aut-runtime-(chrome|firefox)-/, 'cleanup must target an owned browser profile');
+  await fs.rm(resolved, { recursive: true, force: true, maxRetries: 24, retryDelay: 500 });
 }
 
 await assertArtifact(CHROME_DIR, 'Chrome unpacked artifact');

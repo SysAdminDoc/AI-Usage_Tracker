@@ -57,7 +57,8 @@ async function main() {
   });
 
   const bundled = result.outputFiles[0].text;
-  const final = `${header}\n${bundled}`;
+  const license = await fs.readFile(path.join(ROOT, 'LICENSE'), 'utf8');
+  const final = `${header}\n/*\n${license.replaceAll('*/', '* /')}\n*/\n${bundled}`;
   const outFile = path.join(outDir, 'ai-usage-tracker.user.js');
   await writeText(outFile, final);
 

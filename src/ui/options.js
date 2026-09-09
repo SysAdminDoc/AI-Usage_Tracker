@@ -1782,7 +1782,7 @@ function providerDiagnostic(provider, ps) {
     const reason = ps.staleReason ? `; ${ps.staleReason}` : '';
     parts.push(t('options.staleDiagnostic', { detail: formatProviderError(`${t('options.lastRefreshFailed')}${reason}`, ps.lastErrorCode) }));
   }
-  return { ok: !ps.stale && ps.ok !== false, summary: parts.filter(Boolean).join(' - ') };
+  return { ok: !ps.stale && ps.ok !== false, summary: parts.filter(Boolean).join(' · ') };
 }
 
 function formatProviderError(detail, errorCode) {

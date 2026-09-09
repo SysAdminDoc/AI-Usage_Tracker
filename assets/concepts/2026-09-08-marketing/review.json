@@ -1,0 +1,120 @@
+{
+  "project": "AI Usage Tracker",
+  "version": "0.2.5",
+  "reviewDate": "2026-09-08",
+  "captureMethod": "Installed Chrome ZIP in owned headless Chromium profiles; example data seeded in local extension storage; no authenticated accounts or active desktop.",
+  "widgetMethod": "Actual content-script widget on a locally fulfilled blank fixture page. No provider website is shown.",
+  "iconDecision": "Keep the existing quota ring. Select antialiased native exports with transparent corners. Reviewed at 16, 32, 48, and 128 CSS pixels on dark and light surfaces.",
+  "iterations": {
+    "iteration-01": "Not selected. History fixture timestamps were not numeric.",
+    "iteration-02": "Popup and settings reviewed. Widget rejected for crowded header and fixture text in crop.",
+    "iteration-03": "Selected final package captures. options-overview.png preserves an early loading state; options-overview-ready.png is selected."
+  },
+  "limits": [
+    "Firefox development install only; Mozilla-signed release pending.",
+    "No live authenticated provider, userscript-manager, or QuotaGlass installation acceptance.",
+    "Existing JavaScript typecheck baseline remains 1147 diagnostics."
+  ],
+  "originals": [
+    {
+      "path": "originals/CHANGELOG.md",
+      "bytes": 21784,
+      "sha256": "d0f95a4c693bb1a5e3f0a22661e3593624510468586aaf22338d87b6475451cd"
+    },
+    {
+      "path": "originals/generate-icons.mjs",
+      "bytes": 7317,
+      "sha256": "163a43fde13b54cc44a3357307ec1e5fbfb651b25d9690a9e934b3aa3b188117"
+    },
+    {
+      "path": "originals/icons/icon-128.png",
+      "bytes": 5357,
+      "sha256": "5a6adc5ad85a71b3b992f9b778a4b7047e2fe47a078e5cfa18de05b50f1fcff9"
+    },
+    {
+      "path": "originals/icons/icon-16.png",
+      "bytes": 871,
+      "sha256": "ed0f3f5ec040f179cd5a38d5314897619b667e836831731f08adb2333ddb9c8d"
+    },
+    {
+      "path": "originals/icons/icon-32.png",
+      "bytes": 1933,
+      "sha256": "28a97c33dff27ba3848eaa6d49969a25e1a7bbe5dc2bb85c34ebac6c83a57666"
+    },
+    {
+      "path": "originals/icons/icon-48.png",
+      "bytes": 2862,
+      "sha256": "caa5276d5875e749d5f697ac26612b795b669705977cb68ae6d028d5ea52fb71"
+    },
+    {
+      "path": "originals/README.md",
+      "bytes": 36413,
+      "sha256": "a0f7acc214e797c7d65847c247dc03a61c62d99841e6e8f2b240f7eacff8edb0"
+    },
+    {
+      "path": "originals/RESEARCH.md",
+      "bytes": 32758,
+      "sha256": "6df29d1b6f8e5e4111fdfb810881ece5cfdf800397129ad01099bd544c6d9f59"
+    },
+    {
+      "path": "originals/screenshots/ai-usage-tracker-flow.gif",
+      "bytes": 94112,
+      "sha256": "59a9105371847100e09518206693612d22c8a8f6da3fc920dc0f69d6c85b4b1c"
+    },
+    {
+      "path": "originals/screenshots/options-api-access.png",
+      "bytes": 86914,
+      "sha256": "abdae5f28cd0f2470e155565108d71fde22b037534192465ab17d40ff70b14c5"
+    },
+    {
+      "path": "originals/screenshots/popup-dashboard.png",
+      "bytes": 79172,
+      "sha256": "e0a5be6760a053453cd18d51ad06aec267f34c737a127f030d9bf85d1d64431f"
+    },
+    {
+      "path": "originals/screenshots/popup-degraded.png",
+      "bytes": 74946,
+      "sha256": "e7f53cfc2f11abd4d43de67330e320cdec9d49a82bc3b96ef56667ec009184fe"
+    },
+    {
+      "path": "originals/screenshots/popup-first-run.png",
+      "bytes": 26553,
+      "sha256": "cb2468ecb86facb1ad6e56ca299f57a0f145d55f7504d7ffdf46b36d0bd52541"
+    },
+    {
+      "path": "originals/screenshots/widget-dashboard.png",
+      "bytes": 502211,
+      "sha256": "24f58bfcf9bb7be6941745951055516111c466f59ff8d47e7d24723eec0f966f"
+    }
+  ],
+  "selected": [
+    {
+      "path": "assets/screenshots/options-overview.png",
+      "sha256": "70dc1997475796a4e38a4072c829d1404dfa0335bee885851d9a574b7c23dedc"
+    },
+    {
+      "path": "assets/screenshots/popup-dashboard.png",
+      "sha256": "b64a61c59e94f767df5296e231d514a00e760ba78e603038be13be27f54126be"
+    },
+    {
+      "path": "assets/screenshots/popup-degraded.png",
+      "sha256": "c8344d33bdca3256223a0dc70d3d89fee74592e40d0949abb21574ec044f74da"
+    },
+    {
+      "path": "assets/screenshots/popup-first-run.png",
+      "sha256": "80118d057134c35553632b4262c8223520ddd94201e22b8c981f46d895d71568"
+    },
+    {
+      "path": "assets/screenshots/popup-light.png",
+      "sha256": "9f314e306a416d0ddd51868e24fa70f3724b364f337ec70b376c79e899aa847e"
+    },
+    {
+      "path": "assets/screenshots/sidepanel-dashboard.png",
+      "sha256": "0883e8857a83e97d817eeeb92c3ab5dbc61da3c91e92a29a609021193126c1e3"
+    },
+    {
+      "path": "assets/screenshots/widget-dashboard.png",
+      "sha256": "d9cf3508038224aece91d24e907c2dc8a6a04d68e148e6fceaba0052b33b099c"
+    }
+  ]
+}

@@ -109,7 +109,7 @@ def register_windows(plan: dict[str, Any]) -> None:
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(json.dumps(entry["manifest"], indent=2) + "\n", encoding="utf-8")
         with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, entry["registryKey"], 0, winreg.KEY_WRITE) as key:
-            key.SetValue("", winreg.REG_SZ, str(manifest_path))
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, str(manifest_path))
 
 
 def register_unix(plan: dict[str, Any]) -> None:
@@ -152,6 +152,14 @@ def main() -> int:
     browsers = browser_choices(args.browser)
 
     if args.unregister:
+        if args.dry_run:
+            print(json.dumps({
+                "action": "unregister",
+                "browsers": browsers,
+                "hostName": HOST_NAME,
+                "manifestDirectory": str(args.manifest_dir.resolve()) if args.manifest_dir else None,
+            }, indent=2))
+            return 0
         unregister(browsers, args.manifest_dir.resolve() if args.manifest_dir else None)
         print(f"Unregistered {HOST_NAME} for: {', '.join(browsers)}")
         return 0

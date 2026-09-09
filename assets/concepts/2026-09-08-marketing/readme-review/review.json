@@ -1,0 +1,38 @@
+{
+  "version": "0.2.5",
+  "renderer": "GitHub Markdown API with local review stylesheet in owned headless Chromium, not a capture of the live GitHub page",
+  "checks": [
+    {
+      "name": "desktop-dark",
+      "width": 1280,
+      "height": 1250,
+      "scrollWidth": 1265,
+      "images": 6,
+      "missing": []
+    },
+    {
+      "name": "desktop-light",
+      "width": 1280,
+      "height": 1250,
+      "scrollWidth": 1265,
+      "images": 6,
+      "missing": []
+    },
+    {
+      "name": "mobile-dark",
+      "width": 390,
+      "height": 1250,
+      "scrollWidth": 375,
+      "images": 6,
+      "missing": []
+    },
+    {
+      "name": "settings-section",
+      "width": 1280,
+      "height": 1100,
+      "scrollWidth": 1265,
+      "images": 6,
+      "missing": []
+    }
+  ]
+}

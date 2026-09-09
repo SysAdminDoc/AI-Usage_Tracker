@@ -60,6 +60,10 @@ try {
   await widget.mountWidget({});
   const widgetHost = document.getElementById('aut-host');
   assert.ok(widgetHost?.shadowRoot?.querySelector('.aut-widget__empty'), 'widget first-run state should render inside its shadow root');
+  assert.match(widgetCSS, /grid-template-areas:\s*"dot brand actions"\s*"\. profile actions"/,
+    'compact widget header should give the profile its own row without shrinking action targets');
+  assert.match(widgetCSS, /\.aut-widget__brand\s*\{[^}]*white-space:\s*nowrap/,
+    'compact widget brand should stay on one line');
   await widget.refreshWidget({ mobile: true });
   assert.ok(widgetHost.shadowRoot.querySelector('.aut-widget--mobile'), 'userscript mobile mode should add its compact layout class');
   await widget.refreshWidget({ mobile: false });

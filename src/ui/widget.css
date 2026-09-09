@@ -79,14 +79,19 @@
 }
 
 .aut-widget__header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-areas: "dot brand actions" ". profile actions";
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   padding: 0 2px 6px;
   border-bottom: 1px solid var(--aut-glass-border);
 }
+.aut-widget__header > .aut-widget__brand-dot { grid-area: dot; }
 
 .aut-widget__brand {
+  grid-area: brand;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -96,6 +101,10 @@
   color: var(--aut-subtext1);
 }
 .aut-widget__profile {
+  grid-area: profile;
+  width: max-content;
+  max-inline-size: 100%;
+  min-width: 0;
   max-width: 112px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -114,6 +123,7 @@
 }
 
 .aut-widget__actions {
+  grid-area: actions;
   margin-inline-start: auto;
   display: flex;
   align-items: center;

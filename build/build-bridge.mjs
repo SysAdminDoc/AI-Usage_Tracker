@@ -6,7 +6,6 @@ import { buildExtension } from './build-extension.mjs';
 import { zipDir } from './build-extension.mjs';
 import { ROOT, DIST, VERSION, clean, copyFile, ensureDir } from './common.mjs';
 
-await clean(DIST);
 await buildExtension({ target: 'chrome', bridge: true });
 await buildExtension({ target: 'firefox', bridge: true });
 
@@ -17,6 +16,7 @@ await ensureDir(nativeStage);
 await copyFile(path.join(nativeSource, 'ai_usage_tracker_scheduler.py'), path.join(nativeStage, 'ai_usage_tracker_scheduler.py'));
 await copyFile(path.join(nativeSource, 'register_scheduler_host.py'), path.join(nativeStage, 'register_scheduler_host.py'));
 await copyFile(path.join(nativeSource, 'build_scheduler_host.ps1'), path.join(nativeStage, 'build_scheduler_host.ps1'));
+await copyFile(path.join(ROOT, 'LICENSE'), path.join(nativeStage, 'LICENSE'));
 await zipDir(nativeStage, path.join(DIST, `AI-Usage-Tracker-native-scheduler-v${VERSION}.zip`));
 
 console.log('\n[build] Optional bridge targets and native scheduler bundle built.');
