@@ -4,6 +4,16 @@
 
 [![Version](https://img.shields.io/badge/version-0.2.5-blue.svg)](https://github.com/SysAdminDoc/AI-Usage_Tracker/releases/tag/v0.2.5) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Platform](https://img.shields.io/badge/platform-Chromium%20%7C%20userscript-8b9df4.svg)](#install)
 
+<p align="center">
+  <a href="https://ko-fi.com/X8K126YVER">
+    <img height="42" src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy me a coffee on Ko-fi" />
+  </a>
+</p>
+
+<p align="center">
+  <sub><em>If this project helps you, a coffee helps me keep working on it.</em></sub>
+</p>
+
 See how much Claude and Codex quota you have left, and when it resets, without leaving your chat.
 
 AI Usage Tracker puts a small dashboard on claude.ai and chatgpt.com. The browser extension adds a toolbar popup, local history, and alerts for approaching limits. Optional API analytics track provider-reported usage separately from your chat subscription.
