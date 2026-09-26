@@ -2,8 +2,6 @@
 
 Historical changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
-## v0.2.5 marketing delivery
-
 ## Remaining acceptance
 
 - Mozilla-signed Firefox distribution needs signing credentials.
