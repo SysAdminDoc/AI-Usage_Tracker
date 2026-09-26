@@ -4,9 +4,6 @@ Historical changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## v0.2.5 marketing delivery
 
-- [x] Verify installed-package captures and final README rendering.
-- [x] Build and verify signed Chromium assets and the userscript.
-
 ## Remaining acceptance
 
 - Mozilla-signed Firefox distribution needs signing credentials.
